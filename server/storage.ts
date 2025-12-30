@@ -1,38 +1,219 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import {
+  businessProfiles,
+  conversations,
+  messages,
+  events,
+  pendingActions,
+  jobs,
+  auditLogs,
+  type BusinessProfile,
+  type InsertBusinessProfile,
+  type Conversation,
+  type InsertConversation,
+  type Message,
+  type InsertMessage,
+  type Event,
+  type InsertEvent,
+  type PendingAction,
+  type InsertPendingAction,
+  type Job,
+  type InsertJob,
+  type AuditLog,
+  type InsertAuditLog,
+} from "@shared/schema";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  // Business Profile
+  getBusinessProfile(): Promise<BusinessProfile | undefined>;
+  createBusinessProfile(profile: InsertBusinessProfile): Promise<BusinessProfile>;
+  updateBusinessProfile(id: number, profile: Partial<InsertBusinessProfile>): Promise<BusinessProfile>;
+
+  // Conversations
+  getConversations(): Promise<Conversation[]>;
+  getConversation(id: number): Promise<Conversation | undefined>;
+  getConversationByPhone(phone: string): Promise<Conversation | undefined>;
+  createConversation(conversation: InsertConversation): Promise<Conversation>;
+  updateConversation(id: number, updates: Partial<InsertConversation>): Promise<Conversation>;
+
+  // Messages
+  getMessagesByConversation(conversationId: number): Promise<Message[]>;
+  createMessage(message: InsertMessage): Promise<Message>;
+
+  // Events
+  getEvents(): Promise<Event[]>;
+  getEvent(id: number): Promise<Event | undefined>;
+  createEvent(event: InsertEvent): Promise<Event>;
+  updateEvent(id: number, updates: Partial<Event>): Promise<Event>;
+
+  // Pending Actions
+  getPendingActions(): Promise<PendingAction[]>;
+  getPendingAction(id: number): Promise<PendingAction | undefined>;
+  createPendingAction(action: InsertPendingAction): Promise<PendingAction>;
+  updatePendingAction(id: number, updates: Partial<PendingAction>): Promise<PendingAction>;
+
+  // Jobs
+  getJobs(): Promise<Job[]>;
+  getJob(id: number): Promise<Job | undefined>;
+  createJob(job: InsertJob): Promise<Job>;
+  updateJob(id: number, updates: Partial<InsertJob>): Promise<Job>;
+
+  // Audit Logs
+  getAuditLogs(): Promise<AuditLog[]>;
+  createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DatabaseStorage implements IStorage {
+  // Business Profile
+  async getBusinessProfile(): Promise<BusinessProfile | undefined> {
+    const [profile] = await db.select().from(businessProfiles).limit(1);
+    return profile;
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async createBusinessProfile(profile: InsertBusinessProfile): Promise<BusinessProfile> {
+    const [created] = await db.insert(businessProfiles).values(profile).returning();
+    return created;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async updateBusinessProfile(id: number, profile: Partial<InsertBusinessProfile>): Promise<BusinessProfile> {
+    const [updated] = await db
+      .update(businessProfiles)
+      .set(profile)
+      .where(eq(businessProfiles.id, id))
+      .returning();
+    return updated;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  // Conversations
+  async getConversations(): Promise<Conversation[]> {
+    return db.select().from(conversations).orderBy(desc(conversations.createdAt));
+  }
+
+  async getConversation(id: number): Promise<Conversation | undefined> {
+    const [conversation] = await db.select().from(conversations).where(eq(conversations.id, id));
+    return conversation;
+  }
+
+  async getConversationByPhone(phone: string): Promise<Conversation | undefined> {
+    const [conversation] = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.customerPhone, phone))
+      .orderBy(desc(conversations.createdAt))
+      .limit(1);
+    return conversation;
+  }
+
+  async createConversation(conversation: InsertConversation): Promise<Conversation> {
+    const [created] = await db.insert(conversations).values(conversation).returning();
+    return created;
+  }
+
+  async updateConversation(id: number, updates: Partial<InsertConversation>): Promise<Conversation> {
+    const [updated] = await db
+      .update(conversations)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(conversations.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Messages
+  async getMessagesByConversation(conversationId: number): Promise<Message[]> {
+    return db
+      .select()
+      .from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(messages.createdAt);
+  }
+
+  async createMessage(message: InsertMessage): Promise<Message> {
+    const [created] = await db.insert(messages).values(message).returning();
+    return created;
+  }
+
+  // Events
+  async getEvents(): Promise<Event[]> {
+    return db.select().from(events).orderBy(desc(events.createdAt));
+  }
+
+  async getEvent(id: number): Promise<Event | undefined> {
+    const [event] = await db.select().from(events).where(eq(events.id, id));
+    return event;
+  }
+
+  async createEvent(event: InsertEvent): Promise<Event> {
+    const [created] = await db.insert(events).values(event).returning();
+    return created;
+  }
+
+  async updateEvent(id: number, updates: Partial<Event>): Promise<Event> {
+    const [updated] = await db
+      .update(events)
+      .set(updates)
+      .where(eq(events.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Pending Actions
+  async getPendingActions(): Promise<PendingAction[]> {
+    return db.select().from(pendingActions).orderBy(desc(pendingActions.createdAt));
+  }
+
+  async getPendingAction(id: number): Promise<PendingAction | undefined> {
+    const [action] = await db.select().from(pendingActions).where(eq(pendingActions.id, id));
+    return action;
+  }
+
+  async createPendingAction(action: InsertPendingAction): Promise<PendingAction> {
+    const [created] = await db.insert(pendingActions).values(action).returning();
+    return created;
+  }
+
+  async updatePendingAction(id: number, updates: Partial<PendingAction>): Promise<PendingAction> {
+    const [updated] = await db
+      .update(pendingActions)
+      .set(updates)
+      .where(eq(pendingActions.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Jobs
+  async getJobs(): Promise<Job[]> {
+    return db.select().from(jobs).orderBy(desc(jobs.createdAt));
+  }
+
+  async getJob(id: number): Promise<Job | undefined> {
+    const [job] = await db.select().from(jobs).where(eq(jobs.id, id));
+    return job;
+  }
+
+  async createJob(job: InsertJob): Promise<Job> {
+    const [created] = await db.insert(jobs).values(job).returning();
+    return created;
+  }
+
+  async updateJob(id: number, updates: Partial<InsertJob>): Promise<Job> {
+    const [updated] = await db
+      .update(jobs)
+      .set(updates)
+      .where(eq(jobs.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Audit Logs
+  async getAuditLogs(): Promise<AuditLog[]> {
+    return db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt));
+  }
+
+  async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
+    const [created] = await db.insert(auditLogs).values(log).returning();
+    return created;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
