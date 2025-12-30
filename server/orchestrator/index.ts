@@ -45,19 +45,33 @@ export const orchestrator = {
     try {
       const existingReceipt = await storage.getEventReceipt(eventId);
       if (existingReceipt) {
-        console.log(`[Orchestrator] Event ${eventId} already processed (idempotency check)`);
-        return {
-          success: true,
-          message: "Event already processed",
-          eventId: existingReceipt.id,
-        };
+        if (existingReceipt.status === "completed") {
+          console.log(`[Orchestrator] Event ${eventId} already completed (idempotency check)`);
+          const result = existingReceipt.result as ProcessingResult | undefined;
+          return {
+            success: true,
+            message: "Event already processed",
+            eventId: existingReceipt.id,
+            ...result,
+          };
+        } else if (existingReceipt.status === "failed") {
+          console.log(`[Orchestrator] Event ${eventId} previously failed, allowing retry`);
+          await storage.updateEventReceipt(eventId, { status: "processing" });
+        } else if (existingReceipt.status === "processing") {
+          console.log(`[Orchestrator] Event ${eventId} currently processing, skipping`);
+          return {
+            success: false,
+            message: "Event is currently being processed",
+            eventId: existingReceipt.id,
+          };
+        }
+      } else {
+        await storage.createEventReceipt({
+          eventId,
+          eventType: payload.type,
+          status: "processing",
+        });
       }
-
-      await storage.createEventReceipt({
-        eventId,
-        eventType: payload.type,
-        status: "processing",
-      });
 
       const event = await storage.createEvent({
         type: payload.type,
