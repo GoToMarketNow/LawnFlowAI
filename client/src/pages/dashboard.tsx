@@ -5,25 +5,38 @@ import {
   Calendar,
   DollarSign,
   TrendingUp,
-  TrendingDown,
   Clock,
   CheckCircle2,
+  Users,
+  Briefcase,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Conversation, PendingAction, Job } from "@shared/schema";
+import type { Conversation, PendingAction } from "@shared/schema";
+
+interface Metrics {
+  leadsRecovered: number;
+  jobsBooked: number;
+  completedJobs: number;
+  hoursSaved: number;
+  totalRevenue: number;
+  conversionRate: number;
+  activeConversations: number;
+  pendingApprovals: number;
+  totalConversations: number;
+  totalLeads: number;
+}
 
 interface MetricCardProps {
   title: string;
   value: string | number;
   subtitle?: string;
   icon: React.ReactNode;
-  trend?: { value: number; positive: boolean };
   loading?: boolean;
 }
 
-function MetricCard({ title, value, subtitle, icon, trend, loading }: MetricCardProps) {
+function MetricCard({ title, value, subtitle, icon, loading }: MetricCardProps) {
   if (loading) {
     return (
       <Card>
@@ -53,25 +66,9 @@ function MetricCard({ title, value, subtitle, icon, trend, loading }: MetricCard
         <div className="text-3xl font-bold" data-testid={`metric-${title.toLowerCase().replace(/\s/g, "-")}`}>
           {value}
         </div>
-        <div className="flex items-center gap-2 mt-1">
-          {trend && (
-            <span
-              className={`flex items-center text-xs font-medium ${
-                trend.positive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-              }`}
-            >
-              {trend.positive ? (
-                <TrendingUp className="h-3 w-3 mr-1" />
-              ) : (
-                <TrendingDown className="h-3 w-3 mr-1" />
-              )}
-              {trend.value}%
-            </span>
-          )}
-          {subtitle && (
-            <span className="text-xs text-muted-foreground">{subtitle}</span>
-          )}
-        </div>
+        {subtitle && (
+          <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
+        )}
       </CardContent>
     </Card>
   );
@@ -94,7 +91,7 @@ function RecentConversationItem({ conversation }: { conversation: Conversation }
 
   return (
     <div
-      className="flex items-center justify-between py-3 border-b border-border last:border-0"
+      className="flex items-center justify-between gap-3 py-3 border-b border-border last:border-0"
       data-testid={`conversation-item-${conversation.id}`}
     >
       <div className="flex items-center gap-3">
@@ -106,7 +103,7 @@ function RecentConversationItem({ conversation }: { conversation: Conversation }
             {conversation.customerName || conversation.customerPhone}
           </p>
           <p className="text-xs text-muted-foreground">
-            {conversation.source.replace("_", " ")} • {conversation.agentType || "intake"}
+            {conversation.source.replace("_", " ")} 
           </p>
         </div>
       </div>
@@ -120,7 +117,7 @@ function RecentConversationItem({ conversation }: { conversation: Conversation }
 function PendingActionItem({ action }: { action: PendingAction }) {
   return (
     <div
-      className="flex items-center justify-between py-3 border-b border-border last:border-0"
+      className="flex items-center justify-between gap-3 py-3 border-b border-border last:border-0"
       data-testid={`action-item-${action.id}`}
     >
       <div className="flex items-center gap-3">
@@ -142,6 +139,11 @@ function PendingActionItem({ action }: { action: PendingAction }) {
 }
 
 export default function Dashboard() {
+  const { data: metrics, isLoading: loadingMetrics } = useQuery<Metrics>({
+    queryKey: ["/api/metrics"],
+    refetchInterval: 10000,
+  });
+
   const { data: conversations, isLoading: loadingConversations } = useQuery<Conversation[]>({
     queryKey: ["/api/conversations"],
   });
@@ -150,22 +152,7 @@ export default function Dashboard() {
     queryKey: ["/api/pending-actions"],
   });
 
-  const { data: jobs, isLoading: loadingJobs } = useQuery<Job[]>({
-    queryKey: ["/api/jobs"],
-  });
-
-  const isLoading = loadingConversations || loadingActions || loadingJobs;
-
-  // Calculate metrics
-  const totalConversations = conversations?.length || 0;
-  const activeConversations = conversations?.filter((c) => c.status === "active").length || 0;
-  const scheduledJobs = jobs?.filter((j) => j.status === "scheduled").length || 0;
-  const pendingCount = pendingActions?.filter((a) => a.status === "pending").length || 0;
-  
-  // Calculate revenue from completed jobs
-  const totalRevenue = jobs
-    ?.filter((j) => j.status === "completed")
-    .reduce((sum, job) => sum + (job.estimatedPrice || 0), 0) || 0;
+  const isLoading = loadingMetrics;
 
   const recentConversations = conversations?.slice(0, 5) || [];
   const recentPendingActions = pendingActions?.filter((a) => a.status === "pending").slice(0, 3) || [];
@@ -181,33 +168,31 @@ export default function Dashboard() {
 
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
-          title="Total Leads"
-          value={totalConversations}
-          subtitle="All time conversations"
-          icon={<MessageSquare className="h-4 w-4 text-muted-foreground" />}
-          trend={{ value: 12, positive: true }}
+          title="Leads Recovered"
+          value={metrics?.leadsRecovered || 0}
+          subtitle="From missed calls"
+          icon={<Users className="h-4 w-4 text-green-600" />}
           loading={isLoading}
         />
         <MetricCard
-          title="Active Conversations"
-          value={activeConversations}
-          subtitle="Currently in progress"
-          icon={<Phone className="h-4 w-4 text-muted-foreground" />}
+          title="Jobs Booked"
+          value={metrics?.jobsBooked || 0}
+          subtitle="Scheduled + completed"
+          icon={<Briefcase className="h-4 w-4 text-blue-600" />}
+          loading={isLoading}
+        />
+        <MetricCard
+          title="Hours Saved"
+          value={`${metrics?.hoursSaved || 0}h`}
+          subtitle="Automated responses"
+          icon={<Clock className="h-4 w-4 text-purple-600" />}
           loading={isLoading}
         />
         <MetricCard
           title="Pending Actions"
-          value={pendingCount}
+          value={metrics?.pendingApprovals || 0}
           subtitle="Awaiting approval"
-          icon={<Clock className="h-4 w-4 text-muted-foreground" />}
-          loading={isLoading}
-        />
-        <MetricCard
-          title="Scheduled Jobs"
-          value={scheduledJobs}
-          subtitle="Ready to execute"
-          icon={<Calendar className="h-4 w-4 text-muted-foreground" />}
-          trend={{ value: 8, positive: true }}
+          icon={<CheckCircle2 className="h-4 w-4 text-yellow-600" />}
           loading={isLoading}
         />
       </div>
@@ -217,7 +202,7 @@ export default function Dashboard() {
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <CardTitle className="text-lg font-medium">Recent Conversations</CardTitle>
             <Badge variant="secondary" className="text-xs">
-              {totalConversations} total
+              {metrics?.totalConversations || 0} total
             </Badge>
           </CardHeader>
           <CardContent>
@@ -260,9 +245,9 @@ export default function Dashboard() {
             <CardTitle className="text-lg font-medium">Actions Requiring Approval</CardTitle>
             <Badge 
               variant="secondary" 
-              className={pendingCount > 0 ? "bg-yellow-500/10 text-yellow-600" : ""}
+              className={(metrics?.pendingApprovals || 0) > 0 ? "bg-yellow-500/10 text-yellow-600" : ""}
             >
-              {pendingCount} pending
+              {metrics?.pendingApprovals || 0} pending
             </Badge>
           </CardHeader>
           <CardContent>
@@ -306,23 +291,22 @@ export default function Dashboard() {
           <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
             <div className="text-center p-4 rounded-lg bg-muted/50">
               <DollarSign className="h-8 w-8 mx-auto text-green-600 dark:text-green-400 mb-2" />
-              <p className="text-2xl font-bold">${(totalRevenue / 100).toFixed(2)}</p>
+              <p className="text-2xl font-bold" data-testid="metric-total-revenue">
+                ${((metrics?.totalRevenue || 0) / 100).toFixed(2)}
+              </p>
               <p className="text-xs text-muted-foreground">Total Revenue</p>
             </div>
             <div className="text-center p-4 rounded-lg bg-muted/50">
               <TrendingUp className="h-8 w-8 mx-auto text-blue-600 dark:text-blue-400 mb-2" />
-              <p className="text-2xl font-bold">
-                {totalConversations > 0
-                  ? Math.round((scheduledJobs / totalConversations) * 100)
-                  : 0}
-                %
+              <p className="text-2xl font-bold" data-testid="metric-conversion-rate">
+                {metrics?.conversionRate || 0}%
               </p>
               <p className="text-xs text-muted-foreground">Conversion Rate</p>
             </div>
             <div className="text-center p-4 rounded-lg bg-muted/50">
-              <Clock className="h-8 w-8 mx-auto text-purple-600 dark:text-purple-400 mb-2" />
-              <p className="text-2xl font-bold">
-                {jobs?.filter((j) => j.status === "completed").length || 0}
+              <CheckCircle2 className="h-8 w-8 mx-auto text-purple-600 dark:text-purple-400 mb-2" />
+              <p className="text-2xl font-bold" data-testid="metric-completed-jobs">
+                {metrics?.completedJobs || 0}
               </p>
               <p className="text-xs text-muted-foreground">Completed Jobs</p>
             </div>

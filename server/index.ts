@@ -2,6 +2,8 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { storage } from "./storage";
+import { PolicyService } from "./policy";
 
 const app = express();
 const httpServer = createServer(app);
@@ -84,6 +86,44 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
+  // Auto-seed database with Green Ridge Lawn Care on startup
+  try {
+    const existingProfile = await storage.getBusinessProfile();
+    if (!existingProfile) {
+      log("Seeding database with Green Ridge Lawn Care...", "seed");
+      const profile = await storage.createBusinessProfile({
+        name: "Green Ridge Lawn Care",
+        phone: "+14345551234",
+        email: "info@greenridgelawncare.com",
+        address: "123 Main St, Charlottesville, VA 22901",
+        serviceArea: "Charlottesville + 20 miles",
+        services: ["mowing", "cleanup", "mulch"],
+        businessHours: "Mon-Fri 8AM-5PM",
+        autoResponseEnabled: true,
+      });
+
+      await PolicyService.createDefaultPolicy(profile.id, "owner_operator");
+
+      const policyProfile = await storage.getPolicyProfile(profile.id);
+      if (policyProfile) {
+        await storage.updatePolicyProfile(policyProfile.id, {
+          serviceAreaZips: ["22901", "22902", "22903", "22904", "22905", "22906", "22908", "22909", "22911"],
+          serviceAreaRadius: 20,
+          pricingRules: {
+            services: {
+              mowing: { basePrice: 4500, unit: "visit" },
+              cleanup: { minPrice: 25000, unit: "job" },
+              mulch: { minPrice: 30000, unit: "job" },
+            },
+          },
+        });
+      }
+      log("Seed data created successfully", "seed");
+    }
+  } catch (error) {
+    log(`Failed to seed database: ${error}`, "seed");
+  }
+
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen(
     {

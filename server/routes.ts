@@ -18,6 +18,125 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   // ============================================
+  // Metrics API Route
+  // ============================================
+
+  app.get("/api/metrics", async (req, res) => {
+    try {
+      const conversations = await storage.getConversations();
+      const jobs = await storage.getJobs();
+      const leads = await storage.getLeads();
+      const pendingActions = await storage.getPendingActions();
+
+      // Calculate ROI metrics
+      const leadsRecovered = conversations.filter(
+        (c) => c.source === "missed_call" && c.status !== "lost"
+      ).length;
+
+      const jobsBooked = jobs.filter(
+        (j) => j.status === "scheduled" || j.status === "completed"
+      ).length;
+
+      const completedJobs = jobs.filter((j) => j.status === "completed").length;
+
+      // Estimate hours saved: 5 min per missed call response, 15 min per lead qualification, 10 min per scheduling
+      const hoursFromCalls = (conversations.filter((c) => c.source === "missed_call").length * 5) / 60;
+      const hoursFromQualification = (leads.length * 15) / 60;
+      const hoursFromScheduling = (jobsBooked * 10) / 60;
+      const hoursSaved = Math.round((hoursFromCalls + hoursFromQualification + hoursFromScheduling) * 10) / 10;
+
+      // Revenue from completed jobs
+      const totalRevenue = jobs
+        .filter((j) => j.status === "completed")
+        .reduce((sum, job) => sum + (job.estimatedPrice || 0), 0);
+
+      // Conversion rate
+      const conversionRate = conversations.length > 0
+        ? Math.round((jobsBooked / conversations.length) * 100)
+        : 0;
+
+      // Active conversations
+      const activeConversations = conversations.filter((c) => c.status === "active").length;
+      const pendingApprovals = pendingActions.filter((a) => a.status === "pending").length;
+
+      res.json({
+        leadsRecovered,
+        jobsBooked,
+        completedJobs,
+        hoursSaved,
+        totalRevenue,
+        conversionRate,
+        activeConversations,
+        pendingApprovals,
+        totalConversations: conversations.length,
+        totalLeads: leads.length,
+      });
+    } catch (error) {
+      console.error("Error calculating metrics:", error);
+      res.status(500).json({ error: "Failed to calculate metrics" });
+    }
+  });
+
+  // ============================================
+  // Seed Data Route (for development)
+  // ============================================
+
+  app.post("/api/seed", async (req, res) => {
+    try {
+      // Check if business profile already exists
+      let profile = await storage.getBusinessProfile();
+      
+      if (!profile) {
+        // Create Green Ridge Lawn Care business profile
+        profile = await storage.createBusinessProfile({
+          name: "Green Ridge Lawn Care",
+          phone: "+14345551234",
+          email: "info@greenridgelawncare.com",
+          address: "123 Main St, Charlottesville, VA 22901",
+          serviceArea: "Charlottesville + 20 miles",
+          services: ["mowing", "cleanup", "mulch"],
+          businessHours: "Mon-Fri 8AM-5PM",
+          autoResponseEnabled: true,
+        });
+
+        // Create policy profile with owner_operator tier
+        await PolicyService.createDefaultPolicy(profile.id, "owner_operator");
+
+        // Update policy with Charlottesville zip codes
+        const policyProfile = await storage.getPolicyProfile(profile.id);
+        if (policyProfile) {
+          await storage.updatePolicyProfile(policyProfile.id, {
+            serviceAreaZips: ["22901", "22902", "22903", "22904", "22905", "22906", "22908", "22909", "22911"],
+            serviceAreaRadius: 20,
+            pricingRules: {
+              services: {
+                mowing: { basePrice: 4500, unit: "visit" }, // $45/visit
+                cleanup: { minPrice: 25000, unit: "job" }, // min $250
+                mulch: { minPrice: 30000, unit: "job" }, // min $300
+              },
+            },
+          });
+        }
+
+        res.json({ 
+          success: true, 
+          message: "Seed data created successfully",
+          profile,
+        });
+      } else {
+        res.json({ 
+          success: true, 
+          message: "Seed data already exists",
+          profile,
+        });
+      }
+    } catch (error) {
+      console.error("Error creating seed data:", error);
+      res.status(500).json({ error: "Failed to create seed data" });
+    }
+  });
+
+  // ============================================
   // Business Profile Routes
   // ============================================
 
