@@ -100,9 +100,16 @@ export const orchestrator = {
         }
       }
 
+      const channel = payload.data.channel as string 
+        || (payload.type === "inbound_sms" ? "sms" 
+        : payload.type === "missed_call" ? "phone" 
+        : payload.type === "web_lead" ? "web_form"
+        : payload.type === "job_completed" ? "internal"
+        : "unknown");
+      
       const eventContext: EventContext = {
         type: payload.type as any,
-        channel: payload.type === "inbound_sms" ? "sms" : payload.type === "missed_call" ? "phone" : "web",
+        channel,
         payload: payload.data,
         eventId,
       };

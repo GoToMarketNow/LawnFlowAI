@@ -20,7 +20,7 @@ export const stepSchema = z.object({
   inputs: z.record(z.any()),
   requires_human_approval: z.boolean(),
   approval_reason: z.string().nullable(),
-  tools_to_use: z.array(z.string()),
+  tools_to_use: z.array(z.string()).default([]),
 });
 
 export const planBlockSchema = z.object({
@@ -36,6 +36,7 @@ export const policyBlockSchema = z.object({
 
 export const supervisorPlanSchema = z.object({
   event_id: z.string(),
+  plan_id: z.string(),
   classification: classificationSchema,
   plan: planBlockSchema,
   policy: policyBlockSchema,
@@ -258,6 +259,7 @@ Create an execution plan for this event.`;
 
     const parsed = JSON.parse(content);
     parsed.event_id = event.eventId;
+    parsed.plan_id = parsed.plan_id || `plan_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     
     const validated = supervisorPlanSchema.safeParse(parsed);
     if (!validated.success) {
@@ -397,8 +399,11 @@ function createFallbackPlan(
     stopConditions.push("Awaiting human approval");
   }
 
+  const planId = `plan_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  
   return {
     event_id: event.eventId,
+    plan_id: planId,
     classification: {
       category,
       priority,

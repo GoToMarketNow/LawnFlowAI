@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
 import { supervisorPlanSchema, stepSchema, classificationSchema, planBlockSchema, policyBlockSchema } from '../server/orchestrator/supervisor';
-import type { SupervisorPlan, Step, Classification, PlanBlock, PolicyBlock } from '../server/orchestrator/supervisor';
+import type { SupervisorPlan, Step } from '../server/orchestrator/supervisor';
 
 describe('Supervisor Plan Validation', () => {
   describe('classificationSchema', () => {
@@ -174,6 +174,7 @@ describe('Supervisor Plan Validation', () => {
     it('should validate a valid supervisor plan', () => {
       const plan = {
         event_id: 'evt_123',
+        plan_id: 'plan_123',
         classification: {
           category: 'inbound_lead',
           priority: 'high',
@@ -204,6 +205,7 @@ describe('Supervisor Plan Validation', () => {
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.event_id).toBe('evt_123');
+        expect(result.data.plan_id).toBe('plan_123');
         expect(result.data.classification.category).toBe('inbound_lead');
         expect(result.data.plan.steps.length).toBe(1);
         expect(result.data.policy.tier).toBe('Owner');
@@ -213,6 +215,7 @@ describe('Supervisor Plan Validation', () => {
     it('should validate a multi-step plan', () => {
       const plan = {
         event_id: 'evt_456',
+        plan_id: 'plan_456',
         classification: {
           category: 'quote_request',
           priority: 'normal',
@@ -259,6 +262,7 @@ describe('Supervisor Plan Validation', () => {
     it('should reject plan with missing classification', () => {
       const plan = {
         event_id: 'evt_123',
+        plan_id: 'plan_123',
         plan: {
           steps: [],
           stop_conditions: [],
@@ -277,6 +281,7 @@ describe('Supervisor Plan Validation', () => {
     it('should reject plan with invalid policy tier', () => {
       const plan = {
         event_id: 'evt_123',
+        plan_id: 'plan_123',
         classification: {
           category: 'inbound_lead',
           priority: 'normal',
@@ -300,6 +305,7 @@ describe('Supervisor Plan Validation', () => {
     it('should validate Commercial tier with high confidence threshold', () => {
       const plan = {
         event_id: 'evt_789',
+        plan_id: 'plan_789',
         classification: {
           category: 'schedule_change',
           priority: 'urgent',

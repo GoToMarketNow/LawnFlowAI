@@ -44,6 +44,7 @@ export interface ExecutionResult {
   planId: string;
   eventId: string;
   success: boolean;
+  tier: string;
   classification: {
     category: string;
     priority: string;
@@ -70,7 +71,7 @@ export async function execute(
   conversation: Conversation | null
 ): Promise<ExecutionResult> {
   const steps = plan.plan.steps;
-  console.log(`[Runner] Executing plan ${plan.event_id} with ${steps.length} steps, priority: ${plan.classification.priority}`);
+  console.log(`[Runner] Executing plan ${plan.plan_id} with ${steps.length} steps, priority: ${plan.classification.priority}`);
 
   const completedSteps: StepResult[] = [];
   let currentConversation = conversation;
@@ -86,6 +87,7 @@ export async function execute(
     action: "runner.execute.start",
     actor: "system",
     payload: { 
+      planId: plan.plan_id,
       eventId: plan.event_id, 
       stepCount: steps.length, 
       classification: plan.classification,
@@ -126,9 +128,10 @@ export async function execute(
         });
 
         return {
-          planId: plan.event_id,
+          planId: plan.plan_id,
           eventId: plan.event_id,
           success: true,
+          tier: plan.policy.tier,
           classification: {
             category: plan.classification.category,
             priority: plan.classification.priority,
@@ -152,9 +155,10 @@ export async function execute(
         });
 
         return {
-          planId: plan.event_id,
+          planId: plan.plan_id,
           eventId: plan.event_id,
           success: false,
+          tier: plan.policy.tier,
           classification: {
             category: plan.classification.category,
             priority: plan.classification.priority,
@@ -192,9 +196,10 @@ export async function execute(
       });
 
       return {
-        planId: plan.event_id,
+        planId: plan.plan_id,
         eventId: plan.event_id,
         success: false,
+        tier: plan.policy.tier,
         classification: {
           category: plan.classification.category,
           priority: plan.classification.priority,
@@ -216,9 +221,10 @@ export async function execute(
   });
 
   return {
-    planId: plan.event_id,
+    planId: plan.plan_id,
     eventId: plan.event_id,
     success: true,
+    tier: plan.policy.tier,
     classification: {
       category: plan.classification.category,
       priority: plan.classification.priority,
