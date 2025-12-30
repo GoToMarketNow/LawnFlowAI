@@ -1,55 +1,114 @@
 import { describe, it, expect } from '@jest/globals';
-import { supervisorPlanSchema, stepSchema } from '../server/orchestrator/supervisor';
-import type { SupervisorPlan, Step } from '../server/orchestrator/supervisor';
+import { supervisorPlanSchema, stepSchema, classificationSchema, planBlockSchema, policyBlockSchema } from '../server/orchestrator/supervisor';
+import type { SupervisorPlan, Step, Classification, PlanBlock, PolicyBlock } from '../server/orchestrator/supervisor';
 
 describe('Supervisor Plan Validation', () => {
+  describe('classificationSchema', () => {
+    it('should validate a valid classification', () => {
+      const classification = {
+        category: 'inbound_lead',
+        priority: 'high',
+        reason: 'New customer inquiry',
+      };
+
+      const result = classificationSchema.safeParse(classification);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.category).toBe('inbound_lead');
+        expect(result.data.priority).toBe('high');
+      }
+    });
+
+    it('should validate all valid categories', () => {
+      const categories = ['inbound_lead', 'quote_request', 'schedule_change', 'billing', 'review', 'unknown'];
+      
+      for (const category of categories) {
+        const result = classificationSchema.safeParse({
+          category,
+          priority: 'normal',
+          reason: 'Test reason',
+        });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('should validate all valid priorities', () => {
+      const priorities = ['low', 'normal', 'high', 'urgent'];
+      
+      for (const priority of priorities) {
+        const result = classificationSchema.safeParse({
+          category: 'inbound_lead',
+          priority,
+          reason: 'Test reason',
+        });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('should reject invalid category', () => {
+      const result = classificationSchema.safeParse({
+        category: 'invalid_category',
+        priority: 'normal',
+        reason: 'Test',
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
   describe('stepSchema', () => {
-    it('should validate a valid intake step', () => {
+    it('should validate a valid InboundEngagement step', () => {
       const step = {
-        stepId: 'step_1',
-        agent: 'intake',
-        action: 'Send missed call auto-response',
-        inputs: { phone: '+15551234567', businessName: 'Test Co' },
-        requiresApproval: false,
-        toolCalls: [
-          { tool: 'comms.sendSms', args: { to: '+15551234567', text: 'Hello' } },
-        ],
+        step_id: 'step_1',
+        agent: 'InboundEngagement',
+        goal: 'Qualify lead and gather customer information',
+        inputs: {
+          phone: '+15551234567',
+          message: 'I need lawn mowing service',
+        },
+        requires_human_approval: false,
+        approval_reason: null,
+        tools_to_use: ['comms.sendSms', 'fsm.createLead'],
       };
 
       const result = stepSchema.safeParse(step);
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.agent).toBe('intake');
-        expect(result.data.requiresApproval).toBe(false);
+        expect(result.data.agent).toBe('InboundEngagement');
+        expect(result.data.requires_human_approval).toBe(false);
       }
     });
 
     it('should validate a step requiring approval', () => {
       const step = {
-        stepId: 'step_2',
-        agent: 'schedule',
-        action: 'Book appointment',
-        inputs: { leadId: 'lead_123' },
-        requiresApproval: true,
-        approvalType: 'book_job',
-        toolCalls: [],
+        step_id: 'step_2',
+        agent: 'Scheduling',
+        goal: 'Book job for customer',
+        inputs: {
+          serviceType: 'Mowing',
+          proposedDate: '2025-01-15T10:00:00Z',
+        },
+        requires_human_approval: true,
+        approval_reason: 'Job booking requires approval per tier policy',
+        tools_to_use: ['fsm.getAvailability', 'fsm.createJob', 'approvals.requestApproval'],
       };
 
       const result = stepSchema.safeParse(step);
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.requiresApproval).toBe(true);
-        expect(result.data.approvalType).toBe('book_job');
+        expect(result.data.requires_human_approval).toBe(true);
+        expect(result.data.approval_reason).toBe('Job booking requires approval per tier policy');
       }
     });
 
     it('should reject invalid agent type', () => {
       const step = {
-        stepId: 'step_1',
-        agent: 'invalid_agent',
-        action: 'Some action',
+        step_id: 'step_1',
+        agent: 'InvalidAgent',
+        goal: 'Do something',
         inputs: {},
-        requiresApproval: false,
+        requires_human_approval: false,
+        approval_reason: null,
+        tools_to_use: [],
       };
 
       const result = stepSchema.safeParse(step);
@@ -58,8 +117,8 @@ describe('Supervisor Plan Validation', () => {
 
     it('should reject missing required fields', () => {
       const step = {
-        stepId: 'step_1',
-        agent: 'intake',
+        step_id: 'step_1',
+        agent: 'InboundEngagement',
       };
 
       const result = stepSchema.safeParse(step);
@@ -67,156 +126,213 @@ describe('Supervisor Plan Validation', () => {
     });
 
     it('should validate all valid agent types', () => {
-      const agents = ['intake', 'quote', 'schedule', 'reviews'];
+      const agents = ['InboundEngagement', 'Quoting', 'Scheduling', 'Billing', 'Reviews'];
       
-      agents.forEach(agent => {
-        const step = {
-          stepId: `step_${agent}`,
+      for (const agent of agents) {
+        const result = stepSchema.safeParse({
+          step_id: 'step_1',
           agent,
-          action: `Action for ${agent}`,
+          goal: 'Test goal',
           inputs: {},
-          requiresApproval: false,
-        };
-
-        const result = stepSchema.safeParse(step);
+          requires_human_approval: false,
+          approval_reason: null,
+          tools_to_use: [],
+        });
         expect(result.success).toBe(true);
-      });
+      }
+    });
+  });
+
+  describe('policyBlockSchema', () => {
+    it('should validate all valid tiers', () => {
+      const tiers = ['Owner', 'SMB', 'Commercial'];
+      
+      for (const tier of tiers) {
+        const result = policyBlockSchema.safeParse({
+          tier,
+          confidence_threshold: 0.85,
+          notes: 'Test notes',
+        });
+        expect(result.success).toBe(true);
+      }
     });
 
-    it('should validate all valid approval types', () => {
-      const approvalTypes = ['send_message', 'send_quote', 'book_job'];
-      
-      approvalTypes.forEach(approvalType => {
-        const step = {
-          stepId: `step_approval`,
-          agent: 'intake',
-          action: 'Test action',
-          inputs: {},
-          requiresApproval: true,
-          approvalType,
-        };
-
-        const result = stepSchema.safeParse(step);
-        expect(result.success).toBe(true);
+    it('should validate confidence thresholds', () => {
+      const result = policyBlockSchema.safeParse({
+        tier: 'Commercial',
+        confidence_threshold: 0.90,
+        notes: 'High confidence required for Commercial tier',
       });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.confidence_threshold).toBe(0.90);
+      }
     });
   });
 
   describe('supervisorPlanSchema', () => {
     it('should validate a valid supervisor plan', () => {
       const plan = {
-        planId: 'plan_123',
-        eventType: 'missed_call',
-        steps: [
-          {
-            stepId: 'step_1',
-            agent: 'intake',
-            action: 'Send response',
-            inputs: { phone: '+15551234567' },
-            requiresApproval: false,
-            toolCalls: [
-              { tool: 'comms.sendSms', args: { to: '+15551234567', text: 'Hello' } },
-            ],
-          },
-        ],
-        shouldStop: false,
+        event_id: 'evt_123',
+        classification: {
+          category: 'inbound_lead',
+          priority: 'high',
+          reason: 'Missed call requires immediate response',
+        },
+        plan: {
+          steps: [
+            {
+              step_id: 'evt_123_step_1',
+              agent: 'InboundEngagement',
+              goal: 'Send missed call auto-response and create lead',
+              inputs: { phone: '+15551234567' },
+              requires_human_approval: false,
+              approval_reason: null,
+              tools_to_use: ['comms.sendSms', 'fsm.createLead'],
+            },
+          ],
+          stop_conditions: ['Customer declines service', 'Address outside service area'],
+        },
+        policy: {
+          tier: 'Owner',
+          confidence_threshold: 0.85,
+          notes: 'Owner tier - approval required for quotes and scheduling',
+        },
       };
 
       const result = supervisorPlanSchema.safeParse(plan);
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.planId).toBe('plan_123');
-        expect(result.data.steps.length).toBe(1);
-        expect(result.data.shouldStop).toBe(false);
-      }
-    });
-
-    it('should validate a plan with stop reason', () => {
-      const plan = {
-        planId: 'plan_456',
-        eventType: 'inbound_sms',
-        steps: [],
-        shouldStop: true,
-        stopReason: 'Customer already has an active conversation',
-      };
-
-      const result = supervisorPlanSchema.safeParse(plan);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.shouldStop).toBe(true);
-        expect(result.data.stopReason).toBe('Customer already has an active conversation');
+        expect(result.data.event_id).toBe('evt_123');
+        expect(result.data.classification.category).toBe('inbound_lead');
+        expect(result.data.plan.steps.length).toBe(1);
+        expect(result.data.policy.tier).toBe('Owner');
       }
     });
 
     it('should validate a multi-step plan', () => {
       const plan = {
-        planId: 'plan_multi',
-        eventType: 'web_lead',
-        steps: [
-          {
-            stepId: 'step_1',
-            agent: 'intake',
-            action: 'Qualify lead',
-            inputs: {},
-            requiresApproval: false,
-          },
-          {
-            stepId: 'step_2',
-            agent: 'quote',
-            action: 'Generate quote',
-            inputs: {},
-            requiresApproval: true,
-            approvalType: 'send_quote',
-          },
-          {
-            stepId: 'step_3',
-            agent: 'schedule',
-            action: 'Propose schedule',
-            inputs: {},
-            requiresApproval: true,
-            approvalType: 'book_job',
-          },
-        ],
-        shouldStop: false,
+        event_id: 'evt_456',
+        classification: {
+          category: 'quote_request',
+          priority: 'normal',
+          reason: 'Customer requesting service quote',
+        },
+        plan: {
+          steps: [
+            {
+              step_id: 'evt_456_step_1',
+              agent: 'InboundEngagement',
+              goal: 'Gather service requirements',
+              inputs: { phone: '+15551234567', message: 'Need quote for lawn care' },
+              requires_human_approval: false,
+              approval_reason: null,
+              tools_to_use: ['comms.logInbound'],
+            },
+            {
+              step_id: 'evt_456_step_2',
+              agent: 'Quoting',
+              goal: 'Generate and send quote',
+              inputs: { serviceType: 'Lawn mowing' },
+              requires_human_approval: true,
+              approval_reason: 'Quote requires approval per tier policy',
+              tools_to_use: ['comms.sendSms', 'approvals.requestApproval'],
+            },
+          ],
+          stop_conditions: ['Awaiting human approval'],
+        },
+        policy: {
+          tier: 'SMB',
+          confidence_threshold: 0.85,
+          notes: 'SMB tier allows auto-quotes but requires approval for booking',
+        },
       };
 
       const result = supervisorPlanSchema.safeParse(plan);
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.steps.length).toBe(3);
-        expect(result.data.steps[1].requiresApproval).toBe(true);
+        expect(result.data.plan.steps.length).toBe(2);
+        expect(result.data.plan.steps[1].requires_human_approval).toBe(true);
       }
     });
 
-    it('should reject plan with missing planId', () => {
+    it('should reject plan with missing classification', () => {
       const plan = {
-        eventType: 'missed_call',
-        steps: [],
-        shouldStop: false,
+        event_id: 'evt_123',
+        plan: {
+          steps: [],
+          stop_conditions: [],
+        },
+        policy: {
+          tier: 'Owner',
+          confidence_threshold: 0.85,
+          notes: 'Test',
+        },
       };
 
       const result = supervisorPlanSchema.safeParse(plan);
       expect(result.success).toBe(false);
     });
 
-    it('should reject plan with invalid step', () => {
+    it('should reject plan with invalid policy tier', () => {
       const plan = {
-        planId: 'plan_bad',
-        eventType: 'missed_call',
-        steps: [
-          {
-            stepId: 'step_1',
-            agent: 'invalid',
-            action: 'Bad action',
-            inputs: {},
-            requiresApproval: false,
-          },
-        ],
-        shouldStop: false,
+        event_id: 'evt_123',
+        classification: {
+          category: 'inbound_lead',
+          priority: 'normal',
+          reason: 'Test',
+        },
+        plan: {
+          steps: [],
+          stop_conditions: [],
+        },
+        policy: {
+          tier: 'Enterprise',
+          confidence_threshold: 0.85,
+          notes: 'Invalid tier',
+        },
       };
 
       const result = supervisorPlanSchema.safeParse(plan);
       expect(result.success).toBe(false);
+    });
+
+    it('should validate Commercial tier with high confidence threshold', () => {
+      const plan = {
+        event_id: 'evt_789',
+        classification: {
+          category: 'schedule_change',
+          priority: 'urgent',
+          reason: 'Customer needs to reschedule',
+        },
+        plan: {
+          steps: [
+            {
+              step_id: 'evt_789_step_1',
+              agent: 'Scheduling',
+              goal: 'Auto-book new slot within policy thresholds',
+              inputs: { jobId: 123 },
+              requires_human_approval: false,
+              approval_reason: null,
+              tools_to_use: ['fsm.getAvailability', 'fsm.createJob'],
+            },
+          ],
+          stop_conditions: ['No available slots', 'Outside service hours'],
+        },
+        policy: {
+          tier: 'Commercial',
+          confidence_threshold: 0.90,
+          notes: 'Commercial tier allows auto-booking for high-confidence opportunities',
+        },
+      };
+
+      const result = supervisorPlanSchema.safeParse(plan);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.policy.tier).toBe('Commercial');
+        expect(result.data.policy.confidence_threshold).toBe(0.90);
+        expect(result.data.plan.steps[0].requires_human_approval).toBe(false);
+      }
     });
   });
 });

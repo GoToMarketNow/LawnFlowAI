@@ -7,33 +7,50 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
+export const classificationSchema = z.object({
+  category: z.enum(["inbound_lead", "quote_request", "schedule_change", "billing", "review", "unknown"]),
+  priority: z.enum(["low", "normal", "high", "urgent"]),
+  reason: z.string(),
+});
+
 export const stepSchema = z.object({
-  stepId: z.string(),
-  agent: z.enum(["intake", "quote", "schedule", "reviews"]),
-  action: z.string(),
+  step_id: z.string(),
+  agent: z.enum(["InboundEngagement", "Quoting", "Scheduling", "Billing", "Reviews"]),
+  goal: z.string(),
   inputs: z.record(z.any()),
-  requiresApproval: z.boolean(),
-  approvalType: z.enum(["send_message", "send_quote", "book_job"]).optional(),
-  toolCalls: z.array(z.object({
-    tool: z.string(),
-    args: z.record(z.any()),
-  })).optional(),
+  requires_human_approval: z.boolean(),
+  approval_reason: z.string().nullable(),
+  tools_to_use: z.array(z.string()),
+});
+
+export const planBlockSchema = z.object({
+  steps: z.array(stepSchema),
+  stop_conditions: z.array(z.string()),
+});
+
+export const policyBlockSchema = z.object({
+  tier: z.enum(["Owner", "SMB", "Commercial"]),
+  confidence_threshold: z.number(),
+  notes: z.string(),
 });
 
 export const supervisorPlanSchema = z.object({
-  planId: z.string(),
-  eventType: z.string(),
-  steps: z.array(stepSchema),
-  shouldStop: z.boolean(),
-  stopReason: z.string().optional(),
+  event_id: z.string(),
+  classification: classificationSchema,
+  plan: planBlockSchema,
+  policy: policyBlockSchema,
 });
 
+export type Classification = z.infer<typeof classificationSchema>;
 export type Step = z.infer<typeof stepSchema>;
+export type PlanBlock = z.infer<typeof planBlockSchema>;
+export type PolicyBlock = z.infer<typeof policyBlockSchema>;
 export type SupervisorPlan = z.infer<typeof supervisorPlanSchema>;
 
 export interface EventContext {
   type: "missed_call" | "inbound_sms" | "web_lead" | "job_completed";
-  data: Record<string, unknown>;
+  channel: string;
+  payload: Record<string, unknown>;
   eventId: string;
 }
 
@@ -46,102 +63,181 @@ export interface StateContext {
   businessName: string;
   services: string[];
   serviceArea: string;
+  businessHours?: string;
+  pricingRules?: Record<string, unknown>;
 }
 
-export interface PolicyContext {
-  autoRespondMissedCalls: boolean;
-  requireApprovalForQuotes: boolean;
-  requireApprovalForScheduling: boolean;
-  maxMessagesPerConversation: number;
+export interface BusinessProfile {
+  services: string[];
+  serviceArea: string;
+  hours: string;
+  pricingRules: Record<string, unknown>;
+  tier: "Owner" | "SMB" | "Commercial";
+  permissions: {
+    autoDispatch: boolean;
+    afterHours: boolean;
+    autoQuote: boolean;
+    autoBook: boolean;
+  };
 }
 
-const DEFAULT_POLICY: PolicyContext = {
-  autoRespondMissedCalls: true,
-  requireApprovalForQuotes: true,
-  requireApprovalForScheduling: true,
-  maxMessagesPerConversation: 50,
-};
+export interface PolicySettings {
+  tier: "Owner" | "SMB" | "Commercial";
+  confidenceThreshold: number;
+  autoSendMessages: boolean;
+  autoSendQuotes: boolean;
+  autoBookJobs: boolean;
+  afterHoursAutomation: boolean;
+}
+
+const AVAILABLE_TOOLS = [
+  "comms.sendSms",
+  "comms.logInbound",
+  "fsm.getAvailability",
+  "fsm.createLead",
+  "fsm.createJob",
+  "approvals.requestApproval",
+  "audit.logEvent",
+  "metrics.record",
+];
+
+function mapTierToPolicy(tier: "Owner" | "SMB" | "Commercial"): PolicySettings {
+  switch (tier) {
+    case "Owner":
+      return {
+        tier: "Owner",
+        confidenceThreshold: 0.85,
+        autoSendMessages: true,
+        autoSendQuotes: false,
+        autoBookJobs: false,
+        afterHoursAutomation: false,
+      };
+    case "SMB":
+      return {
+        tier: "SMB",
+        confidenceThreshold: 0.85,
+        autoSendMessages: true,
+        autoSendQuotes: true,
+        autoBookJobs: false,
+        afterHoursAutomation: true,
+      };
+    case "Commercial":
+      return {
+        tier: "Commercial",
+        confidenceThreshold: 0.90,
+        autoSendMessages: true,
+        autoSendQuotes: true,
+        autoBookJobs: true,
+        afterHoursAutomation: true,
+      };
+  }
+}
 
 export async function plan(
   event: EventContext,
   state: StateContext,
-  policy: PolicyContext = DEFAULT_POLICY
+  businessProfile: BusinessProfile
 ): Promise<SupervisorPlan> {
-  const planId = `plan_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  const policySettings = mapTierToPolicy(businessProfile.tier);
   
-  console.log(`[Supervisor] Planning for event: ${event.type}`);
+  console.log(`[Supervisor] Planning for event: ${event.type}, tier: ${businessProfile.tier}`);
   
   try {
-    const systemPrompt = `You are a workflow supervisor for a landscaping business automation system.
-Your job is to create execution plans for handling customer events.
+    const systemPrompt = `ROLE: Supervisor Agent (Router + Policy Enforcer)
 
-Available agents:
-- intake: Qualifies leads, extracts customer info, handles initial conversations
-- quote: Generates service quotes based on customer needs
-- schedule: Proposes and manages appointment scheduling
-- reviews: Sends review requests after job completion
+You receive:
+- event: {type, channel, payload}
+- business_profile: services, service_area, hours, pricing_rules, tier, permissions
+- current_state: open conversations, open jobs, pending approvals
+- tools: available tool list and schemas
+- policy: risk thresholds & tier gates
 
-Available tools:
-- comms.sendSms: Send SMS messages
-- comms.logInbound: Log inbound messages
-- fsm.getAvailability: Get crew availability slots
-- fsm.createLead: Create a lead in the FSM system
-- fsm.createJob: Schedule a job
-- approvals.requestApproval: Request human approval
-- audit.logEvent: Log an audit event
-- metrics.record: Record a metric
+Task:
+1) Classify the event
+2) Choose which specialist agent(s) to invoke
+3) Produce an execution plan (steps) with:
+   - which agent to call
+   - inputs to that agent
+   - whether human approval is required
+   - which tools will be used
+4) Enforce tier permissions:
+   - Owner tier: no auto-dispatch, no after-hours unless configured
+   - SMB tier: allow scheduling proposals; require approval to create jobs
+   - Commercial tier: allow auto actions within policy thresholds
 
-Policy settings:
-- Auto-respond to missed calls: ${policy.autoRespondMissedCalls}
-- Require approval for quotes: ${policy.requireApprovalForQuotes}
-- Require approval for scheduling: ${policy.requireApprovalForScheduling}
+Return JSON exactly matching this schema:
 
-Create a plan with sequential steps. Each step should specify:
-1. Which agent handles it
-2. What action to take
-3. Input parameters
-4. Whether approval is needed
-5. What tool calls to make
-
-Return a JSON object matching this schema:
 {
-  "planId": "string",
-  "eventType": "string",
-  "steps": [
-    {
-      "stepId": "string",
-      "agent": "intake|quote|schedule|reviews",
-      "action": "description of action",
-      "inputs": { ... },
-      "requiresApproval": boolean,
-      "approvalType": "send_message|send_quote|book_job" (if requiresApproval),
-      "toolCalls": [{ "tool": "tool.method", "args": { ... } }]
-    }
-  ],
-  "shouldStop": boolean,
-  "stopReason": "string" (if shouldStop)
-}`;
+  "event_id": "string",
+  "classification": {
+    "category": "inbound_lead|quote_request|schedule_change|billing|review|unknown",
+    "priority": "low|normal|high|urgent",
+    "reason": "string"
+  },
+  "plan": {
+    "steps": [
+      {
+        "step_id": "string",
+        "agent": "InboundEngagement|Quoting|Scheduling|Billing|Reviews",
+        "goal": "string",
+        "inputs": { "any": "json" },
+        "requires_human_approval": true,
+        "approval_reason": "string|null",
+        "tools_to_use": ["string"]
+      }
+    ],
+    "stop_conditions": ["string"]
+  },
+  "policy": {
+    "tier": "Owner|SMB|Commercial",
+    "confidence_threshold": 0.0,
+    "notes": "string"
+  }
+}
 
-    const userPrompt = `Event: ${event.type}
-Event Data: ${JSON.stringify(event.data)}
+Important:
+- Be conservative: if address/service area mismatch or missing key info -> ask human approval or ask customer.
+- Do not hallucinate tool availability. Only use tools provided in the tool list.
+- Keep steps minimal; prefer 1-3 steps.
+
+Available tools: ${AVAILABLE_TOOLS.join(", ")}
+
+Current policy settings:
+- Tier: ${policySettings.tier}
+- Confidence threshold: ${policySettings.confidenceThreshold}
+- Auto-send messages: ${policySettings.autoSendMessages}
+- Auto-send quotes: ${policySettings.autoSendQuotes}
+- Auto-book jobs: ${policySettings.autoBookJobs}
+- After-hours automation: ${policySettings.afterHoursAutomation}`;
+
+    const userPrompt = `Event:
+{
+  "type": "${event.type}",
+  "channel": "${event.channel}",
+  "payload": ${JSON.stringify(event.payload)}
+}
 Event ID: ${event.eventId}
+
+Business Profile:
+{
+  "services": ${JSON.stringify(businessProfile.services)},
+  "service_area": "${businessProfile.serviceArea}",
+  "hours": "${businessProfile.hours}",
+  "tier": "${businessProfile.tier}",
+  "permissions": ${JSON.stringify(businessProfile.permissions)}
+}
 
 Current State:
 - Has existing conversation: ${!!state.conversation}
 - Conversation ID: ${state.conversation?.id || "N/A"}
-- Customer phone: ${state.conversation?.customerPhone || event.data.phone || "Unknown"}
-- Customer name: ${state.conversation?.customerName || event.data.customerName || "Unknown"}
+- Customer phone: ${state.conversation?.customerPhone || event.payload.phone || "Unknown"}
+- Customer name: ${state.conversation?.customerName || event.payload.customerName || "Unknown"}
 - Message count: ${state.messages.length}
 - Lead ID: ${state.leadId || "None"}
 - Job ID: ${state.jobId || "None"}
 
-Business Context:
-- Business name: ${state.businessName}
-- Services: ${state.services.join(", ")}
-- Service area: ${state.serviceArea}
-
 Recent messages:
-${state.messages.slice(-5).map(m => `[${m.role}]: ${m.content}`).join("\n")}
+${state.messages.slice(-5).map(m => `[${m.role}]: ${m.content}`).join("\n") || "(none)"}
 
 Create an execution plan for this event.`;
 
@@ -161,129 +257,179 @@ Create an execution plan for this event.`;
     }
 
     const parsed = JSON.parse(content);
-    parsed.planId = planId;
-    parsed.eventType = event.type;
+    parsed.event_id = event.eventId;
     
     const validated = supervisorPlanSchema.safeParse(parsed);
     if (!validated.success) {
       console.error("[Supervisor] Invalid plan format:", validated.error);
-      return createFallbackPlan(event, state, planId);
+      return createFallbackPlan(event, state, businessProfile, policySettings);
     }
 
-    console.log(`[Supervisor] Created plan with ${validated.data.steps.length} steps`);
+    console.log(`[Supervisor] Created plan with ${validated.data.plan.steps.length} steps, priority: ${validated.data.classification.priority}`);
     return validated.data;
 
   } catch (error) {
     console.error("[Supervisor] Error creating plan:", error);
-    return createFallbackPlan(event, state, planId);
+    return createFallbackPlan(event, state, businessProfile, policySettings);
   }
 }
 
 function createFallbackPlan(
   event: EventContext,
   state: StateContext,
-  planId: string
+  businessProfile: BusinessProfile,
+  policySettings: PolicySettings
 ): SupervisorPlan {
   const steps: Step[] = [];
+  let category: Classification["category"] = "unknown";
+  let priority: Classification["priority"] = "normal";
+  let reason = "Fallback plan generated";
+
+  const requiresApprovalForQuotes = !policySettings.autoSendQuotes;
+  const requiresApprovalForBooking = !policySettings.autoBookJobs;
 
   switch (event.type) {
     case "missed_call":
+      category = "inbound_lead";
+      priority = "high";
+      reason = "Missed call requires immediate response to capture lead";
       steps.push({
-        stepId: `${planId}_step_1`,
-        agent: "intake",
-        action: "Send missed call auto-response",
+        step_id: `${event.eventId}_step_1`,
+        agent: "InboundEngagement",
+        goal: "Send missed call auto-response and create lead",
         inputs: {
-          phone: event.data.phone,
+          phone: event.payload.phone,
           businessName: state.businessName,
         },
-        requiresApproval: false,
-        toolCalls: [
-          { tool: "comms.sendSms", args: { to: event.data.phone, text: "auto_response" } },
-          { tool: "fsm.createLead", args: { phone: event.data.phone, service_requested: "General inquiry" } },
-        ],
+        requires_human_approval: false,
+        approval_reason: null,
+        tools_to_use: ["comms.sendSms", "fsm.createLead", "audit.logEvent"],
       });
       break;
 
     case "inbound_sms":
+      category = "inbound_lead";
+      priority = "normal";
+      reason = "Inbound SMS from customer needs qualification and response";
       steps.push({
-        stepId: `${planId}_step_1`,
-        agent: "intake",
-        action: "Process inbound SMS and qualify lead",
+        step_id: `${event.eventId}_step_1`,
+        agent: "InboundEngagement",
+        goal: "Process inbound SMS, qualify lead, and gather customer info",
         inputs: {
-          phone: event.data.phone,
-          message: event.data.message,
+          phone: event.payload.phone,
+          message: event.payload.body || event.payload.message,
         },
-        requiresApproval: false,
-        toolCalls: [
-          { tool: "comms.logInbound", args: { channel: "sms", from: event.data.phone, payload: event.data } },
-        ],
+        requires_human_approval: false,
+        approval_reason: null,
+        tools_to_use: ["comms.logInbound", "comms.sendSms", "fsm.createLead"],
       });
       steps.push({
-        stepId: `${planId}_step_2`,
-        agent: "quote",
-        action: "Generate quote if lead is qualified",
+        step_id: `${event.eventId}_step_2`,
+        agent: "Quoting",
+        goal: "Generate quote if lead is qualified",
         inputs: {},
-        requiresApproval: true,
-        approvalType: "send_quote",
-        toolCalls: [],
+        requires_human_approval: requiresApprovalForQuotes,
+        approval_reason: requiresApprovalForQuotes ? "Quote sending requires approval per policy" : null,
+        tools_to_use: ["comms.sendSms", "approvals.requestApproval"],
       });
       break;
 
     case "web_lead":
+      category = "inbound_lead";
+      priority = "high";
+      reason = "Web lead submission requires prompt follow-up";
       steps.push({
-        stepId: `${planId}_step_1`,
-        agent: "intake",
-        action: "Create lead from web form",
-        inputs: event.data,
-        requiresApproval: false,
-        toolCalls: [
-          { tool: "fsm.createLead", args: { ...event.data } },
-        ],
+        step_id: `${event.eventId}_step_1`,
+        agent: "InboundEngagement",
+        goal: "Create lead from web form submission",
+        inputs: event.payload,
+        requires_human_approval: false,
+        approval_reason: null,
+        tools_to_use: ["fsm.createLead", "audit.logEvent"],
       });
       steps.push({
-        stepId: `${planId}_step_2`,
-        agent: "quote",
-        action: "Generate and send quote",
+        step_id: `${event.eventId}_step_2`,
+        agent: "Quoting",
+        goal: "Generate and send quote based on service requested",
         inputs: {},
-        requiresApproval: true,
-        approvalType: "send_quote",
-        toolCalls: [],
+        requires_human_approval: requiresApprovalForQuotes,
+        approval_reason: requiresApprovalForQuotes ? "Quote requires approval per tier policy" : null,
+        tools_to_use: ["comms.sendSms", "approvals.requestApproval"],
       });
       steps.push({
-        stepId: `${planId}_step_3`,
-        agent: "schedule",
-        action: "Propose scheduling",
+        step_id: `${event.eventId}_step_3`,
+        agent: "Scheduling",
+        goal: "Propose available scheduling slots",
         inputs: {},
-        requiresApproval: true,
-        approvalType: "book_job",
-        toolCalls: [],
+        requires_human_approval: requiresApprovalForBooking,
+        approval_reason: requiresApprovalForBooking ? "Job booking requires approval per tier policy" : null,
+        tools_to_use: ["fsm.getAvailability", "fsm.createJob", "approvals.requestApproval"],
       });
       break;
 
     case "job_completed":
+      category = "review";
+      priority = "low";
+      reason = "Job completed - send review request";
       steps.push({
-        stepId: `${planId}_step_1`,
-        agent: "reviews",
-        action: "Send review request",
+        step_id: `${event.eventId}_step_1`,
+        agent: "Reviews",
+        goal: "Send review request to customer",
         inputs: {
-          jobId: event.data.jobId,
+          jobId: event.payload.jobId,
+          phone: event.payload.phone,
+          customerName: event.payload.customerName,
         },
-        requiresApproval: false,
-        toolCalls: [
-          { tool: "comms.sendSms", args: { to: event.data.phone, text: "review_request" } },
-        ],
+        requires_human_approval: false,
+        approval_reason: null,
+        tools_to_use: ["comms.sendSms", "metrics.record"],
       });
       break;
   }
 
+  const stopConditions: string[] = [];
+  if (category === "inbound_lead") {
+    stopConditions.push("Customer declines service");
+    stopConditions.push("Address outside service area");
+    stopConditions.push("Customer unresponsive after 3 attempts");
+  }
+  if (steps.some(s => s.requires_human_approval)) {
+    stopConditions.push("Awaiting human approval");
+  }
+
   return {
-    planId,
-    eventType: event.type,
-    steps,
-    shouldStop: false,
+    event_id: event.eventId,
+    classification: {
+      category,
+      priority,
+      reason,
+    },
+    plan: {
+      steps,
+      stop_conditions: stopConditions,
+    },
+    policy: {
+      tier: businessProfile.tier,
+      confidence_threshold: policySettings.confidenceThreshold,
+      notes: `Fallback plan for ${event.type}. Tier: ${businessProfile.tier}.`,
+    },
   };
 }
 
-export function getDefaultPolicy(): PolicyContext {
-  return { ...DEFAULT_POLICY };
+export function getDefaultBusinessProfile(): BusinessProfile {
+  return {
+    services: ["Mowing", "Cleanup", "Mulch"],
+    serviceArea: "Charlottesville + 20 miles",
+    hours: "Mon-Fri 8AM-5PM",
+    pricingRules: {},
+    tier: "Owner",
+    permissions: {
+      autoDispatch: false,
+      afterHours: false,
+      autoQuote: false,
+      autoBook: false,
+    },
+  };
 }
+
+export { stepSchema as legacyStepSchema };

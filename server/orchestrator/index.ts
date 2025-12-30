@@ -1,5 +1,5 @@
 import { storage } from "../storage";
-import { plan, getDefaultPolicy, type EventContext, type StateContext } from "./supervisor";
+import { plan, getDefaultBusinessProfile, type EventContext, type StateContext, type BusinessProfile as SupervisorBusinessProfile } from "./supervisor";
 import { execute } from "./runner";
 import { audit, metrics, comms, fsm, approvals } from "../tools";
 import { twilioConnector } from "../connectors/twilio-mock";
@@ -102,7 +102,8 @@ export const orchestrator = {
 
       const eventContext: EventContext = {
         type: payload.type as any,
-        data: payload.data,
+        channel: payload.type === "inbound_sms" ? "sms" : payload.type === "missed_call" ? "phone" : "web",
+        payload: payload.data,
         eventId,
       };
 
@@ -115,8 +116,8 @@ export const orchestrator = {
         serviceArea: businessContext.serviceArea,
       };
 
-      const policy = getDefaultPolicy();
-      const supervisorPlan = await plan(eventContext, stateContext, policy);
+      const businessProfile = getDefaultBusinessProfile();
+      const supervisorPlan = await plan(eventContext, stateContext, businessProfile);
       const executionResult = await execute(supervisorPlan, stateContext, conversation || null);
 
       await storage.updateEvent(event.id, {
