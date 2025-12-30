@@ -102,6 +102,9 @@ npm run db:push
 - Clean, efficient admin interface
 
 ## Recent Changes
+- Twilio inbound SMS webhook with signature validation (POST /webhooks/twilio/sms)
+- Missed call simulation endpoint (POST /api/events/missed-call)
+- Real Twilio SMS sending with retries (3 attempts) and failure logging
 - Orchestration engine with supervisor planning and runner execution
 - Idempotency via event_receipts table
 - Tool interfaces with strict Zod validation

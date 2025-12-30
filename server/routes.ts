@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { processEvent, approveAction, rejectAction, simulateJobCompleted } from "./orchestrator";
+import { twilioConnector } from "./connectors/twilio-mock";
 import {
   insertBusinessProfileSchema,
   insertMessageSchema,
@@ -276,28 +277,109 @@ export async function registerRoutes(
   });
 
   // ============================================
-  // Twilio Webhooks (for future real integration)
+  // Missed Call Simulation Endpoint
   // ============================================
 
-  app.post("/api/webhooks/twilio/sms", async (req, res) => {
+  app.post("/api/events/missed-call", async (req, res) => {
     try {
-      const { From, Body, To, MessageSid } = req.body;
+      const missedCallSchema = z.object({
+        from_phone: z.string().min(1, "from_phone is required"),
+      });
+
+      const parsed = missedCallSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.message });
+      }
+
+      const result = await processEvent({
+        type: "missed_call",
+        data: {
+          phone: parsed.data.from_phone,
+          channel: "call",
+        },
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error simulating missed call:", error);
+      res.status(500).json({ error: "Failed to simulate missed call" });
+    }
+  });
+
+  // ============================================
+  // Twilio Webhooks
+  // ============================================
+
+  app.post("/webhooks/twilio/sms", async (req, res) => {
+    try {
+      const signature = req.headers["x-twilio-signature"] as string | undefined;
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+      const host = req.headers.host || "localhost";
+      const fullUrl = `${protocol}://${host}${req.originalUrl}`;
+
+      const isValid = twilioConnector.validateSignature(signature, fullUrl, req.body);
+      
+      if (!isValid) {
+        console.warn("[Webhook] Invalid Twilio signature, rejecting request");
+        return res.status(403).send("Forbidden");
+      }
+
+      const { From, Body, MessageSid } = req.body;
 
       const result = await processEvent({
         type: "inbound_sms",
         data: {
-          phone: From,
-          message: Body,
-          to: To,
+          from: From,
+          body: Body,
           sid: MessageSid,
+          channel: "sms",
         },
+        eventId: MessageSid ? `twilio_sms_${MessageSid}` : undefined,
       });
 
-      // Return TwiML response
+      console.log(`[Webhook] Processed inbound SMS from ${From}: ${result.success ? "success" : "failed"}`);
+
       res.set("Content-Type", "text/xml");
       res.send(`<?xml version="1.0" encoding="UTF-8"?><Response></Response>`);
     } catch (error) {
-      console.error("Error handling Twilio webhook:", error);
+      console.error("Error handling Twilio SMS webhook:", error);
+      res.status(500).send();
+    }
+  });
+
+  app.post("/api/webhooks/twilio/sms", async (req, res) => {
+    try {
+      const signature = req.headers["x-twilio-signature"] as string | undefined;
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+      const host = req.headers.host || "localhost";
+      const fullUrl = `${protocol}://${host}${req.originalUrl}`;
+
+      const isValid = twilioConnector.validateSignature(signature, fullUrl, req.body);
+      
+      if (!isValid) {
+        console.warn("[Webhook] Invalid Twilio signature, rejecting request");
+        return res.status(403).send("Forbidden");
+      }
+
+      const { From, Body, MessageSid } = req.body;
+
+      const result = await processEvent({
+        type: "inbound_sms",
+        data: {
+          from: From,
+          body: Body,
+          sid: MessageSid,
+          channel: "sms",
+        },
+        eventId: MessageSid ? `twilio_sms_${MessageSid}` : undefined,
+      });
+
+      console.log(`[Webhook] Processed inbound SMS from ${From}: ${result.success ? "success" : "failed"}`);
+
+      res.set("Content-Type", "text/xml");
+      res.send(`<?xml version="1.0" encoding="UTF-8"?><Response></Response>`);
+    } catch (error) {
+      console.error("Error handling Twilio SMS webhook:", error);
       res.status(500).send();
     }
   });
@@ -306,7 +388,6 @@ export async function registerRoutes(
     try {
       const { From, To, CallStatus } = req.body;
 
-      // If call was not answered, treat as missed call
       if (CallStatus === "no-answer" || CallStatus === "busy") {
         await processEvent({
           type: "missed_call",
@@ -314,11 +395,11 @@ export async function registerRoutes(
             phone: From,
             to: To,
             status: CallStatus,
+            channel: "call",
           },
         });
       }
 
-      // Return TwiML response
       res.set("Content-Type", "text/xml");
       res.send(`<?xml version="1.0" encoding="UTF-8"?><Response></Response>`);
     } catch (error) {

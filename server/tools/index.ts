@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { storage } from "../storage";
 import { randomUUID } from "crypto";
+import { twilioConnector } from "../connectors/twilio-mock";
 
 // ============================================================================
 // COMMS TOOLS - Communication utilities for SMS and inbound logging
@@ -151,21 +152,16 @@ export const comms = {
   async sendSms(input: unknown): Promise<SendSmsOutput> {
     const validated = sendSmsInputSchema.parse(input);
     
-    const messageId = `msg_${randomUUID()}`;
+    console.log(`[comms.sendSms] Sending to: ${validated.to}`);
     
-    // Mock SMS sending - in production would use Twilio
-    const status: "queued" | "sent" | "failed" = process.env.TWILIO_ACCOUNT_SID 
-      ? "queued" 
-      : "sent"; // Mock always succeeds
+    const twilioResult = await twilioConnector.sendSMS(validated.to, validated.text);
     
-    console.log(`[comms.sendSms] To: ${validated.to}, Status: ${status}`);
+    const messageId = twilioResult.sid || `msg_${randomUUID()}`;
+    const status: "queued" | "sent" | "failed" = twilioResult.success 
+      ? (twilioConnector.isRealTwilioConfigured() ? "queued" : "sent")
+      : "failed";
     
-    // Audit log the tool call
-    await audit.logEvent({
-      action: "comms.sendSms",
-      actor: "system",
-      payload: { to: validated.to, messageId, status, textLength: validated.text.length },
-    });
+    console.log(`[comms.sendSms] To: ${validated.to}, Status: ${status}, SID: ${messageId}`);
     
     const result = { messageId, status };
     return sendSmsOutputSchema.parse(result);
