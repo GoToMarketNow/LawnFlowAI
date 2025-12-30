@@ -312,8 +312,12 @@ export const fsm = {
 // ============================================================================
 
 export const approvals = {
-  async requestApproval(input: unknown, conversationId?: number): Promise<RequestApprovalOutput> {
+  async requestApproval(input: unknown, conversationId: number): Promise<RequestApprovalOutput> {
     const validated = requestApprovalInputSchema.parse(input);
+    
+    if (!conversationId || conversationId <= 0) {
+      throw new Error("conversationId is required for approval requests");
+    }
     
     // Map type to actionType for database
     const actionTypeMap: Record<string, string> = {
@@ -324,7 +328,7 @@ export const approvals = {
     
     // Create pending action in database
     const pendingAction = await storage.createPendingAction({
-      conversationId: conversationId || null,
+      conversationId,
       actionType: actionTypeMap[validated.type] || validated.type,
       description: validated.summary,
       payload: validated.payload,
@@ -363,13 +367,13 @@ export const approvals = {
     // Update pending action in database
     await storage.updatePendingAction(pendingActionId, {
       status: validated.decision,
-      notes: validated.notes || undefined,
+      resolvedBy: "operator",
       resolvedAt: new Date(),
     });
     
     console.log(`[approvals.resolveApproval] Resolved ${validated.approvalId} as ${validated.decision}`);
     
-    // Audit log the tool call
+    // Audit log the tool call with notes preserved in audit trail
     await audit.logEvent({
       action: "approvals.resolveApproval",
       actor: "operator",
@@ -377,6 +381,7 @@ export const approvals = {
         approvalId: validated.approvalId,
         decision: validated.decision,
         notes: validated.notes,
+        pendingActionId,
       },
     });
     

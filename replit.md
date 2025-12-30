@@ -17,15 +17,28 @@ LawnFlow AI is an MVP agentic add-on for landscaping/lawn care businesses. It pr
   /components     - UI components including sidebar
   /lib            - Theme provider, query client
 /server/
-  /agents         - AI agent prompts and parsing (to be implemented)
+  /agents         - AI specialist agents (intake, quote, schedule)
   /connectors     - Twilio mock, FSM mock connectors
   /orchestrator   - Event processing and workflow
+  /tools          - Validated tool interfaces with Zod schemas
   routes.ts       - API endpoints
   storage.ts      - Database operations
   db.ts           - Drizzle database connection
 /shared/
   schema.ts       - All Drizzle models and types
 ```
+
+## Tool Interfaces (server/tools/index.ts)
+All tools have strict Zod validation and audit logging:
+- `comms.sendSms(to, text)` - Send SMS (mock/Twilio)
+- `comms.logInbound(channel, from, payload, received_at_iso)` - Log inbound messages
+- `fsm.getAvailability(date_from_iso, date_to_iso, service_type)` - Get crew availability
+- `fsm.createLead(name, phone, address, service_requested, notes)` - Create lead in FSM
+- `fsm.createJob(leadId, start_iso, end_iso, service_type, notes)` - Schedule job
+- `approvals.requestApproval(type, summary, payload)` - Create human-in-loop approval
+- `approvals.resolveApproval(approvalId, decision, notes)` - Approve/reject action
+- `audit.logEvent(action, actor, payload)` - Log to audit trail
+- `metrics.record(name, value, tags)` - Record metrics
 
 ## Key Features
 1. **Dashboard**: ROI metrics, conversation overview, pending actions
