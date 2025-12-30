@@ -15,6 +15,7 @@ import BusinessProfilePage from "@/pages/business-profile";
 import SimulatorPage from "@/pages/simulator";
 import JobsPage from "@/pages/jobs";
 import AuditLogPage from "@/pages/audit-log";
+import EventsFeedPage from "@/pages/events-feed";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/simulator" component={SimulatorPage} />
       <Route path="/jobs" component={JobsPage} />
       <Route path="/audit" component={AuditLogPage} />
+      <Route path="/events" component={EventsFeedPage} />
       <Route component={NotFound} />
     </Switch>
   );

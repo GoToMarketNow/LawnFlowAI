@@ -7,6 +7,7 @@ import {
   Zap,
   ClipboardList,
   FileText,
+  Radio,
 } from "lucide-react";
 import {
   Sidebar,
@@ -26,6 +27,11 @@ const navigationItems = [
     title: "Dashboard",
     url: "/",
     icon: LayoutDashboard,
+  },
+  {
+    title: "Events Feed",
+    url: "/events",
+    icon: Radio,
   },
   {
     title: "Conversations",
