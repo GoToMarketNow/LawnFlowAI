@@ -25,12 +25,14 @@ export interface ProcessingResult {
 }
 
 async function getBusinessContext(): Promise<{
+  businessId?: number;
   businessName: string;
   services: string[];
   serviceArea: string;
 }> {
   const profile = await storage.getBusinessProfile();
   return {
+    businessId: profile?.id,
     businessName: profile?.name || "Green Thumb Landscaping",
     services: profile?.services || ["Lawn Mowing", "Landscaping", "Tree Trimming"],
     serviceArea: profile?.serviceArea || "Local area",
@@ -107,6 +109,7 @@ export const orchestrator = {
       const stateContext: StateContext = {
         conversation,
         messages: messagesList,
+        businessId: businessContext.businessId,
         businessName: businessContext.businessName,
         services: businessContext.services,
         serviceArea: businessContext.serviceArea,

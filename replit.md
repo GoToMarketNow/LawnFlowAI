@@ -74,6 +74,45 @@ Missed call -> Intake agent -> comms.sendSms -> fsm.createLead
 6. **Jobs**: Track scheduled landscaping work
 7. **Audit Log**: Complete trail of system actions
 8. **Idempotency**: Event receipts prevent duplicate processing
+9. **Tiered Policy System**: Configurable automation based on business tier
+
+## Policy System (server/policy.ts)
+Tiered automation policy enforcement with configurable rules:
+
+### Tiers
+- **Owner Operator**: Basic automation with human approval for quotes/scheduling
+  - auto_send_messages: true
+  - auto_send_quotes: false
+  - auto_book_jobs: false
+  - confidence_threshold: 0.85
+
+- **SMB**: Enhanced automation with auto-quotes for range estimates
+  - auto_send_messages: true
+  - auto_send_quotes: true (range quotes only, confidence >= 0.85)
+  - auto_book_jobs: false
+  - after_hours_automation: configurable
+  - confidence_threshold: 0.85
+
+- **Commercial**: Full automation for high-confidence opportunities
+  - auto_send_messages: true
+  - auto_send_quotes: true (range/fixed, confidence >= 0.9, within pricing rules)
+  - auto_book_jobs: true (confidence >= 0.9, slot_score >= threshold)
+  - after_hours_automation: configurable
+  - confidence_threshold: 0.90
+
+### Policy Checks
+- `policy.check(action, context)` validates all actions before execution
+- Service area checks (zip code whitelist)
+- Do-not-serve rules (blocked phones/addresses)
+- Pricing rule enforcement for Commercial tier
+
+### API Endpoints
+- GET /api/policy - Get current policy profile
+- GET /api/policy/tiers - Get tier descriptions
+- PATCH /api/policy/:id - Update policy settings
+- POST /api/policy/blocked-phones - Add blocked phone
+- DELETE /api/policy/blocked-phones/:phone - Remove blocked phone
+- POST /api/policy/service-area - Update service area
 
 ## Environment Variables
 - `DATABASE_URL` - PostgreSQL connection string (auto-configured)

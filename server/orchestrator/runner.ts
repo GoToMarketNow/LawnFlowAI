@@ -4,6 +4,7 @@ import { comms, fsm, approvals, audit, metrics } from "../tools";
 import { runIntakeAgent, generateMissedCallResponse } from "../agents/intake";
 import { generateQuote } from "../agents/quote";
 import { proposeSchedule, formatScheduleConfirmation } from "../agents/schedule";
+import { policyService, type PolicyContext, type PolicyCheckResult } from "../policy";
 import type { SupervisorPlan, Step, StateContext } from "./supervisor";
 import type { Conversation } from "@shared/schema";
 
@@ -14,6 +15,21 @@ async function generateReviewRequest(
 ): Promise<string> {
   const greeting = customerName ? `Hi ${customerName}! ` : "";
   return `${greeting}Thanks for choosing ${businessName}! We hope you loved your ${serviceType || "service"}. If you have a moment, we'd really appreciate a review. Thank you!`;
+}
+
+// Helper to check policy - returns result without creating approvals
+// Approvals are handled by the step execution functions
+async function checkPolicyForAction(
+  context: PolicyContext
+): Promise<{ allowed: boolean; requiresApproval: boolean; stopReason?: string; approvalType?: string }> {
+  const result = await policyService.check(context);
+  
+  return {
+    allowed: result.allowed,
+    requiresApproval: result.requiresApproval || false,
+    stopReason: result.reason,
+    approvalType: result.approvalType,
+  };
 }
 
 export interface StepResult {
@@ -49,10 +65,16 @@ export async function execute(
   let leadId = state.leadId;
   let jobId = state.jobId;
 
+  // Load policy for this business
+  if (state.businessId) {
+    await policyService.loadPolicy(state.businessId);
+    console.log(`[Runner] Loaded policy for business ${state.businessId}: ${policyService.getPolicySummary().tier}`);
+  }
+
   await audit.logEvent({
     action: "runner.execute.start",
     actor: "system",
-    payload: { planId: plan.planId, stepCount: plan.steps.length },
+    payload: { planId: plan.planId, stepCount: plan.steps.length, policy: policyService.getPolicySummary() },
   });
 
   for (const step of plan.steps) {
@@ -225,6 +247,37 @@ async function executeIntakeStep(
   if (step.action.includes("missed call")) {
     const responseMessage = await generateMissedCallResponse(state.businessName, phone);
     
+    // Check policy before sending message
+    const policyCheck = await checkPolicyForAction({ action: "send_message", data: { phone } });
+    
+    if (!policyCheck.allowed) {
+      // Policy blocked - if requires approval, create approval request
+      if (policyCheck.requiresApproval && conv) {
+        const approvalResult = await approvals.requestApproval({
+          type: policyCheck.approvalType || "send_message",
+          summary: policyCheck.stopReason || "Policy requires approval for message",
+          payload: { phone, message: "Missed call response", policyReason: policyCheck.stopReason },
+        }, conv.id);
+        
+        return {
+          stepId: step.stepId,
+          success: true,
+          output,
+          stopped: true,
+          stopReason: policyCheck.stopReason || "Policy requires approval",
+          approvalId: approvalResult.approvalId,
+        };
+      }
+      
+      return {
+        stepId: step.stepId,
+        success: true,
+        output,
+        stopped: true,
+        stopReason: policyCheck.stopReason || "Policy blocked message sending",
+      };
+    }
+    
     if (conv) {
       await storage.createMessage({
         conversationId: conv.id,
@@ -286,6 +339,36 @@ async function executeIntakeStep(
     }
 
     if (!intakeResult.isQualified) {
+      // Check policy before sending follow-up message
+      const msgPolicyCheck = await checkPolicyForAction({ action: "send_message", data: { phone } });
+      
+      if (!msgPolicyCheck.allowed) {
+        if (msgPolicyCheck.requiresApproval) {
+          const approvalResult = await approvals.requestApproval({
+            type: msgPolicyCheck.approvalType || "send_message",
+            summary: msgPolicyCheck.stopReason || "Policy requires approval for message",
+            payload: { phone, message: intakeResult.suggestedResponse, policyReason: msgPolicyCheck.stopReason },
+          }, conv.id);
+          
+          return {
+            stepId: step.stepId,
+            success: true,
+            output,
+            stopped: true,
+            stopReason: msgPolicyCheck.stopReason || "Policy requires approval",
+            approvalId: approvalResult.approvalId,
+          };
+        }
+        
+        return {
+          stepId: step.stepId,
+          success: true,
+          output,
+          stopped: true,
+          stopReason: msgPolicyCheck.stopReason || "Policy blocked message sending",
+        };
+      }
+      
       await storage.createMessage({
         conversationId: conv.id,
         role: "ai",
@@ -324,6 +407,71 @@ async function executeQuoteStep(
 
   output.quote = quote;
 
+  // Check policy for sending quote
+  const quoteConfidence = typeof quote.confidence === "number" ? quote.confidence : 0.85;
+  const quotePolicyCheck = await checkPolicyForAction({
+    action: "send_quote",
+    data: {
+      phone: conversation.customerPhone,
+      quoteType: "range" as const,
+      amountMin: quote.estimatedPrice * 0.8,
+      amountMax: quote.estimatedPrice * 1.2,
+      confidence: quoteConfidence,
+    },
+  });
+
+  // If policy blocks the action
+  if (!quotePolicyCheck.allowed) {
+    // Hard block (no approval possible) - stop without creating approval
+    if (!quotePolicyCheck.requiresApproval) {
+      await storage.createMessage({
+        conversationId: conversation.id,
+        role: "system",
+        content: `Quote blocked: ${quotePolicyCheck.stopReason}`,
+      });
+      
+      return {
+        stepId: step.stepId,
+        success: true,
+        output,
+        stopped: true,
+        stopReason: quotePolicyCheck.stopReason || "Policy blocked quote",
+      };
+    }
+    
+    // Policy requires approval - create approval request
+    const approvalResult = await approvals.requestApproval({
+      type: "send_quote",
+      summary: `Send quote of $${(quote.estimatedPrice / 100).toFixed(2)} for ${serviceType}`,
+      payload: {
+        estimatedPrice: quote.estimatedPrice,
+        serviceType,
+        message: quote.suggestedMessage,
+        customerName: conversation.customerName,
+        phone: conversation.customerPhone,
+        policyReason: quotePolicyCheck.stopReason,
+      },
+    }, conversation.id);
+
+    output.approvalId = approvalResult.approvalId;
+
+    await storage.createMessage({
+      conversationId: conversation.id,
+      role: "system",
+      content: `Quote generated for $${(quote.estimatedPrice / 100).toFixed(2)}. Awaiting approval.`,
+    });
+
+    return {
+      stepId: step.stepId,
+      success: true,
+      output,
+      stopped: true,
+      stopReason: quotePolicyCheck.stopReason || "Awaiting quote approval",
+      approvalId: approvalResult.approvalId,
+    };
+  }
+  
+  // Step-level approval required (independent of policy)
   if (step.requiresApproval) {
     const approvalResult = await approvals.requestApproval({
       type: "send_quote",
@@ -388,6 +536,69 @@ async function executeScheduleStep(
 
   output.schedule = schedule;
 
+  // Check policy for booking job
+  // Use default confidence/slot scores since schedule agent doesn't provide them yet
+  const bookPolicyCheck = await checkPolicyForAction({
+    action: "book_job",
+    data: {
+      phone: conversation.customerPhone,
+      confidence: 0.85, // Default confidence - can be enhanced when schedule agent provides it
+      slotScore: 80, // Default slot score - can be enhanced when schedule agent provides it
+    },
+  });
+
+  // If policy blocks the action
+  if (!bookPolicyCheck.allowed) {
+    // Hard block (no approval possible) - stop without creating approval
+    if (!bookPolicyCheck.requiresApproval) {
+      await storage.createMessage({
+        conversationId: conversation.id,
+        role: "system",
+        content: `Booking blocked: ${bookPolicyCheck.stopReason}`,
+      });
+      
+      return {
+        stepId: step.stepId,
+        success: true,
+        output,
+        stopped: true,
+        stopReason: bookPolicyCheck.stopReason || "Policy blocked booking",
+      };
+    }
+    
+    // Policy requires approval - create approval request
+    const approvalResult = await approvals.requestApproval({
+      type: "book_job",
+      summary: `Schedule ${serviceType} for ${conversation.customerName || conversation.customerPhone}`,
+      payload: {
+        customerName: conversation.customerName,
+        phone: conversation.customerPhone,
+        serviceType,
+        proposedDate: schedule.proposedDateISO,
+        message: schedule.suggestedMessage,
+        policyReason: bookPolicyCheck.stopReason,
+      },
+    }, conversation.id);
+
+    output.approvalId = approvalResult.approvalId;
+
+    await storage.createMessage({
+      conversationId: conversation.id,
+      role: "system",
+      content: `Scheduling proposed for ${schedule.proposedDate?.toLocaleDateString()}. Awaiting approval.`,
+    });
+
+    return {
+      stepId: step.stepId,
+      success: true,
+      output,
+      stopped: true,
+      stopReason: bookPolicyCheck.stopReason || "Awaiting scheduling approval",
+      approvalId: approvalResult.approvalId,
+    };
+  }
+  
+  // Step-level approval required (independent of policy)
   if (step.requiresApproval) {
     const approvalResult = await approvals.requestApproval({
       type: "book_job",

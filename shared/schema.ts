@@ -101,6 +101,37 @@ export const eventReceipts = pgTable("event_receipts", {
   completedAt: timestamp("completed_at"),
 });
 
+// Policy Profiles - tiered automation policy configuration
+export const policyProfiles = pgTable("policy_profiles", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  tier: text("tier").notNull().default("owner_operator"), // owner_operator, smb, commercial
+  
+  // Automation flags
+  autoSendMessages: boolean("auto_send_messages").default(true),
+  autoSendQuotes: boolean("auto_send_quotes").default(false),
+  autoBookJobs: boolean("auto_book_jobs").default(false),
+  afterHoursAutomation: boolean("after_hours_automation").default(false),
+  
+  // Thresholds
+  confidenceThreshold: integer("confidence_threshold").default(85), // 85 = 0.85
+  slotScoreThreshold: integer("slot_score_threshold").default(80), // For commercial auto-booking
+  
+  // Service area configuration (JSON array of zip codes or { radius: number, center: {lat, lng} })
+  serviceAreaZips: text("service_area_zips").array(),
+  serviceAreaRadius: integer("service_area_radius"), // miles from HQ
+  
+  // Do-not-serve rules (blocked phone numbers and addresses)
+  blockedPhones: text("blocked_phones").array(),
+  blockedAddresses: text("blocked_addresses").array(),
+  
+  // Pricing rules for Commercial tier (JSON)
+  pricingRules: jsonb("pricing_rules"), // { minQuote, maxQuote, requiresApprovalAbove }
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // FSM Leads - mock lead tracking
 export const leads = pgTable("leads", {
   id: serial("id").primaryKey(),
@@ -164,6 +195,13 @@ export const jobsRelations = relations(jobs, ({ one }) => ({
   }),
 }));
 
+export const policyProfilesRelations = relations(policyProfiles, ({ one }) => ({
+  business: one(businessProfiles, {
+    fields: [policyProfiles.businessId],
+    references: [businessProfiles.id],
+  }),
+}));
+
 // Insert Schemas
 export const insertBusinessProfileSchema = createInsertSchema(businessProfiles).omit({
   id: true,
@@ -215,6 +253,12 @@ export const insertLeadSchema = createInsertSchema(leads).omit({
   createdAt: true,
 });
 
+export const insertPolicyProfileSchema = createInsertSchema(policyProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type BusinessProfile = typeof businessProfiles.$inferSelect;
 export type InsertBusinessProfile = z.infer<typeof insertBusinessProfileSchema>;
@@ -242,3 +286,10 @@ export type InsertEventReceipt = z.infer<typeof insertEventReceiptSchema>;
 
 export type Lead = typeof leads.$inferSelect;
 export type InsertLead = z.infer<typeof insertLeadSchema>;
+
+export type PolicyProfile = typeof policyProfiles.$inferSelect;
+export type InsertPolicyProfile = z.infer<typeof insertPolicyProfileSchema>;
+
+// Policy tier enum for type safety
+export const PolicyTiers = ["owner_operator", "smb", "commercial"] as const;
+export type PolicyTier = typeof PolicyTiers[number];

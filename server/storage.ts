@@ -8,6 +8,7 @@ import {
   auditLogs,
   eventReceipts,
   leads,
+  policyProfiles,
   type BusinessProfile,
   type InsertBusinessProfile,
   type Conversation,
@@ -26,6 +27,8 @@ import {
   type InsertEventReceipt,
   type Lead,
   type InsertLead,
+  type PolicyProfile,
+  type InsertPolicyProfile,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
@@ -80,6 +83,12 @@ export interface IStorage {
   getLeadByExternalId(externalId: string): Promise<Lead | undefined>;
   createLead(lead: InsertLead): Promise<Lead>;
   updateLead(id: number, updates: Partial<InsertLead>): Promise<Lead>;
+
+  // Policy Profiles
+  getPolicyProfile(businessId: number): Promise<PolicyProfile | undefined>;
+  getPolicyProfileById(id: number): Promise<PolicyProfile | undefined>;
+  createPolicyProfile(profile: InsertPolicyProfile): Promise<PolicyProfile>;
+  updatePolicyProfile(id: number, updates: Partial<InsertPolicyProfile>): Promise<PolicyProfile>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -278,6 +287,35 @@ export class DatabaseStorage implements IStorage {
       .update(leads)
       .set(updates)
       .where(eq(leads.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Policy Profiles
+  async getPolicyProfile(businessId: number): Promise<PolicyProfile | undefined> {
+    const [profile] = await db
+      .select()
+      .from(policyProfiles)
+      .where(eq(policyProfiles.businessId, businessId))
+      .limit(1);
+    return profile;
+  }
+
+  async getPolicyProfileById(id: number): Promise<PolicyProfile | undefined> {
+    const [profile] = await db.select().from(policyProfiles).where(eq(policyProfiles.id, id));
+    return profile;
+  }
+
+  async createPolicyProfile(profile: InsertPolicyProfile): Promise<PolicyProfile> {
+    const [created] = await db.insert(policyProfiles).values(profile).returning();
+    return created;
+  }
+
+  async updatePolicyProfile(id: number, updates: Partial<InsertPolicyProfile>): Promise<PolicyProfile> {
+    const [updated] = await db
+      .update(policyProfiles)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(policyProfiles.id, id))
       .returning();
     return updated;
   }

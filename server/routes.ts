@@ -7,7 +7,10 @@ import {
   insertBusinessProfileSchema,
   insertMessageSchema,
   insertJobSchema,
+  insertPolicyProfileSchema,
+  PolicyTiers,
 } from "@shared/schema";
+import { PolicyService } from "./policy";
 import { z } from "zod";
 
 export async function registerRoutes(
@@ -405,6 +408,167 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error handling Twilio voice webhook:", error);
       res.status(500).send();
+    }
+  });
+
+  // ============================================
+  // Policy Profile Routes
+  // ============================================
+
+  app.get("/api/policy", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      let policyProfile = await storage.getPolicyProfile(profile.id);
+      
+      // Create default policy if none exists
+      if (!policyProfile) {
+        policyProfile = await PolicyService.createDefaultPolicy(profile.id, "owner_operator");
+      }
+      
+      res.json(policyProfile);
+    } catch (error) {
+      console.error("Error fetching policy profile:", error);
+      res.status(500).json({ error: "Failed to fetch policy" });
+    }
+  });
+
+  app.get("/api/policy/tiers", async (req, res) => {
+    res.json({
+      tiers: PolicyTiers,
+      descriptions: {
+        owner_operator: {
+          name: "Owner Operator",
+          description: "Basic automation with human approval for quotes and scheduling",
+          features: {
+            autoSendMessages: true,
+            autoSendQuotes: false,
+            autoBookJobs: false,
+            afterHoursAutomation: false,
+            confidenceThreshold: 0.85,
+          },
+        },
+        smb: {
+          name: "SMB",
+          description: "Enhanced automation with auto-quotes for range estimates",
+          features: {
+            autoSendMessages: true,
+            autoSendQuotes: "Range quotes only when confidence >= 85%",
+            autoBookJobs: false,
+            afterHoursAutomation: "Configurable",
+            confidenceThreshold: 0.85,
+          },
+        },
+        commercial: {
+          name: "Commercial",
+          description: "Full automation with auto-booking for high-confidence opportunities",
+          features: {
+            autoSendMessages: true,
+            autoSendQuotes: "Range and fixed quotes when confidence >= 90%",
+            autoBookJobs: "When confidence >= 90% and slot score >= threshold",
+            afterHoursAutomation: "Configurable",
+            confidenceThreshold: 0.90,
+          },
+        },
+      },
+    });
+  });
+
+  app.patch("/api/policy/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updateSchema = insertPolicyProfileSchema.partial();
+      const parsed = updateSchema.safeParse(req.body);
+      
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.message });
+      }
+      
+      const policyProfile = await storage.updatePolicyProfile(id, parsed.data);
+      res.json(policyProfile);
+    } catch (error) {
+      console.error("Error updating policy profile:", error);
+      res.status(500).json({ error: "Failed to update policy" });
+    }
+  });
+
+  app.post("/api/policy/blocked-phones", async (req, res) => {
+    try {
+      const { phone } = req.body;
+      if (!phone) {
+        return res.status(400).json({ error: "Phone number required" });
+      }
+      
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const policyProfile = await storage.getPolicyProfile(profile.id);
+      if (!policyProfile) {
+        return res.status(404).json({ error: "Policy profile not found" });
+      }
+      
+      const blockedPhones = [...(policyProfile.blockedPhones || []), phone];
+      const updated = await storage.updatePolicyProfile(policyProfile.id, { blockedPhones });
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error adding blocked phone:", error);
+      res.status(500).json({ error: "Failed to add blocked phone" });
+    }
+  });
+
+  app.delete("/api/policy/blocked-phones/:phone", async (req, res) => {
+    try {
+      const phone = decodeURIComponent(req.params.phone);
+      
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const policyProfile = await storage.getPolicyProfile(profile.id);
+      if (!policyProfile) {
+        return res.status(404).json({ error: "Policy profile not found" });
+      }
+      
+      const blockedPhones = (policyProfile.blockedPhones || []).filter(p => p !== phone);
+      const updated = await storage.updatePolicyProfile(policyProfile.id, { blockedPhones });
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error removing blocked phone:", error);
+      res.status(500).json({ error: "Failed to remove blocked phone" });
+    }
+  });
+
+  app.post("/api/policy/service-area", async (req, res) => {
+    try {
+      const { zipCodes, radius } = req.body;
+      
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const policyProfile = await storage.getPolicyProfile(profile.id);
+      if (!policyProfile) {
+        return res.status(404).json({ error: "Policy profile not found" });
+      }
+      
+      const updates: any = {};
+      if (zipCodes) updates.serviceAreaZips = zipCodes;
+      if (radius !== undefined) updates.serviceAreaRadius = radius;
+      
+      const updated = await storage.updatePolicyProfile(policyProfile.id, updates);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating service area:", error);
+      res.status(500).json({ error: "Failed to update service area" });
     }
   });
 

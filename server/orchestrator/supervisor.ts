@@ -42,6 +42,7 @@ export interface StateContext {
   messages: Message[];
   leadId?: string;
   jobId?: number;
+  businessId?: number;
   businessName: string;
   services: string[];
   serviceArea: string;
