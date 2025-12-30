@@ -40,6 +40,31 @@ All tools have strict Zod validation and audit logging:
 - `audit.logEvent(action, actor, payload)` - Log to audit trail
 - `metrics.record(name, value, tags)` - Record metrics
 
+## Orchestration Engine (server/orchestrator/)
+The orchestration engine handles event-driven workflow execution with idempotency:
+
+### Entry Point
+- `orchestrator.handleEvent(event)` - Main entry, checks idempotency via event_receipts table
+
+### Components
+- `supervisor.plan(event, state, policy)` - AI-powered plan generation returning SupervisorPlan JSON
+- `runner.execute(plan)` - Sequential step execution with tool calls
+
+### Step Execution Flow
+1. Call the agent with inputs
+2. Parse JSON response with Zod schema
+3. If `requiresApproval` -> create approval record and stop
+4. If action allowed -> call tools (comms, fsm, etc.)
+5. Persist state updates (conversation messages, leads, jobs)
+
+### End-to-End Flow
+```
+Missed call -> Intake agent -> comms.sendSms -> fsm.createLead 
+-> Schedule agent -> approvals.requestApproval(book_job) 
+-> (admin approves) -> fsm.createJob 
+-> POST /api/jobs/:id/complete -> Reviews agent sends review request
+```
+
 ## Key Features
 1. **Dashboard**: ROI metrics, conversation overview, pending actions
 2. **Conversations**: View all customer interactions with filtering
@@ -48,6 +73,7 @@ All tools have strict Zod validation and audit logging:
 5. **Event Simulator**: Test workflows without real Twilio integration
 6. **Jobs**: Track scheduled landscaping work
 7. **Audit Log**: Complete trail of system actions
+8. **Idempotency**: Event receipts prevent duplicate processing
 
 ## Environment Variables
 - `DATABASE_URL` - PostgreSQL connection string (auto-configured)
@@ -76,10 +102,11 @@ npm run db:push
 - Clean, efficient admin interface
 
 ## Recent Changes
-- Initial MVP setup with all frontend pages
-- PostgreSQL database with full schema
-- OpenAI integration for AI agent responses
-- Mock Twilio connector (real integration pending user credentials)
+- Orchestration engine with supervisor planning and runner execution
+- Idempotency via event_receipts table
+- Tool interfaces with strict Zod validation
+- POST /api/jobs/:id/complete endpoint for simulating job completion
+- Reviews agent for post-job review requests
 
 ## Notes
 - Twilio integration was skipped during setup. User can configure later by providing credentials.

@@ -90,6 +90,31 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// Event Receipts - idempotency tracking for event processing
+export const eventReceipts = pgTable("event_receipts", {
+  id: serial("id").primaryKey(),
+  eventId: text("event_id").notNull().unique(), // External event ID for deduplication
+  eventType: text("event_type").notNull(),
+  status: text("status").notNull().default("processing"), // processing, completed, failed
+  result: jsonb("result"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  completedAt: timestamp("completed_at"),
+});
+
+// FSM Leads - mock lead tracking
+export const leads = pgTable("leads", {
+  id: serial("id").primaryKey(),
+  externalId: text("external_id").notNull().unique(), // FSM lead ID
+  conversationId: integer("conversation_id").references(() => conversations.id),
+  name: text("name"),
+  phone: text("phone").notNull(),
+  address: text("address"),
+  serviceRequested: text("service_requested").notNull(),
+  notes: text("notes"),
+  status: text("status").notNull().default("new"), // new, contacted, qualified, converted, lost
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // Relations
 export const businessProfilesRelations = relations(businessProfiles, ({ many }) => ({
   conversations: many(conversations),
@@ -179,6 +204,17 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
   createdAt: true,
 });
 
+export const insertEventReceiptSchema = createInsertSchema(eventReceipts).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+});
+
+export const insertLeadSchema = createInsertSchema(leads).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type BusinessProfile = typeof businessProfiles.$inferSelect;
 export type InsertBusinessProfile = z.infer<typeof insertBusinessProfileSchema>;
@@ -200,3 +236,9 @@ export type InsertJob = z.infer<typeof insertJobSchema>;
 
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+
+export type EventReceipt = typeof eventReceipts.$inferSelect;
+export type InsertEventReceipt = z.infer<typeof insertEventReceiptSchema>;
+
+export type Lead = typeof leads.$inferSelect;
+export type InsertLead = z.infer<typeof insertLeadSchema>;

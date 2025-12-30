@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { processEvent, approveAction, rejectAction } from "./orchestrator";
+import { processEvent, approveAction, rejectAction, simulateJobCompleted } from "./orchestrator";
 import {
   insertBusinessProfileSchema,
   insertMessageSchema,
@@ -257,6 +257,21 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error simulating event:", error);
       res.status(500).json({ error: "Failed to simulate event" });
+    }
+  });
+
+  // ============================================
+  // Simulate Job Completed (triggers review flow)
+  // ============================================
+
+  app.post("/api/jobs/:id/complete", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const result = await simulateJobCompleted(id);
+      res.json(result);
+    } catch (error) {
+      console.error("Error simulating job completion:", error);
+      res.status(500).json({ error: "Failed to simulate job completion" });
     }
   });
 

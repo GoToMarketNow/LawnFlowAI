@@ -6,6 +6,8 @@ import {
   pendingActions,
   jobs,
   auditLogs,
+  eventReceipts,
+  leads,
   type BusinessProfile,
   type InsertBusinessProfile,
   type Conversation,
@@ -20,6 +22,10 @@ import {
   type InsertJob,
   type AuditLog,
   type InsertAuditLog,
+  type EventReceipt,
+  type InsertEventReceipt,
+  type Lead,
+  type InsertLead,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
@@ -62,6 +68,18 @@ export interface IStorage {
   // Audit Logs
   getAuditLogs(): Promise<AuditLog[]>;
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
+
+  // Event Receipts (idempotency)
+  getEventReceipt(eventId: string): Promise<EventReceipt | undefined>;
+  createEventReceipt(receipt: InsertEventReceipt): Promise<EventReceipt>;
+  updateEventReceipt(eventId: string, updates: Partial<EventReceipt>): Promise<EventReceipt>;
+
+  // Leads
+  getLeads(): Promise<Lead[]>;
+  getLead(id: number): Promise<Lead | undefined>;
+  getLeadByExternalId(externalId: string): Promise<Lead | undefined>;
+  createLead(lead: InsertLead): Promise<Lead>;
+  updateLead(id: number, updates: Partial<InsertLead>): Promise<Lead>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -213,6 +231,55 @@ export class DatabaseStorage implements IStorage {
   async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
     const [created] = await db.insert(auditLogs).values(log).returning();
     return created;
+  }
+
+  // Event Receipts (idempotency)
+  async getEventReceipt(eventId: string): Promise<EventReceipt | undefined> {
+    const [receipt] = await db.select().from(eventReceipts).where(eq(eventReceipts.eventId, eventId));
+    return receipt;
+  }
+
+  async createEventReceipt(receipt: InsertEventReceipt): Promise<EventReceipt> {
+    const [created] = await db.insert(eventReceipts).values(receipt).returning();
+    return created;
+  }
+
+  async updateEventReceipt(eventId: string, updates: Partial<EventReceipt>): Promise<EventReceipt> {
+    const [updated] = await db
+      .update(eventReceipts)
+      .set(updates)
+      .where(eq(eventReceipts.eventId, eventId))
+      .returning();
+    return updated;
+  }
+
+  // Leads
+  async getLeads(): Promise<Lead[]> {
+    return db.select().from(leads).orderBy(desc(leads.createdAt));
+  }
+
+  async getLead(id: number): Promise<Lead | undefined> {
+    const [lead] = await db.select().from(leads).where(eq(leads.id, id));
+    return lead;
+  }
+
+  async getLeadByExternalId(externalId: string): Promise<Lead | undefined> {
+    const [lead] = await db.select().from(leads).where(eq(leads.externalId, externalId));
+    return lead;
+  }
+
+  async createLead(lead: InsertLead): Promise<Lead> {
+    const [created] = await db.insert(leads).values(lead).returning();
+    return created;
+  }
+
+  async updateLead(id: number, updates: Partial<InsertLead>): Promise<Lead> {
+    const [updated] = await db
+      .update(leads)
+      .set(updates)
+      .where(eq(leads.id, id))
+      .returning();
+    return updated;
   }
 }
 
