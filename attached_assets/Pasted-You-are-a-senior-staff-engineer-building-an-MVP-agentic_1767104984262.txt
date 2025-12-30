@@ -1,0 +1,53 @@
+You are a senior staff engineer building an MVP agentic add-on for landscaping/lawn care businesses.
+
+Goal: Generate a working proof-of-concept web app that:
+1) Ingests inbound events (missed call, inbound SMS, web lead) via webhooks
+2) Orchestrates specialist agents (intake/qualify, quote, schedule, invoice follow-up, reviews)
+3) Integrates with Twilio for SMS (required)
+4) Uses a “mock FSM connector” abstraction (Jobber/Housecall Pro/Service Autopilot) for now, with clear interfaces and fake in-memory implementation
+5) Provides a small admin UI for:
+   - business profile setup
+   - viewing conversations
+   - approving actions (human-in-the-loop)
+   - seeing ROI metrics
+
+Tech constraints:
+- Use TypeScript
+- Backend: Node.js + Fastify (or Express if you strongly prefer)
+- Frontend: Next.js (App Router) + minimal UI
+- DB: SQLite with Prisma (simple + portable)
+- Background jobs: BullMQ (Redis) OR a simple in-process queue for PoC (document how to swap)
+- LLM: OpenAI-compatible client (do not hardcode keys; env vars)
+- Use structured outputs (JSON schema / zod) for all agent responses
+
+Architecture requirements:
+- Event-driven orchestration: event -> supervisor -> plan -> tool calls -> state updates
+- Strict separation:
+  /agents (prompt + parsing + eval)
+  /connectors (twilio, fsm mock, email optional)
+  /orchestrator (supervisor, workflow runner)
+  /policies (risk, tier permissions)
+  /models (prisma schema)
+  /ui (admin)
+
+Deliverables:
+- Full repository with:
+  - README with setup instructions, env vars, and “run locally” steps
+  - Prisma schema + migrations
+  - Example seed data (a landscaping business profile)
+  - Twilio webhook endpoints for inbound SMS and missed call event simulation
+  - A “simulate event” endpoint for testing without Twilio
+  - A minimal admin UI to see conversations + approve actions
+  - Logging + audit trail
+
+Also:
+- Provide a minimal test plan and a few Jest tests covering orchestration and parsing.
+
+Start by generating:
+1) folder structure
+2) package.json scripts
+3) prisma schema
+4) core types/interfaces
+5) the orchestrator skeleton
+Then fill in each agent and route one workflow end-to-end:
+Missed call -> SMS outreach -> qualification -> propose schedule -> if approved -> create mock job.
