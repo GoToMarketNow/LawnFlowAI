@@ -9,7 +9,7 @@ import type { Conversation, BusinessProfile } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 export interface EventPayload {
-  type: "missed_call" | "inbound_sms" | "web_lead" | "job_completed";
+  type: "missed_call" | "inbound_sms" | "web_lead" | "job_completed" | "quote_request";
   data: Record<string, unknown>;
   eventId?: string;
 }

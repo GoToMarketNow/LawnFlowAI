@@ -1,10 +1,15 @@
 import OpenAI from "openai";
 import { z } from "zod";
+import { geoService, type GeocodeResult, type ParcelResult, type CountyResult, type ParcelCoverageResult } from "../services/geo";
+import { quoteCalculator, type QuoteCalculatorInput, type ServiceType, type Frequency } from "../services/quote-calculator";
+import { AreaBands, type AreaBandKey } from "@shared/schema";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
+
+const SMS_MAX_LENGTH = 320;
 
 const lineItemSchema = z.object({
   name: z.string(),
@@ -24,9 +29,10 @@ const quoteBlockSchema = z.object({
 });
 
 const customerMessageSchema = z.object({
-  recommended_text: z.string().max(500),
+  recommended_text: z.string().max(SMS_MAX_LENGTH),
   asks_for_photos: z.boolean(),
   photo_instructions: z.string().nullable(),
+  proposes_site_visit: z.boolean().default(false),
 });
 
 export const quoteOutputSchema = z.object({
@@ -35,6 +41,12 @@ export const quoteOutputSchema = z.object({
   requires_human_approval: z.boolean(),
   approval_reason: z.string(),
   confidence: z.number().min(0).max(1),
+  property_context: z.object({
+    parcel_coverage: z.enum(["full", "partial", "none", "unknown"]),
+    lot_area_sqft: z.number().nullable(),
+    area_band: z.string().nullable(),
+    data_source: z.enum(["parcel", "customer", "unknown"]),
+  }).optional(),
 });
 
 export type QuoteOutput = z.infer<typeof quoteOutputSchema>;
@@ -43,10 +55,12 @@ export type LineItem = z.infer<typeof lineItemSchema>;
 export interface LeadCaptureSummary {
   name: string | null;
   address: string | null;
-  service_requested: "mowing" | "cleanup" | "mulch" | "landscaping" | "other";
+  service_requested: ServiceType;
+  frequency?: Frequency;
   urgency: "today" | "this_week" | "flexible" | "unknown";
   property_size_hint: "small" | "medium" | "large" | "unknown";
   notes: string;
+  customerProvidedAreaBand?: AreaBandKey;
 }
 
 export interface PricingRules {
@@ -82,128 +96,137 @@ export interface QuotingContext {
   businessName: string;
 }
 
-function getCurrentSeason(): "spring" | "summer" | "fall" | "winter" {
-  const month = new Date().getMonth();
-  if (month >= 2 && month <= 4) return "spring";
-  if (month >= 5 && month <= 7) return "summer";
-  if (month >= 8 && month <= 10) return "fall";
-  return "winter";
+interface PropertyResolution {
+  geocode: GeocodeResult | null;
+  county: CountyResult | null;
+  parcelCoverage: ParcelCoverageResult | null;
+  parcel: ParcelResult | null;
+  areaBand: AreaBandKey;
+  lotAreaSqft: number | null;
+  source: "parcel" | "customer" | "unknown";
+  confidence: "high" | "medium" | "low";
 }
 
-function needsPhotos(serviceType: string, hasPhotos: boolean): boolean {
-  const photoRequiredServices = ["cleanup", "landscaping", "mulch"];
-  return photoRequiredServices.includes(serviceType) && !hasPhotos;
+async function resolvePropertyData(
+  lead: LeadCaptureSummary
+): Promise<PropertyResolution> {
+  const result: PropertyResolution = {
+    geocode: null,
+    county: null,
+    parcelCoverage: null,
+    parcel: null,
+    areaBand: "medium",
+    lotAreaSqft: null,
+    source: "unknown",
+    confidence: "low",
+  };
+
+  if (lead.customerProvidedAreaBand) {
+    result.areaBand = lead.customerProvidedAreaBand;
+    result.source = "customer";
+    result.confidence = "medium";
+    console.log(`[Quoting] Using customer-provided area band: ${result.areaBand}`);
+  }
+
+  if (!lead.address) {
+    console.log("[Quoting] No address provided, using defaults");
+    if (lead.property_size_hint !== "unknown") {
+      result.areaBand = lead.property_size_hint === "small" ? "small" 
+        : lead.property_size_hint === "large" ? "large" : "medium";
+    }
+    return result;
+  }
+
+  const zipMatch = lead.address.match(/\b(\d{5})(?:-\d{4})?\b/);
+  if (!zipMatch) {
+    console.log("[Quoting] No ZIP code found in address");
+    return result;
+  }
+
+  const zip = zipMatch[1];
+  console.log(`[Quoting] Resolving county for ZIP ${zip}`);
+  result.county = await geoService.resolveCountyByZip(zip);
+
+  if (!result.county) {
+    console.log("[Quoting] Could not resolve county from ZIP");
+    return result;
+  }
+
+  result.parcelCoverage = await geoService.checkParcelCoverage(
+    result.county.state,
+    result.county.countyFips
+  );
+
+  if (result.parcelCoverage.coverage === "none") {
+    console.log("[Quoting] No parcel coverage in this county");
+    return result;
+  }
+
+  result.geocode = await geoService.geocodeAddress(lead.address);
+
+  if (!result.geocode) {
+    console.log("[Quoting] Could not geocode address");
+    return result;
+  }
+
+  if (result.parcelCoverage.coverage === "full" || result.parcelCoverage.coverage === "partial") {
+    result.parcel = await geoService.fetchParcelByLatLng(
+      result.geocode.lat,
+      result.geocode.lng
+    );
+
+    if (result.parcel && result.parcel.confidence >= 0.7) {
+      result.lotAreaSqft = result.parcel.lotAreaSqft;
+      result.areaBand = geoService.sqftToAreaBand(result.parcel.lotAreaSqft);
+      result.source = "parcel";
+      result.confidence = result.parcel.confidence >= 0.85 ? "high" : "medium";
+      console.log(`[Quoting] Parcel data: ${result.lotAreaSqft} sqft -> ${result.areaBand} band`);
+    }
+  }
+
+  return result;
 }
 
-function calculateBasePrice(
+function buildCustomerMessage(
   lead: LeadCaptureSummary,
-  pricing: PricingRules,
-  season: "spring" | "summer" | "fall" | "winter"
-): { low: number; high: number; lineItems: LineItem[] } {
-  const sizeKey = lead.property_size_hint === "unknown" ? "medium" : lead.property_size_hint;
-  const seasonalMod = pricing.seasonalModifiers[season];
-  const lineItems: LineItem[] = [];
+  quoteResult: ReturnType<typeof quoteCalculator.calculateQuoteRange>,
+  propertyData: PropertyResolution,
+  context: QuotingContext
+): { text: string; asksForPhotos: boolean; photoInstructions: string | null; proposesSiteVisit: boolean } {
+  const name = lead.name ? lead.name.split(" ")[0] : "";
+  const greeting = name ? `Hi ${name}! ` : "Hi! ";
   
-  let low = pricing.minimumPrice;
-  let high = pricing.minimumPrice;
-  
-  switch (lead.service_requested) {
-    case "mowing":
-      const mowPrice = pricing.mowing[sizeKey];
-      low = Math.max(pricing.minimumPrice, mowPrice * seasonalMod);
-      high = low * 1.2;
-      lineItems.push({
-        name: `Lawn Mowing (${sizeKey} yard)`,
-        qty: 1,
-        unit: "visit",
-        unit_price_usd: low,
-        total_usd: low,
-      });
-      break;
-      
-    case "cleanup":
-      const cleanupBase = pricing.cleanup[sizeKey];
-      low = Math.max(pricing.minimumPrice, cleanupBase * seasonalMod);
-      high = low * 1.5;
-      lineItems.push({
-        name: `Yard Cleanup (${sizeKey} yard)`,
-        qty: 1,
-        unit: "service",
-        unit_price_usd: low,
-        total_usd: low,
-      });
-      break;
-      
-    case "mulch":
-      const yardsEstimate = sizeKey === "small" ? 2 : sizeKey === "medium" ? 4 : 8;
-      const mulchCost = yardsEstimate * pricing.mulch.perYard;
-      const laborHours = sizeKey === "small" ? 2 : sizeKey === "medium" ? 4 : 6;
-      const laborCost = laborHours * pricing.mulch.laborPerHour;
-      low = Math.max(pricing.minimumPrice, (mulchCost + laborCost) * seasonalMod);
-      high = low * 1.3;
-      lineItems.push(
-        {
-          name: "Mulch material",
-          qty: yardsEstimate,
-          unit: "cubic yard",
-          unit_price_usd: pricing.mulch.perYard,
-          total_usd: mulchCost,
-        },
-        {
-          name: "Installation labor",
-          qty: laborHours,
-          unit: "hour",
-          unit_price_usd: pricing.mulch.laborPerHour,
-          total_usd: laborCost,
-        }
-      );
-      break;
-      
-    case "landscaping":
-      low = pricing.landscaping.consultFee;
-      high = pricing.landscaping.consultFee + (pricing.landscaping.hourlyRate * 4);
-      lineItems.push({
-        name: "Landscaping consultation",
-        qty: 1,
-        unit: "visit",
-        unit_price_usd: pricing.landscaping.consultFee,
-        total_usd: pricing.landscaping.consultFee,
-      });
-      break;
-      
-    default:
-      low = pricing.minimumPrice;
-      high = pricing.minimumPrice * 2;
-      lineItems.push({
-        name: "General service estimate",
-        qty: 1,
-        unit: "service",
-        unit_price_usd: low,
-        total_usd: low,
-      });
-  }
-  
-  return { low: Math.round(low * 100) / 100, high: Math.round(high * 100) / 100, lineItems };
-}
+  let asksForPhotos = false;
+  let proposesSiteVisit = false;
+  let photoInstructions: string | null = null;
 
-function determineQuoteType(
-  lead: LeadCaptureSummary,
-  hasPhotos: boolean,
-  confidence: number
-): "range" | "fixed" | "needs_site_visit" {
-  if (lead.service_requested === "landscaping" && !hasPhotos) {
-    return "needs_site_visit";
+  const priceRange = quoteResult.low === quoteResult.high
+    ? `$${quoteResult.low}`
+    : `$${quoteResult.low}-$${quoteResult.high}`;
+
+  let message: string;
+
+  if (quoteResult.confidence === "high") {
+    message = `${greeting}For ${lead.service_requested}, we estimate ${priceRange}. When works best for you?`;
+  } else if (quoteResult.confidence === "medium") {
+    message = `${greeting}Based on your ${lead.service_requested} request, our range is ${priceRange}. Can you confirm your lot size?`;
+  } else {
+    const highVarianceServices = ["cleanup", "mulch", "landscaping"];
+    if (highVarianceServices.includes(lead.service_requested) && !context.hasPhotos) {
+      asksForPhotos = true;
+      photoInstructions = "Send 2-3 photos of your yard from different angles.";
+      message = `${greeting}For ${lead.service_requested}, range is ${priceRange} (broad estimate). Could you send a few yard photos for accuracy?`;
+    } else {
+      proposesSiteVisit = true;
+      message = `${greeting}For ${lead.service_requested}, we'd estimate ${priceRange}. For accuracy, want to schedule a free site visit?`;
+    }
   }
-  
-  if (lead.property_size_hint === "unknown" || !lead.address) {
-    return "range";
+
+  if (message.length > SMS_MAX_LENGTH) {
+    message = message.substring(0, SMS_MAX_LENGTH - 3) + "...";
   }
-  
-  if (confidence >= 0.85 && hasPhotos) {
-    return "fixed";
-  }
-  
-  return "range";
+
+  return { text: message, asksForPhotos, photoInstructions, proposesSiteVisit };
 }
 
 function requiresApproval(
@@ -213,22 +236,26 @@ function requiresApproval(
   maxAutoQuote: number,
   confidence: number
 ): { required: boolean; reason: string } {
-  if (quoteType === "fixed" && (tier === "Owner" || tier === "SMB")) {
-    return { required: true, reason: "Fixed pricing requires approval for Owner/SMB tier" };
+  if (quoteType === "fixed") {
+    return { required: true, reason: "Fixed pricing requires approval" };
   }
-  
+
   if (highUsd > maxAutoQuote) {
     return { required: true, reason: `Quote exceeds auto-approval threshold ($${maxAutoQuote})` };
   }
-  
+
   if (tier === "Owner") {
     return { required: true, reason: "All quotes require approval for Owner tier" };
   }
-  
+
   if (tier === "Commercial" && confidence < 0.9) {
     return { required: true, reason: "Confidence below Commercial tier threshold (0.9)" };
   }
-  
+
+  if (tier === "SMB" && confidence < 0.85) {
+    return { required: true, reason: "Confidence below SMB auto-send threshold" };
+  }
+
   return { required: false, reason: "" };
 }
 
@@ -238,58 +265,160 @@ export async function runQuotingAgent(
   policy: PolicyThresholds,
   context: QuotingContext
 ): Promise<QuoteOutput> {
-  const season = getCurrentSeason();
-  const shouldRequestPhotos = needsPhotos(lead.service_requested, context.hasPhotos);
-  const baseCalc = calculateBasePrice(lead, pricing, season);
-  
-  const systemPrompt = `You are the Quoting & Estimate Agent for ${context.businessName}, a landscaping/lawn care company.
+  console.log(`[Quoting] Starting quote for ${lead.service_requested} at ${lead.address || "unknown address"}`);
 
-INPUTS:
-Lead Summary:
-- Name: ${lead.name || "Unknown"}
+  const propertyData = await resolvePropertyData(lead);
+
+  const calculatorInput: QuoteCalculatorInput = {
+    services: [lead.service_requested],
+    frequency: lead.frequency || "one_time",
+    areaBand: propertyData.areaBand,
+    complexityTrees: "unknown",
+    complexityShrubs: "unknown",
+    complexityBeds: "unknown",
+    complexitySlope: "unknown",
+    complexityAccess: "unknown",
+  };
+
+  const quoteResult = quoteCalculator.calculateQuoteRange(calculatorInput);
+
+  const adjustedLow = Math.max(quoteResult.low, pricing.minimumPrice);
+  const adjustedHigh = Math.max(quoteResult.high, pricing.minimumPrice);
+
+  let quoteType: "range" | "fixed" | "needs_site_visit";
+  if (lead.service_requested === "landscaping" && !context.hasPhotos) {
+    quoteType = "needs_site_visit";
+  } else if (quoteResult.confidence === "high" && context.hasPhotos) {
+    quoteType = "fixed";
+  } else {
+    quoteType = "range";
+  }
+
+  const customerMessage = buildCustomerMessage(lead, quoteResult, propertyData, context);
+
+  const confidenceNum = quoteResult.confidence === "high" ? 0.9 
+    : quoteResult.confidence === "medium" ? 0.75 : 0.5;
+
+  const approvalCheck = requiresApproval(
+    quoteType,
+    policy.tier,
+    adjustedHigh,
+    policy.max_auto_quote_usd,
+    confidenceNum
+  );
+
+  const lineItems: LineItem[] = quoteResult.lineItems.map(item => ({
+    name: item.name,
+    qty: item.qty,
+    unit: item.unit,
+    unit_price_usd: item.unitPriceUsd,
+    total_usd: item.totalUsd,
+  }));
+
+  const exclusions = [
+    "Disposal fees for large debris",
+    "Work requiring special equipment",
+    "Services not explicitly listed",
+  ];
+
+  const output: QuoteOutput = {
+    quote: {
+      type: quoteType,
+      low_usd: adjustedLow,
+      high_usd: adjustedHigh,
+      line_items: lineItems,
+      assumptions: quoteResult.assumptions,
+      exclusions,
+    },
+    customer_message: {
+      recommended_text: customerMessage.text,
+      asks_for_photos: customerMessage.asksForPhotos,
+      photo_instructions: customerMessage.photoInstructions,
+      proposes_site_visit: customerMessage.proposesSiteVisit,
+    },
+    requires_human_approval: approvalCheck.required,
+    approval_reason: approvalCheck.reason,
+    confidence: confidenceNum,
+    property_context: {
+      parcel_coverage: propertyData.parcelCoverage?.coverage || "unknown",
+      lot_area_sqft: propertyData.lotAreaSqft,
+      area_band: propertyData.areaBand,
+      data_source: propertyData.source,
+    },
+  };
+
+  console.log(`[Quoting] Quote generated: $${adjustedLow}-$${adjustedHigh}, confidence: ${quoteResult.confidence}`);
+
+  return output;
+}
+
+export async function runQuotingAgentWithAI(
+  lead: LeadCaptureSummary,
+  pricing: PricingRules,
+  policy: PolicyThresholds,
+  context: QuotingContext
+): Promise<QuoteOutput> {
+  const propertyData = await resolvePropertyData(lead);
+  const calculatorInput: QuoteCalculatorInput = {
+    services: [lead.service_requested],
+    frequency: lead.frequency || "one_time",
+    areaBand: propertyData.areaBand,
+    complexityTrees: "unknown",
+    complexityShrubs: "unknown",
+    complexityBeds: "unknown",
+    complexitySlope: "unknown",
+    complexityAccess: "unknown",
+  };
+  const baseCalc = quoteCalculator.calculateQuoteRange(calculatorInput);
+
+  const systemPrompt = `You are LawnFlow's Quoting Agent for ${context.businessName}.
+
+Your job is to produce a quote RANGE with clear assumptions and a next step.
+Be conservative and transparent. Never overpromise precision.
+
+PROPERTY DATA:
 - Address: ${lead.address || "Not provided"}
+- Parcel Coverage: ${propertyData.parcelCoverage?.coverage || "unknown"}
+- Lot Size: ${propertyData.lotAreaSqft ? `${propertyData.lotAreaSqft} sqft` : "Unknown"}
+- Area Band: ${propertyData.areaBand}
+- Data Source: ${propertyData.source}
+- Data Confidence: ${propertyData.confidence}
+
+BASE CALCULATION:
 - Service: ${lead.service_requested}
-- Property Size: ${lead.property_size_hint}
-- Urgency: ${lead.urgency}
-- Notes: ${lead.notes}
+- Price Range: $${baseCalc.low} - $${baseCalc.high}
+- Confidence: ${baseCalc.confidence}
+- Assumptions: ${baseCalc.assumptions.join("; ")}
 
-Photos Provided: ${context.hasPhotos}
-${context.photoNotes ? `Photo Notes: ${context.photoNotes}` : ""}
-
-PRICING RULES:
+BUSINESS RULES:
 - Minimum price: $${pricing.minimumPrice}
-- Current season: ${season} (modifier: ${pricing.seasonalModifiers[season]}x)
-- Base calculation: $${baseCalc.low} - $${baseCalc.high}
-
-POLICY:
 - Tier: ${policy.tier}
-- Auto-send quotes: ${policy.auto_send_quotes}
 - Max auto-quote: $${policy.max_auto_quote_usd}
-- Confidence threshold: ${policy.confidence_threshold}
 
 RULES:
-1. Never quote below minimum pricing ($${pricing.minimumPrice})
-2. If data incomplete, produce a range with assumptions, or mark needs_site_visit
-3. ${shouldRequestPhotos ? "Request photos - this service type requires them and none were provided" : "Photos not required or already provided"}
-4. ${policy.tier === "Owner" || policy.tier === "SMB" ? "Set requires_human_approval=true for fixed pricing" : "Commercial tier allows auto-quotes for high confidence"}
+1. Use the base calculation as your starting point
+2. Keep SMS under ${SMS_MAX_LENGTH} characters
+3. If confidence is low, widen range and request photos or site visit
+4. Never mention AI, tokens, or internal systems
 
-OUTPUT JSON SCHEMA:
+OUTPUT JSON:
 {
   "quote": {
     "type": "range|fixed|needs_site_visit",
-    "low_usd": number (minimum $${pricing.minimumPrice}),
+    "low_usd": number,
     "high_usd": number,
-    "line_items": [{"name": "string", "qty": number, "unit": "string", "unit_price_usd": number, "total_usd": number}],
-    "assumptions": ["list of assumptions made"],
-    "exclusions": ["what's not included"]
+    "line_items": [...],
+    "assumptions": [...],
+    "exclusions": [...]
   },
   "customer_message": {
-    "recommended_text": "friendly message to customer (max 500 chars)",
+    "recommended_text": "SMS message under ${SMS_MAX_LENGTH} chars",
     "asks_for_photos": boolean,
-    "photo_instructions": "instructions if asking for photos, null otherwise"
+    "photo_instructions": string|null,
+    "proposes_site_visit": boolean
   },
   "requires_human_approval": boolean,
-  "approval_reason": "reason for approval requirement",
+  "approval_reason": string,
   "confidence": 0.0-1.0
 }`;
 
@@ -298,7 +427,7 @@ OUTPUT JSON SCHEMA:
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Generate a quote for ${lead.service_requested} service at ${lead.address || "address TBD"}` },
+        { role: "user", content: `Generate a quote for ${lead.service_requested}. Customer: ${lead.name || "Unknown"}` },
       ],
       response_format: { type: "json_object" },
       max_completion_tokens: 1024,
@@ -310,37 +439,25 @@ OUTPUT JSON SCHEMA:
     }
 
     const parsed = JSON.parse(content);
-    
+
     if (parsed.quote.low_usd < pricing.minimumPrice) {
       parsed.quote.low_usd = pricing.minimumPrice;
     }
     if (parsed.quote.high_usd < parsed.quote.low_usd) {
       parsed.quote.high_usd = parsed.quote.low_usd;
     }
-    
-    const quoteType = determineQuoteType(lead, context.hasPhotos, parsed.confidence || 0.7);
-    parsed.quote.type = quoteType;
-    
-    if (shouldRequestPhotos) {
-      parsed.customer_message.asks_for_photos = true;
-      if (!parsed.customer_message.photo_instructions) {
-        parsed.customer_message.photo_instructions = "Please send a few photos of your yard from different angles so we can provide an accurate estimate.";
-      }
+
+    if (parsed.customer_message?.recommended_text?.length > SMS_MAX_LENGTH) {
+      parsed.customer_message.recommended_text = 
+        parsed.customer_message.recommended_text.substring(0, SMS_MAX_LENGTH - 3) + "...";
     }
-    
-    const approvalCheck = requiresApproval(
-      parsed.quote.type,
-      policy.tier,
-      parsed.quote.high_usd,
-      policy.max_auto_quote_usd,
-      parsed.confidence || 0.7
-    );
-    parsed.requires_human_approval = approvalCheck.required;
-    parsed.approval_reason = approvalCheck.reason;
-    
-    if (parsed.customer_message?.recommended_text) {
-      parsed.customer_message.recommended_text = parsed.customer_message.recommended_text.slice(0, 500);
-    }
+
+    parsed.property_context = {
+      parcel_coverage: propertyData.parcelCoverage?.coverage || "unknown",
+      lot_area_sqft: propertyData.lotAreaSqft,
+      area_band: propertyData.areaBand,
+      data_source: propertyData.source,
+    };
 
     const validated = quoteOutputSchema.safeParse(parsed);
     if (!validated.success) {
@@ -350,62 +467,9 @@ OUTPUT JSON SCHEMA:
 
     return validated.data;
   } catch (error) {
-    console.error("[Quoting] Error:", error);
-    return createFallbackQuote(lead, pricing, policy, context, baseCalc, shouldRequestPhotos);
+    console.error("[Quoting] AI error, falling back to rules-based:", error);
+    return runQuotingAgent(lead, pricing, policy, context);
   }
-}
-
-function createFallbackQuote(
-  lead: LeadCaptureSummary,
-  pricing: PricingRules,
-  policy: PolicyThresholds,
-  context: QuotingContext,
-  baseCalc: { low: number; high: number; lineItems: LineItem[] },
-  shouldRequestPhotos: boolean
-): QuoteOutput {
-  const quoteType = determineQuoteType(lead, context.hasPhotos, 0.6);
-  const approvalCheck = requiresApproval(quoteType, policy.tier, baseCalc.high, policy.max_auto_quote_usd, 0.6);
-  
-  const assumptions: string[] = [];
-  if (lead.property_size_hint === "unknown") {
-    assumptions.push("Assumed medium-sized property");
-  }
-  if (!lead.address) {
-    assumptions.push("Final pricing depends on actual location");
-  }
-  
-  const exclusions = [
-    "Disposal fees for large debris",
-    "Work requiring special equipment",
-    "Services not explicitly listed",
-  ];
-
-  let recommendedText = `Hi${lead.name ? ` ${lead.name}` : ""}! Based on your ${lead.service_requested} request, we estimate $${baseCalc.low}`;
-  if (quoteType === "range") {
-    recommendedText += `-$${baseCalc.high}`;
-  }
-  recommendedText += `. ${shouldRequestPhotos ? "Could you send some photos of your yard?" : "When works best for you?"}`;
-
-  return {
-    quote: {
-      type: quoteType,
-      low_usd: baseCalc.low,
-      high_usd: baseCalc.high,
-      line_items: baseCalc.lineItems,
-      assumptions,
-      exclusions,
-    },
-    customer_message: {
-      recommended_text: recommendedText.slice(0, 500),
-      asks_for_photos: shouldRequestPhotos,
-      photo_instructions: shouldRequestPhotos 
-        ? "Please send a few photos of your yard from different angles so we can provide an accurate estimate."
-        : null,
-    },
-    requires_human_approval: approvalCheck.required,
-    approval_reason: approvalCheck.reason || "Fallback quote - manual review recommended",
-    confidence: 0.6,
-  };
 }
 
 export function getDefaultPricingRules(): PricingRules {
@@ -428,4 +492,30 @@ export function getDefaultPricingRules(): PricingRules {
       weedControl: 35,
     },
   };
+}
+
+export function getDefaultPolicyThresholds(tier: "Owner" | "SMB" | "Commercial"): PolicyThresholds {
+  switch (tier) {
+    case "Owner":
+      return {
+        tier: "Owner",
+        confidence_threshold: 0.85,
+        auto_send_quotes: false,
+        max_auto_quote_usd: 0,
+      };
+    case "SMB":
+      return {
+        tier: "SMB",
+        confidence_threshold: 0.85,
+        auto_send_quotes: true,
+        max_auto_quote_usd: 500,
+      };
+    case "Commercial":
+      return {
+        tier: "Commercial",
+        confidence_threshold: 0.9,
+        auto_send_quotes: true,
+        max_auto_quote_usd: 2000,
+      };
+  }
 }

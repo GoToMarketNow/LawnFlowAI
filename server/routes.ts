@@ -306,6 +306,130 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // Quote API Routes
+  // ============================================
+
+  const quoteRequestSchema = z.object({
+    address: z.string().optional(),
+    service: z.enum(["mowing", "cleanup", "mulch", "landscaping", "irrigation", "trimming", "other"]),
+    frequency: z.enum(["weekly", "biweekly", "monthly", "one_time"]).optional(),
+    customerName: z.string().optional(),
+    customerPhone: z.string().optional(),
+    propertySize: z.enum(["small", "medium", "large", "unknown"]).optional(),
+    notes: z.string().optional(),
+    hasPhotos: z.boolean().optional(),
+    conversationId: z.number().optional(),
+    leadId: z.number().optional(),
+  });
+
+  app.post("/api/quote/generate", async (req, res) => {
+    try {
+      const parsed = quoteRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
+      }
+
+      const { runQuotingAgent, getDefaultPricingRules, getDefaultPolicyThresholds } = await import("./agents/quoting");
+      
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(400).json({ error: "Business profile not configured" });
+      }
+
+      const policyProfile = await storage.getPolicyProfile(profile.id);
+      const tier = (policyProfile?.tier || "owner_operator") as "Owner" | "SMB" | "Commercial";
+      const tierMapping: Record<string, "Owner" | "SMB" | "Commercial"> = {
+        owner_operator: "Owner",
+        smb: "SMB",
+        commercial: "Commercial",
+      };
+
+      const lead = {
+        name: parsed.data.customerName || null,
+        address: parsed.data.address || null,
+        service_requested: parsed.data.service,
+        frequency: parsed.data.frequency,
+        urgency: "flexible" as const,
+        property_size_hint: parsed.data.propertySize || "unknown",
+        notes: parsed.data.notes || "",
+      };
+
+      const pricing = getDefaultPricingRules();
+      if (profile.mowingMinPrice) pricing.minimumPrice = profile.mowingMinPrice / 100;
+
+      const policy = getDefaultPolicyThresholds(tierMapping[policyProfile?.tier || "owner_operator"] || "Owner");
+
+      const context = {
+        hasPhotos: parsed.data.hasPhotos || false,
+        photoNotes: null,
+        businessName: profile.name,
+      };
+
+      const quote = await runQuotingAgent(lead, pricing, policy, context);
+
+      if (parsed.data.conversationId || parsed.data.leadId) {
+        await storage.createPropertyQuoteContext({
+          leadId: parsed.data.leadId,
+          conversationId: parsed.data.conversationId,
+          normalizedAddress: parsed.data.address,
+          zip: parsed.data.address?.match(/\b(\d{5})\b/)?.[1],
+          areaBand: quote.property_context?.area_band || null,
+          lotAreaSqft: quote.property_context?.lot_area_sqft,
+          source: quote.property_context?.data_source || "unknown",
+          confidence: quote.confidence >= 0.8 ? "high" : quote.confidence >= 0.6 ? "medium" : "low",
+          parcelCoverageStatus: quote.property_context?.parcel_coverage,
+        });
+      }
+
+      res.json(quote);
+    } catch (error) {
+      console.error("Error generating quote:", error);
+      res.status(500).json({ error: "Failed to generate quote" });
+    }
+  });
+
+  app.get("/api/quote/context/:conversationId", async (req, res) => {
+    try {
+      const conversationId = parseInt(req.params.conversationId);
+      if (isNaN(conversationId)) {
+        return res.status(400).json({ error: "Invalid conversation ID" });
+      }
+
+      const context = await storage.getPropertyQuoteContextByConversation(conversationId);
+      if (!context) {
+        return res.status(404).json({ error: "Quote context not found" });
+      }
+
+      res.json(context);
+    } catch (error) {
+      console.error("Error fetching quote context:", error);
+      res.status(500).json({ error: "Failed to fetch quote context" });
+    }
+  });
+
+  app.get("/api/parcel-coverage", async (req, res) => {
+    try {
+      const coverage = await storage.getAllParcelCoverage();
+      res.json(coverage);
+    } catch (error) {
+      console.error("Error fetching parcel coverage:", error);
+      res.status(500).json({ error: "Failed to fetch parcel coverage" });
+    }
+  });
+
+  app.post("/api/parcel-coverage/seed", async (req, res) => {
+    try {
+      const { geoService } = await import("./services/geo");
+      await geoService.seedParcelCoverageRegistry();
+      const coverage = await storage.getAllParcelCoverage();
+      res.json({ success: true, count: coverage.length, data: coverage });
+    } catch (error) {
+      console.error("Error seeding parcel coverage:", error);
+      res.status(500).json({ error: "Failed to seed parcel coverage" });
+    }
+  });
+
+  // ============================================
   // Onboarding API Routes
   // ============================================
 
@@ -1285,6 +1409,44 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error simulating missed call:", error);
       res.status(500).json({ error: "Failed to simulate missed call" });
+    }
+  });
+
+  // ============================================
+  // Quote Request Simulation Endpoint
+  // ============================================
+
+  app.post("/api/events/quote-request", async (req, res) => {
+    try {
+      const quoteRequestSchema = z.object({
+        phone: z.string().min(1, "phone is required"),
+        address: z.string().optional(),
+        service: z.string().default("mowing"),
+        customerName: z.string().optional(),
+        message: z.string().optional(),
+      });
+
+      const parsed = quoteRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.message });
+      }
+
+      const result = await processEvent({
+        type: "quote_request",
+        data: {
+          phone: parsed.data.phone,
+          address: parsed.data.address,
+          service: parsed.data.service,
+          customerName: parsed.data.customerName,
+          message: parsed.data.message,
+          channel: "api",
+        },
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error simulating quote request:", error);
+      res.status(500).json({ error: "Failed to simulate quote request" });
     }
   });
 

@@ -507,3 +507,89 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 
 export type PhoneVerification = typeof phoneVerifications.$inferSelect;
 export type InsertPhoneVerification = z.infer<typeof insertPhoneVerificationSchema>;
+
+// ============================================
+// Parcel Coverage & Quote Context
+// ============================================
+
+// Parcel Coverage Registry - tracks which counties have parcel data available
+export const parcelCoverageRegistry = pgTable("parcel_coverage_registry", {
+  id: serial("id").primaryKey(),
+  state: text("state").notNull(),
+  countyFips: text("county_fips").notNull(),
+  countyName: text("county_name").notNull(),
+  coverageStatus: text("coverage_status").notNull().default("unknown"), // full, partial, none, unknown
+  provider: text("provider"), // Data provider name
+  lookupUrl: text("lookup_url"), // URL for manual lookups
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  stateCountyIdx: uniqueIndex("parcel_coverage_state_county_idx").on(table.state, table.countyFips),
+}));
+
+// Property Quote Context - stores property data for quote calculations
+export const propertyQuoteContext = pgTable("property_quote_context", {
+  id: serial("id").primaryKey(),
+  leadId: integer("lead_id").references(() => leads.id),
+  conversationId: integer("conversation_id").references(() => conversations.id),
+  
+  // Address info
+  normalizedAddress: text("normalized_address"),
+  zip: text("zip"),
+  countyName: text("county_name"),
+  state: text("state"),
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  
+  // Parcel data
+  parcelCoverageStatus: text("parcel_coverage_status"), // full, partial, none, unknown
+  parcelId: text("parcel_id"),
+  lotAreaSqft: integer("lot_area_sqft"),
+  areaBand: text("area_band"), // xs, small, medium, large, xl, xxl
+  
+  // Data source and confidence
+  source: text("source").notNull().default("unknown"), // parcel, customer, unknown
+  confidence: text("confidence").notNull().default("low"), // high, medium, low
+  
+  // Complexity flags (for pricing)
+  complexityTrees: text("complexity_trees").default("unknown"), // none, few, many, unknown
+  complexityShrubs: text("complexity_shrubs").default("unknown"),
+  complexityBeds: text("complexity_beds").default("unknown"),
+  complexitySlope: text("complexity_slope").default("unknown"), // flat, moderate, steep, unknown
+  complexityAccess: text("complexity_access").default("unknown"), // easy, moderate, difficult, unknown
+  
+  notes: text("notes"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Insert schemas
+export const insertParcelCoverageRegistrySchema = createInsertSchema(parcelCoverageRegistry).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export const insertPropertyQuoteContextSchema = createInsertSchema(propertyQuoteContext).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types
+export type ParcelCoverageRegistry = typeof parcelCoverageRegistry.$inferSelect;
+export type InsertParcelCoverageRegistry = z.infer<typeof insertParcelCoverageRegistrySchema>;
+
+export type PropertyQuoteContext = typeof propertyQuoteContext.$inferSelect;
+export type InsertPropertyQuoteContext = z.infer<typeof insertPropertyQuoteContextSchema>;
+
+// Area band definitions (sqft ranges)
+export const AreaBands = {
+  xs: { min: 0, max: 2500, label: "Extra Small (<2,500 sqft)" },
+  small: { min: 2500, max: 5000, label: "Small (2,500-5,000 sqft)" },
+  medium: { min: 5000, max: 10000, label: "Medium (5,000-10,000 sqft)" },
+  large: { min: 10000, max: 20000, label: "Large (10,000-20,000 sqft)" },
+  xl: { min: 20000, max: 43560, label: "Extra Large (20,000-1 acre)" },
+  xxl: { min: 43560, max: Infinity, label: "XXL (1+ acre)" },
+} as const;
+
+export type AreaBandKey = keyof typeof AreaBands;

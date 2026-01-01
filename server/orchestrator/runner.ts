@@ -3,10 +3,12 @@ import { storage } from "../storage";
 import { comms, fsm, approvals, audit, metrics } from "../tools";
 import { runIntakeAgent, generateMissedCallResponse } from "../agents/intake";
 import { generateQuote } from "../agents/quote";
+import { runQuotingAgent, type LeadCaptureSummary, type PricingRules, type PolicyThresholds, type QuotingContext } from "../agents/quoting";
 import { proposeSchedule, formatScheduleConfirmation } from "../agents/schedule";
 import { policyService, type PolicyContext, type PolicyCheckResult } from "../policy";
 import type { SupervisorPlan, Step, StateContext } from "./supervisor";
 import type { Conversation } from "@shared/schema";
+import type { ServiceType } from "../services/quote-calculator";
 
 async function generateReviewRequest(
   businessName: string,
@@ -438,29 +440,60 @@ async function executeQuoteStep(
 
   const messages = await storage.getMessagesByConversation(conversation.id);
   const lastCustomerMessage = messages.filter(m => m.role === "customer").pop();
-  const serviceType = step.inputs.serviceType as string || "General service";
+  const serviceType = (step.inputs.serviceType as string || "mowing") as ServiceType;
+  const address = step.inputs.address as string | null || null;
 
-  const quote = await generateQuote(serviceType, {
-    name: conversation.customerName || undefined,
-    notes: lastCustomerMessage?.content,
-  }, {
+  const lead: LeadCaptureSummary = {
+    name: conversation.customerName || null,
+    address,
+    service_requested: serviceType,
+    urgency: "unknown",
+    property_size_hint: "unknown",
+    notes: lastCustomerMessage?.content || "",
+  };
+
+  const pricing: PricingRules = {
+    minimumPrice: 50,
+    mowing: { small: 40, medium: 65, large: 100 },
+    cleanup: { small: 150, medium: 250, large: 400 },
+    mulch: { perYard: 65, laborPerHour: 50 },
+    landscaping: { consultFee: 75, hourlyRate: 85 },
+    seasonalModifiers: { spring: 1.15, summer: 1.0, fall: 1.1, winter: 0.9 },
+    addOns: { edging: 25, trimming: 30, leafBlowing: 20, weedControl: 45 },
+  };
+
+  const policySummary = policyService.getPolicySummary();
+  const policy: PolicyThresholds = {
+    tier: policySummary.tier as "Owner" | "SMB" | "Commercial",
+    confidence_threshold: policySummary.confidenceThreshold,
+    auto_send_quotes: policySummary.autoSendQuotes,
+    max_auto_quote_usd: 0,
+  };
+
+  const context: QuotingContext = {
+    hasPhotos: false,
+    photoNotes: null,
     businessName: state.businessName,
-    services: state.services,
-  });
+  };
 
-  output.quote = quote;
+  const quoteResult = await runQuotingAgent(lead, pricing, policy, context);
+  output.quote = quoteResult;
 
-  const quoteConfidence = typeof quote.confidence === "number" ? quote.confidence : 0.85;
+  const policyQuoteType = quoteResult.quote.type === "needs_site_visit" ? "range" : quoteResult.quote.type;
   const quotePolicyCheck = await checkPolicyForAction({
     action: "send_quote",
     data: {
       phone: conversation.customerPhone,
-      quoteType: "range" as const,
-      amountMin: quote.estimatedPrice * 0.8,
-      amountMax: quote.estimatedPrice * 1.2,
-      confidence: quoteConfidence,
+      quoteType: policyQuoteType as "fixed" | "range",
+      amountMin: quoteResult.quote.low_usd,
+      amountMax: quoteResult.quote.high_usd,
+      confidence: quoteResult.confidence,
     },
   });
+
+  const quoteMessage = quoteResult.customer_message.recommended_text;
+  const lowStr = quoteResult.quote.low_usd.toFixed(2);
+  const highStr = quoteResult.quote.high_usd.toFixed(2);
 
   if (!quotePolicyCheck.allowed) {
     if (!quotePolicyCheck.requiresApproval) {
@@ -481,13 +514,17 @@ async function executeQuoteStep(
     
     const approvalResult = await approvals.requestApproval({
       type: "send_quote",
-      summary: `Send quote of $${(quote.estimatedPrice / 100).toFixed(2)} for ${serviceType}`,
+      summary: `Send quote of $${lowStr}-$${highStr} for ${serviceType}`,
       payload: {
-        estimatedPrice: quote.estimatedPrice,
+        quoteType: quoteResult.quote.type,
+        lowUsd: quoteResult.quote.low_usd,
+        highUsd: quoteResult.quote.high_usd,
+        lineItems: quoteResult.quote.line_items,
         serviceType,
-        message: quote.suggestedMessage,
+        message: quoteMessage,
         customerName: conversation.customerName,
         phone: conversation.customerPhone,
+        propertyContext: quoteResult.property_context,
         policyReason: quotePolicyCheck.stopReason,
       },
     }, conversation.id);
@@ -497,7 +534,7 @@ async function executeQuoteStep(
     await storage.createMessage({
       conversationId: conversation.id,
       role: "system",
-      content: `Quote generated for $${(quote.estimatedPrice / 100).toFixed(2)}. Awaiting approval.`,
+      content: `Quote generated: $${lowStr}-$${highStr}. Awaiting approval.`,
     });
 
     return {
@@ -509,17 +546,21 @@ async function executeQuoteStep(
       approvalId: approvalResult.approvalId,
     };
   }
-  
-  if (step.requires_human_approval) {
+
+  if (quoteResult.requires_human_approval || step.requires_human_approval) {
     const approvalResult = await approvals.requestApproval({
       type: "send_quote",
-      summary: `Send quote of $${(quote.estimatedPrice / 100).toFixed(2)} for ${serviceType}`,
+      summary: `Send quote of $${lowStr}-$${highStr} for ${serviceType}`,
       payload: {
-        estimatedPrice: quote.estimatedPrice,
+        quoteType: quoteResult.quote.type,
+        lowUsd: quoteResult.quote.low_usd,
+        highUsd: quoteResult.quote.high_usd,
+        lineItems: quoteResult.quote.line_items,
         serviceType,
-        message: quote.suggestedMessage,
+        message: quoteMessage,
         customerName: conversation.customerName,
         phone: conversation.customerPhone,
+        propertyContext: quoteResult.property_context,
       },
     }, conversation.id);
 
@@ -528,7 +569,7 @@ async function executeQuoteStep(
     await storage.createMessage({
       conversationId: conversation.id,
       role: "system",
-      content: `Quote generated for $${(quote.estimatedPrice / 100).toFixed(2)}. Awaiting approval.`,
+      content: `Quote generated: $${lowStr}-$${highStr}. Awaiting approval.`,
     });
 
     return {
@@ -536,7 +577,7 @@ async function executeQuoteStep(
       success: true,
       output,
       stopped: true,
-      stopReason: step.approval_reason || "Awaiting quote approval",
+      stopReason: quoteResult.approval_reason || step.approval_reason || "Awaiting quote approval",
       approvalId: approvalResult.approvalId,
     };
   }
@@ -544,9 +585,9 @@ async function executeQuoteStep(
   await storage.createMessage({
     conversationId: conversation.id,
     role: "ai",
-    content: quote.suggestedMessage,
+    content: quoteMessage,
   });
-  await comms.sendSms({ to: conversation.customerPhone, text: quote.suggestedMessage });
+  await comms.sendSms({ to: conversation.customerPhone, text: quoteMessage });
 
   return { stepId: step.step_id, success: true, output };
 }

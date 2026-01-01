@@ -15,6 +15,8 @@ import {
   growthRecommendations,
   users,
   phoneVerifications,
+  parcelCoverageRegistry,
+  propertyQuoteContext,
   type BusinessProfile,
   type InsertBusinessProfile,
   type Conversation,
@@ -47,6 +49,10 @@ import {
   type InsertUser,
   type PhoneVerification,
   type InsertPhoneVerification,
+  type ParcelCoverageRegistry,
+  type InsertParcelCoverageRegistry,
+  type PropertyQuoteContext,
+  type InsertPropertyQuoteContext,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, inArray, sql, and, gte, lte } from "drizzle-orm";
@@ -129,6 +135,18 @@ export interface IStorage {
   getLatestRecommendation(businessId: number): Promise<GrowthRecommendation | undefined>;
   createGrowthRecommendation(rec: InsertGrowthRecommendation): Promise<GrowthRecommendation>;
   updateGrowthRecommendation(id: number, updates: Partial<GrowthRecommendation>): Promise<GrowthRecommendation>;
+
+  // Parcel Coverage Registry
+  getParcelCoverage(state: string, countyFips: string): Promise<ParcelCoverageRegistry | undefined>;
+  getAllParcelCoverage(): Promise<ParcelCoverageRegistry[]>;
+  upsertParcelCoverage(coverage: InsertParcelCoverageRegistry): Promise<ParcelCoverageRegistry>;
+
+  // Property Quote Context
+  getPropertyQuoteContext(id: number): Promise<PropertyQuoteContext | undefined>;
+  getPropertyQuoteContextByLead(leadId: number): Promise<PropertyQuoteContext | undefined>;
+  getPropertyQuoteContextByConversation(conversationId: number): Promise<PropertyQuoteContext | undefined>;
+  createPropertyQuoteContext(ctx: InsertPropertyQuoteContext): Promise<PropertyQuoteContext>;
+  updatePropertyQuoteContext(id: number, updates: Partial<InsertPropertyQuoteContext>): Promise<PropertyQuoteContext>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -671,6 +689,77 @@ export class DatabaseStorage implements IStorage {
       .update(phoneVerifications)
       .set({ expiresAt: past, updatedAt: new Date() })
       .where(eq(phoneVerifications.userId, userId));
+  }
+
+  // Parcel Coverage Registry
+  async getParcelCoverage(state: string, countyFips: string): Promise<ParcelCoverageRegistry | undefined> {
+    const [coverage] = await db
+      .select()
+      .from(parcelCoverageRegistry)
+      .where(and(
+        eq(parcelCoverageRegistry.state, state),
+        eq(parcelCoverageRegistry.countyFips, countyFips)
+      ))
+      .limit(1);
+    return coverage;
+  }
+
+  async getAllParcelCoverage(): Promise<ParcelCoverageRegistry[]> {
+    return db.select().from(parcelCoverageRegistry).orderBy(parcelCoverageRegistry.state, parcelCoverageRegistry.countyName);
+  }
+
+  async upsertParcelCoverage(coverage: InsertParcelCoverageRegistry): Promise<ParcelCoverageRegistry> {
+    const existing = await this.getParcelCoverage(coverage.state, coverage.countyFips);
+    if (existing) {
+      const [updated] = await db
+        .update(parcelCoverageRegistry)
+        .set({ ...coverage, updatedAt: new Date() })
+        .where(eq(parcelCoverageRegistry.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(parcelCoverageRegistry).values(coverage).returning();
+    return created;
+  }
+
+  // Property Quote Context
+  async getPropertyQuoteContext(id: number): Promise<PropertyQuoteContext | undefined> {
+    const [ctx] = await db.select().from(propertyQuoteContext).where(eq(propertyQuoteContext.id, id)).limit(1);
+    return ctx;
+  }
+
+  async getPropertyQuoteContextByLead(leadId: number): Promise<PropertyQuoteContext | undefined> {
+    const [ctx] = await db
+      .select()
+      .from(propertyQuoteContext)
+      .where(eq(propertyQuoteContext.leadId, leadId))
+      .orderBy(desc(propertyQuoteContext.createdAt))
+      .limit(1);
+    return ctx;
+  }
+
+  async getPropertyQuoteContextByConversation(conversationId: number): Promise<PropertyQuoteContext | undefined> {
+    const [ctx] = await db
+      .select()
+      .from(propertyQuoteContext)
+      .where(eq(propertyQuoteContext.conversationId, conversationId))
+      .orderBy(desc(propertyQuoteContext.createdAt))
+      .limit(1);
+    return ctx;
+  }
+
+  async createPropertyQuoteContext(ctx: InsertPropertyQuoteContext): Promise<PropertyQuoteContext> {
+    const [created] = await db.insert(propertyQuoteContext).values(ctx).returning();
+    return created;
+  }
+
+  async updatePropertyQuoteContext(id: number, updates: Partial<InsertPropertyQuoteContext>): Promise<PropertyQuoteContext> {
+    const [updated] = await db
+      .update(propertyQuoteContext)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(propertyQuoteContext.id, id))
+      .returning();
+    return updated;
   }
 }
 

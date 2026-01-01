@@ -191,17 +191,73 @@ export interface MockGeocoderResult {
   formatted_address: string;
 }
 
+const ZIP_COORDINATES: Record<string, { lat: number; lng: number }> = {
+  "20001": { lat: 38.9072, lng: -77.0369 },
+  "20002": { lat: 38.9103, lng: -76.9831 },
+  "22201": { lat: 38.8816, lng: -77.0910 },
+  "22202": { lat: 38.8570, lng: -77.0516 },
+  "22301": { lat: 38.8048, lng: -77.0469 },
+  "20814": { lat: 38.9847, lng: -77.0947 },
+  "20815": { lat: 38.9894, lng: -77.0815 },
+  "20817": { lat: 38.9984, lng: -77.1455 },
+  "20852": { lat: 39.0392, lng: -77.1214 },
+  "20910": { lat: 38.9989, lng: -77.0292 },
+  "30301": { lat: 33.7490, lng: -84.3880 },
+  "30302": { lat: 33.7516, lng: -84.3915 },
+  "30303": { lat: 33.7543, lng: -84.3940 },
+  "30305": { lat: 33.8324, lng: -84.3869 },
+  "75201": { lat: 32.7867, lng: -96.7983 },
+  "75202": { lat: 32.7795, lng: -96.8027 },
+  "90210": { lat: 34.0901, lng: -118.4065 },
+  "90024": { lat: 34.0625, lng: -118.4359 },
+};
+
+const CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
+  "bethesda": { lat: 38.9847, lng: -77.0947 },
+  "arlington": { lat: 38.8816, lng: -77.0910 },
+  "alexandria": { lat: 38.8048, lng: -77.0469 },
+  "washington": { lat: 38.9072, lng: -77.0369 },
+  "atlanta": { lat: 33.7490, lng: -84.3880 },
+  "dallas": { lat: 32.7767, lng: -96.7970 },
+  "beverly hills": { lat: 34.0901, lng: -118.4065 },
+  "rockville": { lat: 39.0839, lng: -77.1530 },
+  "silver spring": { lat: 38.9989, lng: -77.0292 },
+};
+
 export async function mockGeocodeAddress(address: string): Promise<MockGeocoderResult | null> {
   if (!address || address.trim().length === 0) {
     return null;
   }
 
+  const addressLower = address.toLowerCase();
+
+  const zipMatch = address.match(/\b(\d{5})(?:-\d{4})?\b/);
+  if (zipMatch && ZIP_COORDINATES[zipMatch[1]]) {
+    const coords = ZIP_COORDINATES[zipMatch[1]];
+    const jitter = 0.002;
+    return {
+      lat: coords.lat + (Math.random() * jitter - jitter / 2),
+      lng: coords.lng + (Math.random() * jitter - jitter / 2),
+      formatted_address: address,
+    };
+  }
+
+  for (const [city, coords] of Object.entries(CITY_COORDINATES)) {
+    if (addressLower.includes(city)) {
+      const jitter = 0.005;
+      return {
+        lat: coords.lat + (Math.random() * jitter - jitter / 2),
+        lng: coords.lng + (Math.random() * jitter - jitter / 2),
+        formatted_address: address,
+      };
+    }
+  }
+
   const hash = address.split("").reduce((acc, char) => {
     return ((acc << 5) - acc + char.charCodeAt(0)) | 0;
   }, 0);
-
-  const baseLat = 33.749;
-  const baseLng = -84.388;
+  const baseLat = 38.9;
+  const baseLng = -77.0;
   const latOffset = (hash % 100) / 1000;
   const lngOffset = ((hash >> 8) % 100) / 1000;
 

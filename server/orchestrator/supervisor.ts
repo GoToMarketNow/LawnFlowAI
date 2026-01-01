@@ -49,7 +49,7 @@ export type PolicyBlock = z.infer<typeof policyBlockSchema>;
 export type SupervisorPlan = z.infer<typeof supervisorPlanSchema>;
 
 export interface EventContext {
-  type: "missed_call" | "inbound_sms" | "web_lead" | "job_completed";
+  type: "missed_call" | "inbound_sms" | "web_lead" | "job_completed" | "quote_request";
   channel: string;
   payload: Record<string, unknown>;
   eventId: string;
