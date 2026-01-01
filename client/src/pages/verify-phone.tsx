@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ export default function VerifyPhone() {
   const maskedPhone = decodeURIComponent(params.get("phone") || "");
   
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [code, setCode] = useState("");
   const [resendCooldown, setResendCooldown] = useState(30);
   const [isVerified, setIsVerified] = useState(false);
@@ -47,15 +48,16 @@ export default function VerifyPhone() {
       });
       return response.json() as Promise<VerifyResponse>;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if (data.verified) {
         setIsVerified(true);
         toast({
           title: "Phone Verified",
           description: "Your phone number has been verified successfully.",
         });
+        await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
         setTimeout(() => {
-          setLocation("/");
+          setLocation("/login");
         }, 2000);
       } else if (data.error) {
         toast({

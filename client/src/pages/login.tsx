@@ -1,9 +1,8 @@
-import { useState } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +31,7 @@ interface LoginResponse {
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -46,7 +46,7 @@ export default function Login() {
       const response = await apiRequest("POST", "/api/auth/login", data);
       return response.json() as Promise<LoginResponse>;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if (data.requiresVerification && data.userId) {
         toast({
           title: "Phone Verification Required",
@@ -54,6 +54,7 @@ export default function Login() {
         });
         setLocation(`/verify-phone?userId=${data.userId}&phone=${encodeURIComponent(data.maskedPhone || "")}`);
       } else if (data.verified) {
+        await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
         toast({
           title: "Welcome Back",
           description: "You have been logged in successfully.",

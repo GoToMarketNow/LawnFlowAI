@@ -150,6 +150,12 @@ npm run db:push
 - Clean, efficient admin interface
 
 ## Recent Changes
+- Persistent navigation with Dashboard and My Profile as primary nav items
+- User authentication with session management (express-session + memorystore)
+- UserMenu component with avatar dropdown (My Profile, Logout)
+- Auth-aware routing with protected routes and automatic redirects
+- Mobile-responsive navigation using Shadcn's built-in Sheet/drawer
+- Onboarding-aware nav that gates features until setup is complete
 - Service Area Builder with Google Maps integration in Business Profile
 - Haversine distance calculation for service area eligibility checks
 - Service area evaluation integrated into orchestrator (core/extended/out_of_area tiers)
