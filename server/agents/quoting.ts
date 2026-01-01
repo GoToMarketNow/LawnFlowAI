@@ -2,7 +2,8 @@ import OpenAI from "openai";
 import { z } from "zod";
 import { geoService, type GeocodeResult, type ParcelResult, type CountyResult, type ParcelCoverageResult } from "../services/geo";
 import { quoteCalculator, type QuoteCalculatorInput, type ServiceType, type Frequency } from "../services/quote-calculator";
-import { AreaBands, type AreaBandKey } from "@shared/schema";
+import { lotSizeResolver } from "../services/lotSizeResolver";
+import { AreaBands, type AreaBandKey, type LotSizeResult } from "@shared/schema";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -107,7 +108,7 @@ interface PropertyResolution {
   confidence: "high" | "medium" | "low";
 }
 
-async function resolvePropertyData(
+async function resolvePropertyDataWithCaching(
   lead: LeadCaptureSummary
 ): Promise<PropertyResolution> {
   const result: PropertyResolution = {
@@ -121,15 +122,86 @@ async function resolvePropertyData(
     confidence: "low",
   };
 
-  if (lead.customerProvidedAreaBand) {
+  const hasCustomerBand = !!lead.customerProvidedAreaBand;
+  if (hasCustomerBand) {
     result.areaBand = lead.customerProvidedAreaBand;
     result.source = "customer";
     result.confidence = "medium";
-    console.log(`[Quoting] Using customer-provided area band: ${result.areaBand}`);
+    console.log(`[Quoting] Customer-provided area band: ${result.areaBand} (will still attempt parcel lookup)`);
   }
 
   if (!lead.address) {
     console.log("[Quoting] No address provided, using defaults");
+    if (!hasCustomerBand && lead.property_size_hint !== "unknown") {
+      result.areaBand = lead.property_size_hint === "small" ? "small" 
+        : lead.property_size_hint === "large" ? "large" : "medium";
+    }
+    return result;
+  }
+
+  try {
+    console.log(`[Quoting] Using lotSizeResolver for: ${lead.address}`);
+    const lotResult = await lotSizeResolver.resolve(lead.address);
+    
+    result.geocode = {
+      lat: lotResult.lat,
+      lng: lotResult.lng,
+      normalizedAddress: lotResult.normalizedAddress,
+      zip: lotResult.zip || "",
+    };
+    
+    if (lotResult.countyFips) {
+      result.county = {
+        state: lotResult.countyFips.slice(0, 2),
+        countyFips: lotResult.countyFips,
+        countyName: lotResult.countyName || "",
+        confidence: 0.9,
+      };
+    }
+    
+    result.parcelCoverage = {
+      coverage: lotResult.parcelCoverage,
+      provider: lotResult.source === "county_gis" ? "ArcGIS" : null,
+      notes: null,
+    };
+    
+    if (lotResult.lotAreaSqft) {
+      result.lotAreaSqft = lotResult.lotAreaSqft;
+      result.areaBand = geoService.sqftToAreaBand(lotResult.lotAreaSqft);
+      result.source = lotResult.source === "county_gis" ? "parcel" : "parcel";
+      result.confidence = lotResult.confidence;
+      result.parcel = {
+        lotAreaSqft: lotResult.lotAreaSqft,
+        parcelId: `${lotResult.countyFips || ""}:${Math.round(lotResult.lat * 10000)}`,
+        confidence: lotResult.confidence === "high" ? 0.95 : lotResult.confidence === "medium" ? 0.8 : 0.5,
+        source: lotResult.source,
+      };
+      console.log(`[Quoting] Cached parcel data: ${result.lotAreaSqft} sqft -> ${result.areaBand} band (${lotResult.confidence})`);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error("[Quoting] Error with lotSizeResolver, falling back to geoService:", error);
+  }
+  
+  return resolvePropertyDataFallback(lead);
+}
+
+async function resolvePropertyDataFallback(
+  lead: LeadCaptureSummary
+): Promise<PropertyResolution> {
+  const result: PropertyResolution = {
+    geocode: null,
+    county: null,
+    parcelCoverage: null,
+    parcel: null,
+    areaBand: "medium",
+    lotAreaSqft: null,
+    source: "unknown",
+    confidence: "low",
+  };
+
+  if (!lead.address) {
     if (lead.property_size_hint !== "unknown") {
       result.areaBand = lead.property_size_hint === "small" ? "small" 
         : lead.property_size_hint === "large" ? "large" : "medium";
@@ -185,6 +257,12 @@ async function resolvePropertyData(
   }
 
   return result;
+}
+
+async function resolvePropertyData(
+  lead: LeadCaptureSummary
+): Promise<PropertyResolution> {
+  return resolvePropertyDataWithCaching(lead);
 }
 
 function buildCustomerMessage(

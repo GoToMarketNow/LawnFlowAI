@@ -19,6 +19,7 @@ import JobsPage from "@/pages/jobs";
 import AuditLogPage from "@/pages/audit-log";
 import EventsFeedPage from "@/pages/events-feed";
 import OnboardingPage from "@/pages/onboarding";
+import AdminCoveragePage from "@/pages/admin-coverage";
 import RegisterPage from "@/pages/register";
 import LoginPage from "@/pages/login";
 import VerifyPhonePage from "@/pages/verify-phone";
@@ -106,6 +107,7 @@ function AuthenticatedLayout() {
               <Route path="/jobs" component={JobsPage} />
               <Route path="/audit" component={AuditLogPage} />
               <Route path="/events" component={EventsFeedPage} />
+              <Route path="/admin/coverage" component={AdminCoveragePage} />
               <Route component={NotFound} />
             </Switch>
           </main>

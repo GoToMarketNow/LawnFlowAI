@@ -1,0 +1,203 @@
+You are a senior full-stack developer implementing a FREE-FIRST parcel/lot-size lookup service with aggressive caching for LawnFlow AI. This will be used by the quote engine to estimate lot size (sqft/acres) from a service address.
+
+GOAL
+Implement a “Lot Size Resolver” that:
+1) Geocodes an address to lat/lng + ZIP (cached)
+2) Determines county FIPS (prefer geocoder result; fallback ZIP→county)
+3) Checks a county registry for a free ArcGIS parcel endpoint
+4) If available, performs a point-in-polygon query to fetch parcel area (sqft)
+5) Caches the parcel area result for fast future lookups (stale-while-revalidate)
+6) If no free endpoint or query fails, returns a fallback response requiring customer validation (lot size band)
+
+FAST / COST OPTIMIZATION REQUIREMENTS
+- Cache geocodes for 180 days
+- Cache parcel lookups for 365 days
+- Negative cache unsupported counties for 30 days
+- Use stale-while-revalidate: if cache exists but expired, return immediately then refresh asynchronously
+- Never request parcel geometry unless needed (returnGeometry=false)
+- Hard timeouts for external calls (2–3 seconds) and graceful fallback
+
+STACK
+- Next.js (App Router) + TypeScript
+- Node API routes
+- Prisma + SQLite
+- Google Maps Geocoding API for address → lat/lng (or existing geocoder)
+- No paid parcel API providers; FREE-FIRST using county ArcGIS endpoints when available
+
+ENV VARS (server only)
+- GOOGLE_GEOCODING_API_KEY
+IMPORTANT: do NOT use NEXT_PUBLIC_ for server-only keys.
+
+DATABASE (Prisma)
+Add these tables:
+
+1) CountySource
+- stateFips: string
+- countyFips: string
+- countyName: string
+- status: "full" | "partial" | "none" | "unknown"
+- sourceType: "arcgis_feature_service" | "arcgis_rest" | "manual_viewer" | "none"
+- serviceUrl: string|null           // FeatureServer base URL (no layer id at end)
+- layerId: int|null                 // parcel layer index
+- supportsPointQuery: boolean @default(false)
+- areaFieldCandidates: Json         // ["Shape_Area","ACRES","LOT_ACRES",...]
+- areaUnits: "sqft"|"sqm"|"acres"|"unknown" @default("unknown")
+- lastVerifiedAt: DateTime|null
+- updatedAt, createdAt
+
+Unique: (stateFips, countyFips)
+
+2) GeocodeCache
+- addressHash: string @id
+- normalizedAddress: string
+- lat: float
+- lng: float
+- zip: string|null
+- stateFips: string|null
+- countyFips: string|null
+- expiresAt: DateTime
+- createdAt, updatedAt
+
+3) ParcelCache
+- cacheKey: string @id                // `${countyFips}:${latRound}:${lngRound}`
+- countyFips: string
+- latRound: float
+- lngRound: float
+- parcelAreaSqft: float|null
+- parcelId: string|null
+- sourceUrl: string|null
+- confidence: "high"|"medium"|"low"
+- negative: boolean @default(false)   // true if unsupported or failed
+- negativeReason: string|null
+- expiresAt: DateTime
+- createdAt, updatedAt
+
+4) ZipCountyCrosswalk (minimal for MVP; can expand later)
+- zip: string
+- countyFips: string
+- stateFips: string
+- weight: float                       // ratio/probability
+Index: zip
+
+(Seed crosswalk with a small dataset for initial states OR implement a stub that returns “unknown” if not seeded.)
+
+RUNTIME FLOW (IMPLEMENT EXACTLY)
+Create a service: lotSizeResolver.resolve(address: string) -> LotSizeResult
+
+LotSizeResult schema:
+{
+  normalizedAddress: string,
+  lat: number,
+  lng: number,
+  zip: string|null,
+  countyFips: string|null,
+  parcelCoverage: "full"|"partial"|"none"|"unknown",
+  lotAreaSqft: number|null,
+  lotAreaAcres: number|null,
+  confidence: "high"|"medium"|"low",
+  source: "county_gis"|"cache"|"customer_required",
+  fallback: {
+    requiresCustomerValidation: boolean,
+    questions: string[]
+  }
+}
+
+ALGORITHM
+1) Normalize + hash address (sha256)
+2) Geocode:
+   - Check GeocodeCache by addressHash and expiresAt
+   - If hit: use it
+   - If miss: call Google Geocoding API, parse:
+       lat,lng, postal_code (ZIP), and if possible county/state
+     Save to GeocodeCache with expiresAt = now + 180d
+3) Determine countyFips:
+   - Prefer geocoder-derived county if available
+   - Else if ZIP present: lookup ZipCountyCrosswalk for zip and pick highest weight county
+   - Else countyFips = null
+4) Parcel cache check:
+   - latRound = round(lat, 5), lngRound = round(lng, 5)
+   - cacheKey = `${countyFips}:${latRound}:${lngRound}`
+   - If ParcelCache exists and NOT expired:
+       return it immediately with confidence as stored
+   - If exists but expired:
+       return immediately (confidence downgraded to "medium") AND enqueue refresh job (stale-while-revalidate)
+5) Free-first parcel lookup:
+   - If countyFips null: skip to fallback
+   - Query CountySource by countyFips/stateFips
+   - If CountySource supportsPointQuery true and has serviceUrl + layerId:
+       call ArcGIS query endpoint:
+         `${serviceUrl}/${layerId}/query`
+         with params:
+           geometry=<lng,lat>
+           geometryType=esriGeometryPoint
+           spatialRel=esriSpatialRelIntersects
+           outFields=<only areaFieldCandidates + parcel id field if known>
+           returnGeometry=false
+           f=json
+       Timeout 3s
+       Parse response, pick best area field:
+         - If areaUnits=acres -> sqft = acres*43560
+         - If areaUnits=sqm -> sqft = sqm*10.7639
+         - If areaUnits=sqft -> use as-is
+         - If unknown -> attempt heuristics:
+             if Shape_Area is huge (millions) and typical parcel is < 1e6 sqft:
+             treat as sqft; else treat as sqm (document)
+       Cache ParcelCache for 365d with confidence="high" source="county_gis"
+   - Else:
+       write negative ParcelCache for 30d (negative=true) and fall back
+6) Fallback (customer validation):
+   Return lotAreaSqft null, confidence="low", source="customer_required"
+   Provide questions (max 2):
+   - "About how big is your property? 0.1–0.25 acre, 0.25–0.5, 0.5–1, 1+"
+   - "Do you have lots of trees/beds? light / medium / heavy"
+   Include note: "Send 2–4 photos to tighten the range or schedule a site visit."
+
+API ENDPOINTS
+Create:
+POST /api/geo/lot-size
+Input: { address: string }
+Output: LotSizeResult
+
+Also create:
+POST /api/admin/county-sources
+- Allows admin to add/update CountySource entries (for MVP, basic CRUD)
+
+Admin UI
+Create /admin/coverage:
+- Search by county or ZIP
+- Add/edit CountySource (serviceUrl, layerId, area field candidates, units)
+- Show last verified date and status
+
+BACKGROUND JOBS
+Implement a simple async queue (can be in-process for MVP):
+- refreshParcelCache(cacheKey, lat, lng, countyFips)
+Used for stale-while-revalidate when cache is expired.
+
+INTEGRATION WITH QUOTE ENGINE
+Update quote flow:
+- On quote request, call /api/geo/lot-size
+- If confidence high/medium: set area band from lotAreaSqft
+- If low: ask customer validation questions or request photos/site visit
+- Always produce quote RANGE with assumptions
+
+TESTS
+Add unit tests for:
+- address normalization + hashing
+- rounding + cache key creation
+- fallback logic when county missing
+- stale-while-revalidate behavior
+- area unit conversion
+
+IMPORTANT GUARDRAILS
+- Do not scrape assessor HTML pages.
+- Do not call external geocode repeatedly; always cache.
+- Do not block user experience on refresh; return cached immediately.
+
+OUTPUT
+Generate code file-by-file with paths:
+- prisma schema + migration
+- service module lotSizeResolver.ts
+- api routes
+- admin UI page
+- tests
+- README notes for env vars and how to add county sources

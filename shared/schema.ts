@@ -593,3 +593,126 @@ export const AreaBands = {
 } as const;
 
 export type AreaBandKey = keyof typeof AreaBands;
+
+// ============================================
+// FREE-FIRST Lot Size Resolver Tables
+// ============================================
+
+// County Source - ArcGIS endpoint config for parcel lookups
+export const countySources = pgTable("county_sources", {
+  id: serial("id").primaryKey(),
+  stateFips: text("state_fips").notNull(),
+  countyFips: text("county_fips").notNull(),
+  countyName: text("county_name").notNull(),
+  status: text("status").notNull().default("unknown"), // full, partial, none, unknown
+  sourceType: text("source_type").notNull().default("none"), // arcgis_feature_service, arcgis_rest, manual_viewer, none
+  serviceUrl: text("service_url"), // FeatureServer base URL (no layer id)
+  layerId: integer("layer_id"), // parcel layer index
+  supportsPointQuery: boolean("supports_point_query").default(false),
+  areaFieldCandidates: jsonb("area_field_candidates").default(sql`'[]'::jsonb`), // ["Shape_Area","ACRES","LOT_ACRES",...]
+  areaUnits: text("area_units").default("unknown"), // sqft, sqm, acres, unknown
+  parcelIdField: text("parcel_id_field"), // field name for parcel ID
+  lastVerifiedAt: timestamp("last_verified_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  stateCountyIdx: uniqueIndex("county_sources_state_county_idx").on(table.stateFips, table.countyFips),
+}));
+
+// Geocode Cache - address to lat/lng cache (180 day TTL)
+export const geocodeCache = pgTable("geocode_cache", {
+  addressHash: text("address_hash").primaryKey(), // SHA-256 hash of normalized address
+  normalizedAddress: text("normalized_address").notNull(),
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  zip: text("zip"),
+  stateFips: text("state_fips"),
+  countyFips: text("county_fips"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Parcel Cache - lot size cache (365 day TTL, 30 day for negative)
+export const parcelCache = pgTable("parcel_cache", {
+  cacheKey: text("cache_key").primaryKey(), // `${countyFips}:${latRound}:${lngRound}`
+  countyFips: text("county_fips").notNull(),
+  latRound: doublePrecision("lat_round").notNull(),
+  lngRound: doublePrecision("lng_round").notNull(),
+  parcelAreaSqft: doublePrecision("parcel_area_sqft"),
+  parcelId: text("parcel_id"),
+  sourceUrl: text("source_url"),
+  confidence: text("confidence").notNull().default("low"), // high, medium, low
+  negative: boolean("negative").default(false), // true if unsupported or failed
+  negativeReason: text("negative_reason"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// ZIP County Crosswalk - ZIP to county FIPS mapping
+export const zipCountyCrosswalk = pgTable("zip_county_crosswalk", {
+  id: serial("id").primaryKey(),
+  zip: text("zip").notNull(),
+  countyFips: text("county_fips").notNull(),
+  stateFips: text("state_fips").notNull(),
+  countyName: text("county_name"),
+  weight: doublePrecision("weight").default(1.0), // probability/ratio for ZIPs spanning counties
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  zipIdx: uniqueIndex("zip_county_crosswalk_zip_idx").on(table.zip, table.countyFips),
+}));
+
+// Insert schemas for lot size resolver tables
+export const insertCountySourceSchema = createInsertSchema(countySources).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertGeocodeCacheSchema = createInsertSchema(geocodeCache).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertParcelCacheSchema = createInsertSchema(parcelCache).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertZipCountyCrosswalkSchema = createInsertSchema(zipCountyCrosswalk).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types for lot size resolver
+export type CountySource = typeof countySources.$inferSelect;
+export type InsertCountySource = z.infer<typeof insertCountySourceSchema>;
+
+export type GeocodeCache = typeof geocodeCache.$inferSelect;
+export type InsertGeocodeCache = z.infer<typeof insertGeocodeCacheSchema>;
+
+export type ParcelCache = typeof parcelCache.$inferSelect;
+export type InsertParcelCache = z.infer<typeof insertParcelCacheSchema>;
+
+export type ZipCountyCrosswalk = typeof zipCountyCrosswalk.$inferSelect;
+export type InsertZipCountyCrosswalk = z.infer<typeof insertZipCountyCrosswalkSchema>;
+
+// LotSizeResult interface for the resolver
+export interface LotSizeResult {
+  normalizedAddress: string;
+  lat: number;
+  lng: number;
+  zip: string | null;
+  countyFips: string | null;
+  countyName: string | null;
+  parcelCoverage: "full" | "partial" | "none" | "unknown";
+  lotAreaSqft: number | null;
+  lotAreaAcres: number | null;
+  confidence: "high" | "medium" | "low";
+  source: "county_gis" | "cache" | "customer_required";
+  fallback: {
+    requiresCustomerValidation: boolean;
+    questions: string[];
+  };
+}

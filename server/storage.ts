@@ -17,6 +17,7 @@ import {
   phoneVerifications,
   parcelCoverageRegistry,
   propertyQuoteContext,
+  countySources,
   type BusinessProfile,
   type InsertBusinessProfile,
   type Conversation,
@@ -53,6 +54,8 @@ import {
   type InsertParcelCoverageRegistry,
   type PropertyQuoteContext,
   type InsertPropertyQuoteContext,
+  type CountySource,
+  type InsertCountySource,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, inArray, sql, and, gte, lte } from "drizzle-orm";
@@ -147,6 +150,13 @@ export interface IStorage {
   getPropertyQuoteContextByConversation(conversationId: number): Promise<PropertyQuoteContext | undefined>;
   createPropertyQuoteContext(ctx: InsertPropertyQuoteContext): Promise<PropertyQuoteContext>;
   updatePropertyQuoteContext(id: number, updates: Partial<InsertPropertyQuoteContext>): Promise<PropertyQuoteContext>;
+
+  // County Sources (FREE-FIRST Lot Size Resolver)
+  getAllCountySources(): Promise<CountySource[]>;
+  getCountySource(countyFips: string): Promise<CountySource | undefined>;
+  createCountySource(source: InsertCountySource): Promise<CountySource>;
+  updateCountySource(countyFips: string, updates: Partial<InsertCountySource>): Promise<CountySource | undefined>;
+  deleteCountySource(countyFips: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -760,6 +770,42 @@ export class DatabaseStorage implements IStorage {
       .where(eq(propertyQuoteContext.id, id))
       .returning();
     return updated;
+  }
+
+  // County Sources (FREE-FIRST Lot Size Resolver)
+  async getAllCountySources(): Promise<CountySource[]> {
+    return db.select().from(countySources).orderBy(countySources.countyName);
+  }
+
+  async getCountySource(countyFips: string): Promise<CountySource | undefined> {
+    const [source] = await db
+      .select()
+      .from(countySources)
+      .where(eq(countySources.countyFips, countyFips))
+      .limit(1);
+    return source;
+  }
+
+  async createCountySource(source: InsertCountySource): Promise<CountySource> {
+    const [created] = await db.insert(countySources).values(source).returning();
+    return created;
+  }
+
+  async updateCountySource(countyFips: string, updates: Partial<InsertCountySource>): Promise<CountySource | undefined> {
+    const [updated] = await db
+      .update(countySources)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(countySources.countyFips, countyFips))
+      .returning();
+    return updated;
+  }
+
+  async deleteCountySource(countyFips: string): Promise<boolean> {
+    const result = await db
+      .delete(countySources)
+      .where(eq(countySources.countyFips, countyFips))
+      .returning();
+    return result.length > 0;
   }
 }
 

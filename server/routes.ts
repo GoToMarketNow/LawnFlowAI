@@ -430,6 +430,126 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // FREE-FIRST Lot Size API Routes
+  // ============================================
+
+  const lotSizeRequestSchema = z.object({
+    address: z.string().min(1, "Address is required"),
+  });
+
+  app.post("/api/geo/lot-size", async (req, res) => {
+    try {
+      const parsed = lotSizeRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
+      }
+
+      const { lotSizeResolver } = await import("./services/lotSizeResolver");
+      const result = await lotSizeResolver.resolve(parsed.data.address);
+      res.json(result);
+    } catch (error) {
+      console.error("Error resolving lot size:", error);
+      res.status(500).json({ error: "Failed to resolve lot size" });
+    }
+  });
+
+  app.post("/api/geo/lot-size/seed", async (req, res) => {
+    try {
+      const { lotSizeResolver } = await import("./services/lotSizeResolver");
+      await lotSizeResolver.seedCountySources();
+      await lotSizeResolver.seedZipCrosswalk();
+      res.json({ success: true, message: "Seeded county sources and ZIP crosswalk" });
+    } catch (error) {
+      console.error("Error seeding lot size data:", error);
+      res.status(500).json({ error: "Failed to seed lot size data" });
+    }
+  });
+
+  // Admin County Sources API
+  const countySourceSchema = z.object({
+    stateFips: z.string(),
+    countyFips: z.string(),
+    countyName: z.string(),
+    status: z.enum(["full", "partial", "none", "unknown"]).optional(),
+    sourceType: z.enum(["arcgis_feature_service", "arcgis_rest", "manual_viewer", "none"]).optional(),
+    serviceUrl: z.string().nullable().optional(),
+    layerId: z.number().nullable().optional(),
+    supportsPointQuery: z.boolean().optional(),
+    areaFieldCandidates: z.array(z.string()).optional(),
+    areaUnits: z.enum(["sqft", "sqm", "acres", "unknown"]).optional(),
+    parcelIdField: z.string().nullable().optional(),
+  });
+
+  app.get("/api/admin/county-sources", async (req, res) => {
+    try {
+      const sources = await storage.getAllCountySources();
+      res.json(sources);
+    } catch (error) {
+      console.error("Error fetching county sources:", error);
+      res.status(500).json({ error: "Failed to fetch county sources" });
+    }
+  });
+
+  app.get("/api/admin/county-sources/:countyFips", async (req, res) => {
+    try {
+      const source = await storage.getCountySource(req.params.countyFips);
+      if (!source) {
+        return res.status(404).json({ error: "County source not found" });
+      }
+      res.json(source);
+    } catch (error) {
+      console.error("Error fetching county source:", error);
+      res.status(500).json({ error: "Failed to fetch county source" });
+    }
+  });
+
+  app.post("/api/admin/county-sources", async (req, res) => {
+    try {
+      const parsed = countySourceSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
+      }
+
+      const source = await storage.createCountySource(parsed.data);
+      res.json(source);
+    } catch (error) {
+      console.error("Error creating county source:", error);
+      res.status(500).json({ error: "Failed to create county source" });
+    }
+  });
+
+  app.patch("/api/admin/county-sources/:countyFips", async (req, res) => {
+    try {
+      const parsed = countySourceSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
+      }
+
+      const source = await storage.updateCountySource(req.params.countyFips, parsed.data);
+      if (!source) {
+        return res.status(404).json({ error: "County source not found" });
+      }
+      res.json(source);
+    } catch (error) {
+      console.error("Error updating county source:", error);
+      res.status(500).json({ error: "Failed to update county source" });
+    }
+  });
+
+  app.delete("/api/admin/county-sources/:countyFips", async (req, res) => {
+    try {
+      const deleted = await storage.deleteCountySource(req.params.countyFips);
+      if (!deleted) {
+        return res.status(404).json({ error: "County source not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting county source:", error);
+      res.status(500).json({ error: "Failed to delete county source" });
+    }
+  });
+
+  // ============================================
   // Onboarding API Routes
   // ============================================
 
