@@ -13,6 +13,8 @@ import {
   accountPackages,
   aiActionUsage,
   growthRecommendations,
+  users,
+  phoneVerifications,
   type BusinessProfile,
   type InsertBusinessProfile,
   type Conversation,
@@ -41,6 +43,10 @@ import {
   type InsertAiActionUsage,
   type GrowthRecommendation,
   type InsertGrowthRecommendation,
+  type User,
+  type InsertUser,
+  type PhoneVerification,
+  type InsertPhoneVerification,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, inArray, sql, and, gte, lte } from "drizzle-orm";
@@ -573,6 +579,98 @@ export class DatabaseStorage implements IStorage {
       .where(eq(growthRecommendations.id, id))
       .returning();
     return updated;
+  }
+
+  // User Authentication
+  async getUserById(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
+    return user;
+  }
+
+  async getUserByPhone(phoneE164: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.phoneE164, phoneE164)).limit(1);
+    return user;
+  }
+
+  async createUser(userData: InsertUser): Promise<User> {
+    const [user] = await db.insert(users).values({
+      ...userData,
+      email: userData.email.toLowerCase(),
+    }).returning();
+    return user;
+  }
+
+  async updateUser(id: number, updates: Partial<User>): Promise<User> {
+    const [updated] = await db
+      .update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Phone Verifications
+  async getActivePhoneVerification(userId: number): Promise<PhoneVerification | undefined> {
+    const now = new Date();
+    const [verification] = await db
+      .select()
+      .from(phoneVerifications)
+      .where(
+        and(
+          eq(phoneVerifications.userId, userId),
+          gte(phoneVerifications.expiresAt, now)
+        )
+      )
+      .orderBy(desc(phoneVerifications.createdAt))
+      .limit(1);
+    return verification;
+  }
+
+  async createPhoneVerification(data: InsertPhoneVerification): Promise<PhoneVerification> {
+    const [verification] = await db.insert(phoneVerifications).values(data).returning();
+    return verification;
+  }
+
+  async updatePhoneVerification(id: number, updates: Partial<PhoneVerification>): Promise<PhoneVerification> {
+    const [updated] = await db
+      .update(phoneVerifications)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(phoneVerifications.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getPhoneVerificationSendCount(phoneE164: string): Promise<{ count: number; windowStart: Date | null }> {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const [result] = await db
+      .select()
+      .from(phoneVerifications)
+      .where(
+        and(
+          eq(phoneVerifications.phoneE164, phoneE164),
+          gte(phoneVerifications.sendWindowStart, oneHourAgo)
+        )
+      )
+      .orderBy(desc(phoneVerifications.createdAt))
+      .limit(1);
+    
+    if (result) {
+      return { count: result.sendsUsedHour, windowStart: result.sendWindowStart };
+    }
+    return { count: 0, windowStart: null };
+  }
+
+  async expirePhoneVerifications(userId: number): Promise<void> {
+    const past = new Date(Date.now() - 1000);
+    await db
+      .update(phoneVerifications)
+      .set({ expiresAt: past, updatedAt: new Date() })
+      .where(eq(phoneVerifications.userId, userId));
   }
 }
 

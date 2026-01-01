@@ -13,12 +13,18 @@ import {
 } from "@shared/schema";
 import { PolicyService } from "./policy";
 import { growthAdvisor } from "./growth-advisor";
+import { registerAuthRoutes } from "./auth-routes";
 import { z } from "zod";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // ============================================
+  // Authentication Routes (2FA)
+  // ============================================
+  registerAuthRoutes(app);
+
   // ============================================
   // Metrics API Route
   // ============================================
