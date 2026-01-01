@@ -276,6 +276,9 @@ export function registerAuthRoutes(app: Express): void {
         phoneVerifiedAt: new Date(),
       });
 
+      req.session.userId = user.id;
+      req.session.email = user.email;
+
       await audit.logEvent({
         action: "auth.verifyOtp.success",
         actor: "system",

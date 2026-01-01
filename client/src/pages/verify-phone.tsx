@@ -57,7 +57,7 @@ export default function VerifyPhone() {
         });
         await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
         setTimeout(() => {
-          setLocation("/login");
+          setLocation("/");
         }, 2000);
       } else if (data.error) {
         toast({
