@@ -9,6 +9,7 @@ import {
   eventReceipts,
   leads,
   policyProfiles,
+  zipGeoCache,
   type BusinessProfile,
   type InsertBusinessProfile,
   type Conversation,
@@ -29,9 +30,11 @@ import {
   type InsertLead,
   type PolicyProfile,
   type InsertPolicyProfile,
+  type ZipGeoCache,
+  type InsertZipGeoCache,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Business Profile
@@ -89,6 +92,11 @@ export interface IStorage {
   getPolicyProfileById(id: number): Promise<PolicyProfile | undefined>;
   createPolicyProfile(profile: InsertPolicyProfile): Promise<PolicyProfile>;
   updatePolicyProfile(id: number, updates: Partial<InsertPolicyProfile>): Promise<PolicyProfile>;
+
+  // ZIP Geo Cache
+  getZipGeo(zip: string): Promise<ZipGeoCache | undefined>;
+  getZipGeos(zips: string[]): Promise<ZipGeoCache[]>;
+  upsertZipGeo(geo: InsertZipGeoCache): Promise<ZipGeoCache>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -322,6 +330,37 @@ export class DatabaseStorage implements IStorage {
       .where(eq(policyProfiles.id, id))
       .returning();
     return updated;
+  }
+
+  // ZIP Geo Cache
+  async getZipGeo(zip: string): Promise<ZipGeoCache | undefined> {
+    const [geo] = await db.select().from(zipGeoCache).where(eq(zipGeoCache.zip, zip));
+    return geo;
+  }
+
+  async getZipGeos(zips: string[]): Promise<ZipGeoCache[]> {
+    if (zips.length === 0) return [];
+    return db.select().from(zipGeoCache).where(inArray(zipGeoCache.zip, zips));
+  }
+
+  async upsertZipGeo(geo: InsertZipGeoCache): Promise<ZipGeoCache> {
+    const [result] = await db
+      .insert(zipGeoCache)
+      .values(geo)
+      .onConflictDoUpdate({
+        target: zipGeoCache.zip,
+        set: {
+          centerLat: geo.centerLat,
+          centerLng: geo.centerLng,
+          viewportNorth: geo.viewportNorth,
+          viewportSouth: geo.viewportSouth,
+          viewportEast: geo.viewportEast,
+          viewportWest: geo.viewportWest,
+          updatedAt: sql`CURRENT_TIMESTAMP`,
+        },
+      })
+      .returning();
+    return result;
   }
 }
 

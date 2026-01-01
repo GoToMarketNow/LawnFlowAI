@@ -17,11 +17,13 @@ export const businessProfiles = pgTable("business_profiles", {
   autoResponseEnabled: boolean("auto_response_enabled").default(true),
   
   // Service Area Builder fields
+  serviceAreaMode: text("service_area_mode").default("circle"), // "circle" | "zip"
   serviceAreaCenterLat: doublePrecision("service_area_center_lat"),
   serviceAreaCenterLng: doublePrecision("service_area_center_lng"),
   serviceAreaRadiusMi: integer("service_area_radius_mi"),
   serviceAreaMaxMi: integer("service_area_max_mi"), // Must be 5, 10, 20, or 40
   serviceAreaAllowExtended: boolean("service_area_allow_extended").default(true),
+  serviceZipCodes: text("service_zip_codes").array(), // ZIP codes for ZIP mode
   
   // Onboarding state
   onboardingRoute: text("onboarding_route"), // "connect_existing" | "standalone"
@@ -194,6 +196,18 @@ export const leads = pgTable("leads", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// ZIP Geocode Cache - caches geocoding results to reduce API calls
+export const zipGeoCache = pgTable("zip_geo_cache", {
+  zip: text("zip").primaryKey(),
+  centerLat: doublePrecision("center_lat").notNull(),
+  centerLng: doublePrecision("center_lng").notNull(),
+  viewportNorth: doublePrecision("viewport_north").notNull(),
+  viewportSouth: doublePrecision("viewport_south").notNull(),
+  viewportEast: doublePrecision("viewport_east").notNull(),
+  viewportWest: doublePrecision("viewport_west").notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // Relations
 export const businessProfilesRelations = relations(businessProfiles, ({ many }) => ({
   conversations: many(conversations),
@@ -307,6 +321,10 @@ export const insertPolicyProfileSchema = createInsertSchema(policyProfiles).omit
   updatedAt: true,
 });
 
+export const insertZipGeoCacheSchema = createInsertSchema(zipGeoCache).omit({
+  updatedAt: true,
+});
+
 // Types
 export type BusinessProfile = typeof businessProfiles.$inferSelect;
 export type InsertBusinessProfile = z.infer<typeof insertBusinessProfileSchema>;
@@ -337,6 +355,9 @@ export type InsertLead = z.infer<typeof insertLeadSchema>;
 
 export type PolicyProfile = typeof policyProfiles.$inferSelect;
 export type InsertPolicyProfile = z.infer<typeof insertPolicyProfileSchema>;
+
+export type ZipGeoCache = typeof zipGeoCache.$inferSelect;
+export type InsertZipGeoCache = z.infer<typeof insertZipGeoCacheSchema>;
 
 // Policy tier enum for type safety
 export const PolicyTiers = ["owner_operator", "smb", "commercial"] as const;

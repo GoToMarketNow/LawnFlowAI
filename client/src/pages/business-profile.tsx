@@ -34,6 +34,8 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { BusinessProfile } from "@shared/schema";
 import { ServiceAreaMap, type ServiceAreaData } from "@/components/service-area-map";
+import { ZipServiceArea } from "@/components/zip-service-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const businessProfileSchema = z.object({
   name: z.string().min(2, "Business name is required"),
@@ -51,6 +53,8 @@ export default function BusinessProfilePage() {
   const { toast } = useToast();
   const [newService, setNewService] = useState("");
   const [services, setServices] = useState<string[]>([]);
+  const [serviceAreaMode, setServiceAreaMode] = useState<"circle" | "zip">("circle");
+  const [serviceZipCodes, setServiceZipCodes] = useState<string[]>([]);
   const [serviceArea, setServiceArea] = useState<ServiceAreaData>({
     centerLat: null,
     centerLng: null,
@@ -72,6 +76,14 @@ export default function BusinessProfilePage() {
       maxMi: profile.serviceAreaMaxMi ?? 20,
       allowExtended: profile.serviceAreaAllowExtended ?? true,
     });
+  }
+  
+  // Load service area mode and ZIP codes when profile loads
+  if (profile && serviceAreaMode === "circle" && profile.serviceAreaMode === "zip") {
+    setServiceAreaMode("zip");
+    if (profile.serviceZipCodes) {
+      setServiceZipCodes(profile.serviceZipCodes);
+    }
   }
 
   const form = useForm<BusinessProfileFormData>({
@@ -108,11 +120,13 @@ export default function BusinessProfilePage() {
       const payload = {
         ...data,
         services,
-        serviceAreaCenterLat: serviceArea.centerLat,
-        serviceAreaCenterLng: serviceArea.centerLng,
-        serviceAreaRadiusMi: serviceArea.radiusMi,
-        serviceAreaMaxMi: serviceArea.maxMi,
-        serviceAreaAllowExtended: serviceArea.allowExtended,
+        serviceAreaMode,
+        serviceZipCodes: serviceAreaMode === "zip" ? serviceZipCodes : null,
+        serviceAreaCenterLat: serviceAreaMode === "circle" ? serviceArea.centerLat : null,
+        serviceAreaCenterLng: serviceAreaMode === "circle" ? serviceArea.centerLng : null,
+        serviceAreaRadiusMi: serviceAreaMode === "circle" ? serviceArea.radiusMi : null,
+        serviceAreaMaxMi: serviceAreaMode === "circle" ? serviceArea.maxMi : null,
+        serviceAreaAllowExtended: serviceAreaMode === "circle" ? serviceArea.allowExtended : null,
       };
       if (profile?.id) {
         return apiRequest("PATCH", `/api/business-profile/${profile.id}`, payload);
@@ -386,10 +400,41 @@ export default function BusinessProfilePage() {
             </CardContent>
           </Card>
 
-          <ServiceAreaMap
-            value={serviceArea}
-            onChange={setServiceArea}
-          />
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Service Area</CardTitle>
+              <CardDescription>
+                Define where you provide services. Choose between radius-based or ZIP code-based coverage.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Tabs value={serviceAreaMode} onValueChange={(v) => setServiceAreaMode(v as "circle" | "zip")}>
+                <TabsList className="mb-4">
+                  <TabsTrigger value="circle" data-testid="tab-circle-mode">
+                    Radius (Circle)
+                  </TabsTrigger>
+                  <TabsTrigger value="zip" data-testid="tab-zip-mode">
+                    ZIP Codes
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="circle" className="space-y-4">
+                  <ServiceAreaMap
+                    value={serviceArea}
+                    onChange={setServiceArea}
+                  />
+                </TabsContent>
+                
+                <TabsContent value="zip">
+                  <ZipServiceArea
+                    initialZipCodes={serviceZipCodes}
+                    onChange={(zips) => setServiceZipCodes(zips)}
+                    isSaving={saveMutation.isPending}
+                  />
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>

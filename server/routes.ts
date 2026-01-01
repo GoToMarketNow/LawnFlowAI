@@ -713,6 +713,169 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // ZIP Coverage Routes
+  // ============================================
+
+  const zipCoverageSchema = z.object({
+    zipCodes: z.array(z.string().regex(/^\d{5}$/, "Invalid ZIP code")).min(1).max(100),
+  });
+
+  app.post("/api/geo/zip-coverage", async (req, res) => {
+    try {
+      const parsed = zipCoverageSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.message });
+      }
+
+      const { zipCodes } = parsed.data;
+      
+      // Get cached ZIPs
+      const cachedGeos = await storage.getZipGeos(zipCodes);
+      const cachedZipSet = new Set(cachedGeos.map((g) => g.zip));
+      
+      // Find missing ZIPs that need geocoding
+      const missingZips = zipCodes.filter((z) => !cachedZipSet.has(z));
+      
+      // Geocode missing ZIPs (mock implementation for MVP)
+      // In production, this would call Google Geocoding API
+      const newGeos: Array<{
+        zip: string;
+        centerLat: number;
+        centerLng: number;
+        viewportNorth: number;
+        viewportSouth: number;
+        viewportEast: number;
+        viewportWest: number;
+      }> = [];
+
+      for (const zip of missingZips) {
+        // Mock geocoding based on ZIP prefix (for demo)
+        // Real implementation would use Google Geocoding API
+        const mockGeo = mockGeocodeZip(zip);
+        if (mockGeo) {
+          const saved = await storage.upsertZipGeo(mockGeo);
+          newGeos.push(saved);
+        }
+      }
+
+      // Combine cached and new geos
+      const allGeos = [...cachedGeos, ...newGeos];
+      
+      // Calculate overall bounds
+      const bounds = calculateBounds(allGeos);
+
+      res.json({
+        zipAreas: allGeos.map((g) => ({
+          zip: g.zip,
+          center: { lat: g.centerLat, lng: g.centerLng },
+          bounds: {
+            north: g.viewportNorth,
+            south: g.viewportSouth,
+            east: g.viewportEast,
+            west: g.viewportWest,
+          },
+        })),
+        bounds,
+        cachedCount: cachedGeos.length,
+        geocodedCount: newGeos.length,
+      });
+    } catch (error) {
+      console.error("Error fetching ZIP coverage:", error);
+      res.status(500).json({ error: "Failed to fetch ZIP coverage" });
+    }
+  });
+
+  // Mock geocoding function for ZIP codes
+  // In production, replace with Google Geocoding API call
+  function mockGeocodeZip(zip: string): {
+    zip: string;
+    centerLat: number;
+    centerLng: number;
+    viewportNorth: number;
+    viewportSouth: number;
+    viewportEast: number;
+    viewportWest: number;
+  } | null {
+    // Generate deterministic but varied coordinates based on ZIP
+    // This is a placeholder - real implementation would use Google Geocoding API
+    const zipNum = parseInt(zip);
+    
+    // Use ZIP prefix to determine rough region (US ZIP code patterns)
+    // 0xxxx-1xxxx: Northeast, 2xxxx-3xxxx: Southeast, 4xxxx-5xxxx: Midwest
+    // 6xxxx-7xxxx: South/Central, 8xxxx-9xxxx: West
+    const prefix = Math.floor(zipNum / 10000);
+    
+    let baseLat: number;
+    let baseLng: number;
+    
+    switch (prefix) {
+      case 0:
+      case 1:
+        baseLat = 41 + (zipNum % 1000) * 0.003;
+        baseLng = -73 - (zipNum % 500) * 0.002;
+        break;
+      case 2:
+        baseLat = 38 + (zipNum % 1000) * 0.003;
+        baseLng = -77 - (zipNum % 500) * 0.002;
+        break;
+      case 3:
+        baseLat = 33 + (zipNum % 1000) * 0.003;
+        baseLng = -84 - (zipNum % 500) * 0.002;
+        break;
+      case 4:
+      case 5:
+        baseLat = 41 + (zipNum % 1000) * 0.003;
+        baseLng = -87 - (zipNum % 500) * 0.002;
+        break;
+      case 6:
+      case 7:
+        baseLat = 32 + (zipNum % 1000) * 0.003;
+        baseLng = -97 - (zipNum % 500) * 0.002;
+        break;
+      case 8:
+        baseLat = 39 + (zipNum % 1000) * 0.003;
+        baseLng = -105 - (zipNum % 500) * 0.002;
+        break;
+      case 9:
+        baseLat = 37 + (zipNum % 1000) * 0.003;
+        baseLng = -122 - (zipNum % 500) * 0.002;
+        break;
+      default:
+        baseLat = 38 + (zipNum % 1000) * 0.003;
+        baseLng = -78 - (zipNum % 500) * 0.002;
+    }
+    
+    // ZIP code areas are roughly 5-10 miles across
+    const delta = 0.05; // ~3-5 miles
+    
+    return {
+      zip,
+      centerLat: baseLat,
+      centerLng: baseLng,
+      viewportNorth: baseLat + delta,
+      viewportSouth: baseLat - delta,
+      viewportEast: baseLng + delta,
+      viewportWest: baseLng - delta,
+    };
+  }
+
+  function calculateBounds(geos: Array<{
+    viewportNorth: number;
+    viewportSouth: number;
+    viewportEast: number;
+    viewportWest: number;
+  }>): { north: number; south: number; east: number; west: number } | null {
+    if (geos.length === 0) return null;
+    
+    return {
+      north: Math.max(...geos.map((g) => g.viewportNorth)),
+      south: Math.min(...geos.map((g) => g.viewportSouth)),
+      east: Math.max(...geos.map((g) => g.viewportEast)),
+      west: Math.min(...geos.map((g) => g.viewportWest)),
+    };
+  }
+
+  // ============================================
   // Conversation Routes
   // ============================================
 
