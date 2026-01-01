@@ -35,7 +35,7 @@ import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
   // Business Profile
-  getBusinessProfile(): Promise<BusinessProfile | undefined>;
+  getBusinessProfile(id?: number): Promise<BusinessProfile | undefined>;
   createBusinessProfile(profile: InsertBusinessProfile): Promise<BusinessProfile>;
   updateBusinessProfile(id: number, profile: Partial<InsertBusinessProfile>): Promise<BusinessProfile>;
 
@@ -93,7 +93,11 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   // Business Profile
-  async getBusinessProfile(): Promise<BusinessProfile | undefined> {
+  async getBusinessProfile(id?: number): Promise<BusinessProfile | undefined> {
+    if (id !== undefined) {
+      const [profile] = await db.select().from(businessProfiles).where(eq(businessProfiles.id, id));
+      return profile;
+    }
     const [profile] = await db.select().from(businessProfiles).limit(1);
     return profile;
   }

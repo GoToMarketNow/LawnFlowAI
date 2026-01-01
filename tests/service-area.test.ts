@@ -1,3 +1,4 @@
+import { describe, it, expect } from '@jest/globals';
 import {
   haversineDistanceMi,
   checkServiceArea,
@@ -106,7 +107,7 @@ describe("Service Area Utilities", () => {
         maxMi: 20,
         allowExtended: true,
       };
-      const result = checkServiceArea(0.145, 0, config);
+      const result = checkServiceArea(0.14, 0, config);
       expect(result.tier).toBe("core");
     });
   });

@@ -1,9 +1,10 @@
 import { storage } from "../storage";
-import { plan, getDefaultBusinessProfile, type EventContext, type StateContext, type BusinessProfile as SupervisorBusinessProfile } from "./supervisor";
+import { plan, getDefaultBusinessProfile, type EventContext, type StateContext, type BusinessProfile as SupervisorBusinessProfile, type ServiceAreaEval } from "./supervisor";
 import { execute } from "./runner";
 import { audit, metrics, comms, fsm, approvals } from "../tools";
 import { twilioConnector } from "../connectors/twilio-mock";
 import { formatScheduleConfirmation } from "../agents/schedule";
+import { mockGeocodeAddress, buildServiceAreaEval, type ServiceAreaConfig } from "../utils/service-area";
 import type { Conversation, BusinessProfile } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -24,19 +25,64 @@ export interface ProcessingResult {
   approvalId?: string;
 }
 
-async function getBusinessContext(): Promise<{
+interface BusinessContext {
   businessId?: number;
   businessName: string;
   services: string[];
   serviceArea: string;
-}> {
+  serviceAreaConfig?: ServiceAreaConfig;
+}
+
+async function getBusinessContext(): Promise<BusinessContext> {
   const profile = await storage.getBusinessProfile();
+  
+  let serviceAreaConfig: ServiceAreaConfig | undefined;
+  if (
+    profile?.serviceAreaCenterLat !== null &&
+    profile?.serviceAreaCenterLat !== undefined &&
+    profile?.serviceAreaCenterLng !== null &&
+    profile?.serviceAreaCenterLng !== undefined &&
+    profile?.serviceAreaRadiusMi !== null &&
+    profile?.serviceAreaRadiusMi !== undefined &&
+    profile?.serviceAreaMaxMi !== null &&
+    profile?.serviceAreaMaxMi !== undefined
+  ) {
+    serviceAreaConfig = {
+      centerLat: profile.serviceAreaCenterLat,
+      centerLng: profile.serviceAreaCenterLng,
+      radiusMi: profile.serviceAreaRadiusMi,
+      maxMi: profile.serviceAreaMaxMi,
+      allowExtended: profile.serviceAreaAllowExtended ?? true,
+    };
+  }
+  
   return {
     businessId: profile?.id,
     businessName: profile?.name || "Green Thumb Landscaping",
     services: profile?.services || ["Lawn Mowing", "Landscaping", "Tree Trimming"],
     serviceArea: profile?.serviceArea || "Local area",
+    serviceAreaConfig,
   };
+}
+
+async function evaluateServiceArea(
+  address: string | undefined,
+  businessContext: BusinessContext
+): Promise<ServiceAreaEval | undefined> {
+  if (!address || !businessContext.serviceAreaConfig) {
+    return undefined;
+  }
+  
+  const geocoded = await mockGeocodeAddress(address);
+  if (!geocoded) {
+    return undefined;
+  }
+  
+  return buildServiceAreaEval(
+    geocoded.lat,
+    geocoded.lng,
+    businessContext.serviceAreaConfig
+  );
 }
 
 export const orchestrator = {
@@ -114,6 +160,14 @@ export const orchestrator = {
         eventId,
       };
 
+      // Evaluate service area if address is provided
+      const address = payload.data.address as string | undefined;
+      const serviceAreaEval = await evaluateServiceArea(address, businessContext);
+      
+      if (serviceAreaEval) {
+        console.log(`[Orchestrator] Service area evaluation: ${serviceAreaEval.tier} (${serviceAreaEval.distance_mi.toFixed(1)} mi)`);
+      }
+
       const stateContext: StateContext = {
         conversation,
         messages: messagesList,
@@ -121,6 +175,7 @@ export const orchestrator = {
         businessName: businessContext.businessName,
         services: businessContext.services,
         serviceArea: businessContext.serviceArea,
+        serviceAreaEval,
       };
 
       const businessProfile = getDefaultBusinessProfile();

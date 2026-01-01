@@ -159,7 +159,27 @@ export async function registerRoutes(
       if (!parsed.success) {
         return res.status(400).json({ error: parsed.error.message });
       }
-      const profile = await storage.createBusinessProfile(parsed.data);
+      
+      // Validate service area configuration
+      const { validateServiceAreaConfig, VALID_MAX_DISTANCES } = await import("./utils/service-area.js");
+      const serviceAreaValidation = validateServiceAreaConfig({
+        radiusMi: parsed.data.serviceAreaRadiusMi,
+        maxMi: parsed.data.serviceAreaMaxMi,
+        centerLat: parsed.data.serviceAreaCenterLat,
+        centerLng: parsed.data.serviceAreaCenterLng,
+      });
+      
+      if (!serviceAreaValidation.valid) {
+        return res.status(400).json({ error: serviceAreaValidation.error });
+      }
+      
+      // Clamp radius if necessary
+      const profileData = { ...parsed.data };
+      if (serviceAreaValidation.clampedRadiusMi !== undefined) {
+        profileData.serviceAreaRadiusMi = serviceAreaValidation.clampedRadiusMi;
+      }
+      
+      const profile = await storage.createBusinessProfile(profileData);
       res.status(201).json(profile);
     } catch (error) {
       console.error("Error creating business profile:", error);
@@ -176,7 +196,32 @@ export async function registerRoutes(
       if (!parsed.success) {
         return res.status(400).json({ error: parsed.error.message });
       }
-      const profile = await storage.updateBusinessProfile(id, parsed.data);
+      
+      // Validate service area configuration if any fields are being updated
+      const { validateServiceAreaConfig } = await import("./utils/service-area.js");
+      
+      // Get existing profile to merge with updates for validation
+      const existingProfile = await storage.getBusinessProfile(id);
+      const mergedConfig = {
+        radiusMi: parsed.data.serviceAreaRadiusMi ?? existingProfile?.serviceAreaRadiusMi,
+        maxMi: parsed.data.serviceAreaMaxMi ?? existingProfile?.serviceAreaMaxMi,
+        centerLat: parsed.data.serviceAreaCenterLat ?? existingProfile?.serviceAreaCenterLat,
+        centerLng: parsed.data.serviceAreaCenterLng ?? existingProfile?.serviceAreaCenterLng,
+      };
+      
+      const serviceAreaValidation = validateServiceAreaConfig(mergedConfig);
+      
+      if (!serviceAreaValidation.valid) {
+        return res.status(400).json({ error: serviceAreaValidation.error });
+      }
+      
+      // Clamp radius if necessary
+      const updateData = { ...parsed.data };
+      if (serviceAreaValidation.clampedRadiusMi !== undefined) {
+        updateData.serviceAreaRadiusMi = serviceAreaValidation.clampedRadiusMi;
+      }
+      
+      const profile = await storage.updateBusinessProfile(id, updateData);
       res.json(profile);
     } catch (error) {
       console.error("Error updating business profile:", error);

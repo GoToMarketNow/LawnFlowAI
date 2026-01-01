@@ -55,6 +55,15 @@ export interface EventContext {
   eventId: string;
 }
 
+export interface ServiceAreaEval {
+  eligible: boolean;
+  tier: "core" | "extended" | "out_of_area";
+  distance_mi: number;
+  radius_mi: number;
+  max_mi: number;
+  allow_extended: boolean;
+}
+
 export interface StateContext {
   conversation?: Conversation;
   messages: Message[];
@@ -66,6 +75,7 @@ export interface StateContext {
   serviceArea: string;
   businessHours?: string;
   pricingRules?: Record<string, unknown>;
+  serviceAreaEval?: ServiceAreaEval;
 }
 
 export interface BusinessProfile {
@@ -201,6 +211,16 @@ Important:
 - Do not hallucinate tool availability. Only use tools provided in the tool list.
 - Keep steps minimal; prefer 1-3 steps.
 
+SERVICE AREA POLICY:
+- If service_area_eval is provided, enforce these rules:
+  - "core" tier: Customer is within primary service radius. Proceed with full automation per tier permissions.
+  - "extended" tier: Customer is beyond core radius but within max travel limit.
+    * Owner/SMB tiers: REQUIRE human approval for quotes and job booking.
+    * Commercial tier: May proceed but add approval_reason noting extended distance.
+  - "out_of_area" tier: Customer is beyond max travel limit.
+    * ALL tiers: Do NOT offer services. Send polite decline message explaining service area limits.
+    * Set requires_human_approval=true if policy allows override consideration.
+
 Available tools: ${AVAILABLE_TOOLS.join(", ")}
 
 Current policy settings:
@@ -239,6 +259,16 @@ Current State:
 
 Recent messages:
 ${state.messages.slice(-5).map(m => `[${m.role}]: ${m.content}`).join("\n") || "(none)"}
+
+${state.serviceAreaEval ? `Service Area Evaluation:
+{
+  "eligible": ${state.serviceAreaEval.eligible},
+  "tier": "${state.serviceAreaEval.tier}",
+  "distance_mi": ${state.serviceAreaEval.distance_mi.toFixed(1)},
+  "radius_mi": ${state.serviceAreaEval.radius_mi},
+  "max_mi": ${state.serviceAreaEval.max_mi},
+  "allow_extended": ${state.serviceAreaEval.allow_extended}
+}` : "Service Area Evaluation: Not available (no address provided or service area not configured)"}
 
 Create an execution plan for this event.`;
 
@@ -287,14 +317,63 @@ function createFallbackPlan(
   let priority: Classification["priority"] = "normal";
   let reason = "Fallback plan generated";
 
-  const requiresApprovalForQuotes = !policySettings.autoSendQuotes;
-  const requiresApprovalForBooking = !policySettings.autoBookJobs;
+  // Service area evaluation affects approval requirements
+  const serviceAreaTier = state.serviceAreaEval?.tier;
+  const isOutOfArea = serviceAreaTier === "out_of_area";
+  const isExtended = serviceAreaTier === "extended";
+  
+  // Extended area requires approval for Owner/SMB tiers
+  const extendedRequiresApproval = isExtended && policySettings.tier !== "Commercial";
+  
+  const requiresApprovalForQuotes = !policySettings.autoSendQuotes || extendedRequiresApproval;
+  const requiresApprovalForBooking = !policySettings.autoBookJobs || extendedRequiresApproval;
+
+  // Handle out-of-area leads with polite decline
+  if (isOutOfArea && (event.type === "missed_call" || event.type === "inbound_sms" || event.type === "web_lead")) {
+    const distanceInfo = state.serviceAreaEval 
+      ? `${state.serviceAreaEval.distance_mi.toFixed(1)} miles away (max: ${state.serviceAreaEval.max_mi} miles)` 
+      : "outside service area";
+    
+    return {
+      event_id: event.eventId,
+      plan_id: `plan_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+      classification: {
+        category: "inbound_lead",
+        priority: "low",
+        reason: `Customer is ${distanceInfo} - outside service area`,
+      },
+      plan: {
+        steps: [{
+          step_id: `${event.eventId}_decline`,
+          agent: "InboundEngagement",
+          goal: "Send polite out-of-area decline message",
+          inputs: {
+            phone: event.payload.phone,
+            outOfArea: true,
+            maxServiceArea: state.serviceAreaEval?.max_mi,
+            distance: state.serviceAreaEval?.distance_mi,
+          },
+          requires_human_approval: true,
+          approval_reason: `Customer is outside service area (${distanceInfo}). Requires approval to decline or override.`,
+          tools_to_use: ["comms.sendSms", "audit.logEvent"],
+        }],
+        stop_conditions: ["Customer is outside service area"],
+      },
+      policy: {
+        tier: policySettings.tier,
+        confidence_threshold: policySettings.confidenceThreshold,
+        notes: `Out-of-area lead automatically flagged for review. Customer is ${distanceInfo}.`,
+      },
+    };
+  }
 
   switch (event.type) {
     case "missed_call":
       category = "inbound_lead";
       priority = "high";
-      reason = "Missed call requires immediate response to capture lead";
+      reason = isExtended 
+        ? `Missed call from extended service area (${state.serviceAreaEval?.distance_mi.toFixed(1)} mi)` 
+        : "Missed call requires immediate response to capture lead";
       steps.push({
         step_id: `${event.eventId}_step_1`,
         agent: "InboundEngagement",
@@ -302,9 +381,10 @@ function createFallbackPlan(
         inputs: {
           phone: event.payload.phone,
           businessName: state.businessName,
+          isExtendedArea: isExtended,
         },
-        requires_human_approval: false,
-        approval_reason: null,
+        requires_human_approval: extendedRequiresApproval,
+        approval_reason: extendedRequiresApproval ? `Extended service area (${state.serviceAreaEval?.distance_mi.toFixed(1)} mi from center)` : null,
         tools_to_use: ["comms.sendSms", "fsm.createLead", "audit.logEvent"],
       });
       break;
@@ -312,7 +392,9 @@ function createFallbackPlan(
     case "inbound_sms":
       category = "inbound_lead";
       priority = "normal";
-      reason = "Inbound SMS from customer needs qualification and response";
+      reason = isExtended 
+        ? `Inbound SMS from extended service area (${state.serviceAreaEval?.distance_mi.toFixed(1)} mi)` 
+        : "Inbound SMS from customer needs qualification and response";
       steps.push({
         step_id: `${event.eventId}_step_1`,
         agent: "InboundEngagement",
@@ -320,6 +402,7 @@ function createFallbackPlan(
         inputs: {
           phone: event.payload.phone,
           message: event.payload.body || event.payload.message,
+          isExtendedArea: isExtended,
         },
         requires_human_approval: false,
         approval_reason: null,
@@ -329,9 +412,11 @@ function createFallbackPlan(
         step_id: `${event.eventId}_step_2`,
         agent: "Quoting",
         goal: "Generate quote if lead is qualified",
-        inputs: {},
+        inputs: { isExtendedArea: isExtended },
         requires_human_approval: requiresApprovalForQuotes,
-        approval_reason: requiresApprovalForQuotes ? "Quote sending requires approval per policy" : null,
+        approval_reason: extendedRequiresApproval 
+          ? `Extended service area (${state.serviceAreaEval?.distance_mi.toFixed(1)} mi) - quote requires approval`
+          : requiresApprovalForQuotes ? "Quote sending requires approval per policy" : null,
         tools_to_use: ["comms.sendSms", "approvals.requestApproval"],
       });
       break;
@@ -339,12 +424,14 @@ function createFallbackPlan(
     case "web_lead":
       category = "inbound_lead";
       priority = "high";
-      reason = "Web lead submission requires prompt follow-up";
+      reason = isExtended 
+        ? `Web lead from extended service area (${state.serviceAreaEval?.distance_mi.toFixed(1)} mi)` 
+        : "Web lead submission requires prompt follow-up";
       steps.push({
         step_id: `${event.eventId}_step_1`,
         agent: "InboundEngagement",
         goal: "Create lead from web form submission",
-        inputs: event.payload,
+        inputs: { ...event.payload as object, isExtendedArea: isExtended },
         requires_human_approval: false,
         approval_reason: null,
         tools_to_use: ["fsm.createLead", "audit.logEvent"],
@@ -353,18 +440,22 @@ function createFallbackPlan(
         step_id: `${event.eventId}_step_2`,
         agent: "Quoting",
         goal: "Generate and send quote based on service requested",
-        inputs: {},
+        inputs: { isExtendedArea: isExtended },
         requires_human_approval: requiresApprovalForQuotes,
-        approval_reason: requiresApprovalForQuotes ? "Quote requires approval per tier policy" : null,
+        approval_reason: extendedRequiresApproval 
+          ? `Extended service area (${state.serviceAreaEval?.distance_mi.toFixed(1)} mi) - quote requires approval`
+          : requiresApprovalForQuotes ? "Quote requires approval per tier policy" : null,
         tools_to_use: ["comms.sendSms", "approvals.requestApproval"],
       });
       steps.push({
         step_id: `${event.eventId}_step_3`,
         agent: "Scheduling",
         goal: "Propose available scheduling slots",
-        inputs: {},
+        inputs: { isExtendedArea: isExtended },
         requires_human_approval: requiresApprovalForBooking,
-        approval_reason: requiresApprovalForBooking ? "Job booking requires approval per tier policy" : null,
+        approval_reason: extendedRequiresApproval 
+          ? `Extended service area (${state.serviceAreaEval?.distance_mi.toFixed(1)} mi) - job booking requires approval`
+          : requiresApprovalForBooking ? "Job booking requires approval per tier policy" : null,
         tools_to_use: ["fsm.getAvailability", "fsm.createJob", "approvals.requestApproval"],
       });
       break;

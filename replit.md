@@ -119,6 +119,12 @@ Tiered automation policy enforcement with configurable rules:
 - `AI_INTEGRATIONS_OPENAI_API_KEY` - Replit AI integration (auto-configured)
 - `AI_INTEGRATIONS_OPENAI_BASE_URL` - Replit AI integration (auto-configured)
 
+### Google Maps (Service Area Builder)
+To enable the interactive Service Area Builder with Google Maps:
+- `VITE_GOOGLE_MAPS_API_KEY` - Your Google Maps API key (client-side)
+  - Enable Maps JavaScript API in Google Cloud Console
+  - Note: Without this key, the Service Area section will show an error message but other functionality works
+
 ### Twilio (Not Yet Configured)
 When ready to enable real SMS:
 - `TWILIO_ACCOUNT_SID` - Your Twilio Account SID
@@ -141,6 +147,10 @@ npm run db:push
 - Clean, efficient admin interface
 
 ## Recent Changes
+- Service Area Builder with Google Maps integration in Business Profile
+- Haversine distance calculation for service area eligibility checks
+- Service area evaluation integrated into orchestrator (core/extended/out_of_area tiers)
+- Mock geocoder for address-to-coordinates conversion (swap to Google Geocoding API for production)
 - Twilio inbound SMS webhook with signature validation (POST /webhooks/twilio/sms)
 - Missed call simulation endpoint (POST /api/events/missed-call)
 - Real Twilio SMS sending with retries (3 attempts) and failure logging
@@ -149,6 +159,18 @@ npm run db:push
 - Tool interfaces with strict Zod validation
 - POST /api/jobs/:id/complete endpoint for simulating job completion
 - Reviews agent for post-job review requests
+
+## Service Area Builder
+The Business Profile now includes a Service Area Builder with:
+- Interactive Google Maps for setting business location (drag marker)
+- Radius slider for core service area (1-40 miles)
+- Max travel limit dropdown (5, 10, 20, or 40 miles)
+- Extended area toggle (accept requests beyond core radius)
+
+Service area evaluation during orchestration:
+- `core`: Distance within radiusMi - fully automated
+- `extended`: Distance between radiusMi and maxMi - requires approval for Owner/SMB tiers
+- `out_of_area`: Beyond maxMi - polite decline or handoff to human
 
 ## Notes
 - Twilio integration was skipped during setup. User can configure later by providing credentials.

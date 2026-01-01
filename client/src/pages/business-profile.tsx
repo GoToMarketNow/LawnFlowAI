@@ -33,6 +33,7 @@ import { useState } from "react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { BusinessProfile } from "@shared/schema";
+import { ServiceAreaMap, type ServiceAreaData } from "@/components/service-area-map";
 
 const businessProfileSchema = z.object({
   name: z.string().min(2, "Business name is required"),
@@ -50,10 +51,28 @@ export default function BusinessProfilePage() {
   const { toast } = useToast();
   const [newService, setNewService] = useState("");
   const [services, setServices] = useState<string[]>([]);
+  const [serviceArea, setServiceArea] = useState<ServiceAreaData>({
+    centerLat: null,
+    centerLng: null,
+    radiusMi: 10,
+    maxMi: 20,
+    allowExtended: true,
+  });
 
   const { data: profile, isLoading } = useQuery<BusinessProfile>({
     queryKey: ["/api/business-profile"],
   });
+
+  // Load service area when profile loads
+  if (profile && serviceArea.centerLat === null && profile.serviceAreaCenterLat !== null) {
+    setServiceArea({
+      centerLat: profile.serviceAreaCenterLat ?? null,
+      centerLng: profile.serviceAreaCenterLng ?? null,
+      radiusMi: profile.serviceAreaRadiusMi ?? 10,
+      maxMi: profile.serviceAreaMaxMi ?? 20,
+      allowExtended: profile.serviceAreaAllowExtended ?? true,
+    });
+  }
 
   const form = useForm<BusinessProfileFormData>({
     resolver: zodResolver(businessProfileSchema),
@@ -86,7 +105,15 @@ export default function BusinessProfilePage() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: BusinessProfileFormData) => {
-      const payload = { ...data, services };
+      const payload = {
+        ...data,
+        services,
+        serviceAreaCenterLat: serviceArea.centerLat,
+        serviceAreaCenterLng: serviceArea.centerLng,
+        serviceAreaRadiusMi: serviceArea.radiusMi,
+        serviceAreaMaxMi: serviceArea.maxMi,
+        serviceAreaAllowExtended: serviceArea.allowExtended,
+      };
       if (profile?.id) {
         return apiRequest("PATCH", `/api/business-profile/${profile.id}`, payload);
       }
@@ -358,6 +385,11 @@ export default function BusinessProfilePage() {
               )}
             </CardContent>
           </Card>
+
+          <ServiceAreaMap
+            value={serviceArea}
+            onChange={setServiceArea}
+          />
 
           <Card>
             <CardHeader>
