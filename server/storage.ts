@@ -467,46 +467,79 @@ export class DatabaseStorage implements IStorage {
       return;
     }
     
-    const drizzleColumnMap: Record<string, keyof typeof aiActionUsage.$inferSelect> = {
-      InboundQualification: "inboundQualification",
-      SupervisorOrchestration: "supervisorOrchestration",
-      QuoteGeneration: "quoteGeneration",
-      SchedulingProposal: "schedulingProposal",
-      BillingFollowup: "billingFollowup",
-      ReviewRequest: "reviewRequest",
+    const baseValues = {
+      businessId,
+      date: today,
+      inboundQualification: 0,
+      supervisorOrchestration: 0,
+      quoteGeneration: 0,
+      schedulingProposal: 0,
+      billingFollowup: 0,
+      reviewRequest: 0,
+      totalActions: 1,
     };
     
-    const column = drizzleColumnMap[actionType];
-    
-    let todayUsage = await this.getTodayUsage(businessId);
-    
-    if (!todayUsage) {
-      try {
-        const [created] = await db.insert(aiActionUsage).values({
-          businessId,
-          date: today,
-          inboundQualification: 0,
-          supervisorOrchestration: 0,
-          quoteGeneration: 0,
-          schedulingProposal: 0,
-          billingFollowup: 0,
-          reviewRequest: 0,
-          totalActions: 0,
-        }).returning();
-        todayUsage = created;
-      } catch (error) {
-        todayUsage = await this.getTodayUsage(businessId);
-        if (!todayUsage) throw error;
-      }
+    if (actionType === "InboundQualification") {
+      baseValues.inboundQualification = 1;
+      await db.insert(aiActionUsage).values(baseValues)
+        .onConflictDoUpdate({
+          target: [aiActionUsage.businessId, aiActionUsage.date],
+          set: {
+            inboundQualification: sql`${aiActionUsage.inboundQualification} + 1`,
+            totalActions: sql`${aiActionUsage.totalActions} + 1`,
+          },
+        });
+    } else if (actionType === "SupervisorOrchestration") {
+      baseValues.supervisorOrchestration = 1;
+      await db.insert(aiActionUsage).values(baseValues)
+        .onConflictDoUpdate({
+          target: [aiActionUsage.businessId, aiActionUsage.date],
+          set: {
+            supervisorOrchestration: sql`${aiActionUsage.supervisorOrchestration} + 1`,
+            totalActions: sql`${aiActionUsage.totalActions} + 1`,
+          },
+        });
+    } else if (actionType === "QuoteGeneration") {
+      baseValues.quoteGeneration = 1;
+      await db.insert(aiActionUsage).values(baseValues)
+        .onConflictDoUpdate({
+          target: [aiActionUsage.businessId, aiActionUsage.date],
+          set: {
+            quoteGeneration: sql`${aiActionUsage.quoteGeneration} + 1`,
+            totalActions: sql`${aiActionUsage.totalActions} + 1`,
+          },
+        });
+    } else if (actionType === "SchedulingProposal") {
+      baseValues.schedulingProposal = 1;
+      await db.insert(aiActionUsage).values(baseValues)
+        .onConflictDoUpdate({
+          target: [aiActionUsage.businessId, aiActionUsage.date],
+          set: {
+            schedulingProposal: sql`${aiActionUsage.schedulingProposal} + 1`,
+            totalActions: sql`${aiActionUsage.totalActions} + 1`,
+          },
+        });
+    } else if (actionType === "BillingFollowup") {
+      baseValues.billingFollowup = 1;
+      await db.insert(aiActionUsage).values(baseValues)
+        .onConflictDoUpdate({
+          target: [aiActionUsage.businessId, aiActionUsage.date],
+          set: {
+            billingFollowup: sql`${aiActionUsage.billingFollowup} + 1`,
+            totalActions: sql`${aiActionUsage.totalActions} + 1`,
+          },
+        });
+    } else if (actionType === "ReviewRequest") {
+      baseValues.reviewRequest = 1;
+      await db.insert(aiActionUsage).values(baseValues)
+        .onConflictDoUpdate({
+          target: [aiActionUsage.businessId, aiActionUsage.date],
+          set: {
+            reviewRequest: sql`${aiActionUsage.reviewRequest} + 1`,
+            totalActions: sql`${aiActionUsage.totalActions} + 1`,
+          },
+        });
     }
-    
-    await db
-      .update(aiActionUsage)
-      .set({
-        [column]: sql`${aiActionUsage[column as keyof typeof aiActionUsage]} + 1`,
-        totalActions: sql`${aiActionUsage.totalActions} + 1`,
-      })
-      .where(eq(aiActionUsage.id, todayUsage.id));
   }
 
   // Growth Recommendations
