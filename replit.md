@@ -125,11 +125,11 @@ To enable the interactive Service Area Builder with Google Maps:
   - Enable Maps JavaScript API in Google Cloud Console
   - Note: Without this key, the Service Area section will show an error message but other functionality works
 
-### Twilio (Not Yet Configured)
-When ready to enable real SMS:
-- `TWILIO_ACCOUNT_SID` - Your Twilio Account SID
-- `TWILIO_AUTH_TOKEN` - Your Twilio Auth Token
-- `TWILIO_PHONE_NUMBER` - Your Twilio phone number (+1XXXXXXXXXX)
+### Twilio (Configured)
+Real SMS is enabled via Replit Twilio Integration with fallback to environment variables:
+- Replit Twilio Integration is configured (uses API Key authentication)
+- Falls back to `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` secrets if Replit integration is unavailable
+- `TWILIO_MESSAGING_SERVICE_SID` - Messaging Service for OTP delivery (MG277f5b29887900045def40b5363a2d1e)
 
 ## Running Locally
 ```bash
