@@ -19,7 +19,9 @@ const MAX_RETRIES = 3;
 class TwilioConnector {
   private client: Twilio.Twilio | null = null;
   private isConfigured: boolean;
+  private isMessagingServiceConfigured: boolean;
   private fromNumber: string;
+  private messagingServiceSid: string | undefined;
   private accountSid: string | undefined;
   private authToken: string | undefined;
 
@@ -27,12 +29,18 @@ class TwilioConnector {
     this.accountSid = process.env.TWILIO_ACCOUNT_SID;
     this.authToken = process.env.TWILIO_AUTH_TOKEN;
     this.fromNumber = process.env.TWILIO_PHONE_NUMBER || "+15551234567";
+    this.messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
     
     this.isConfigured = !!(this.accountSid && this.authToken && process.env.TWILIO_PHONE_NUMBER);
+    this.isMessagingServiceConfigured = !!(this.accountSid && this.authToken && this.messagingServiceSid);
     
-    if (this.isConfigured) {
+    if (this.isMessagingServiceConfigured || this.isConfigured) {
       this.client = Twilio(this.accountSid, this.authToken);
-      console.log("[Twilio] Configured with real credentials");
+      if (this.isMessagingServiceConfigured) {
+        console.log("[Twilio] Configured with Messaging Service SID");
+      } else {
+        console.log("[Twilio] Configured with real credentials");
+      }
     } else {
       console.log("[Twilio] Running in mock mode - no credentials configured");
     }
@@ -165,7 +173,90 @@ class TwilioConnector {
   }
 
   isRealTwilioConfigured(): boolean {
-    return this.isConfigured;
+    return this.isConfigured || this.isMessagingServiceConfigured;
+  }
+
+  isMessagingServiceReady(): boolean {
+    return this.isMessagingServiceConfigured;
+  }
+
+  async sendOtpSMS(to: string, otp: string): Promise<SMSResponse> {
+    const body = `Your LawnFlow verification code is ${otp}. It expires in 10 minutes.`;
+    const maskedTo = to.slice(0, -4).replace(/\d/g, "*") + to.slice(-4);
+    
+    console.log(`[Twilio OTP] Sending OTP to ${maskedTo}`);
+
+    if (this.isMessagingServiceConfigured && this.client) {
+      try {
+        const result = await pRetry(
+          async () => {
+            const message = await this.client!.messages.create({
+              to,
+              messagingServiceSid: this.messagingServiceSid!,
+              body,
+            });
+            return message;
+          },
+          {
+            retries: MAX_RETRIES,
+            onFailedAttempt: async (error) => {
+              const errorMessage = error instanceof Error ? error.message : "Unknown error";
+              console.error(`[Twilio OTP] Attempt ${error.attemptNumber} failed. ${MAX_RETRIES - error.attemptNumber + 1} retries left.`);
+              await audit.logEvent({
+                action: "twilio.sendOtp.retry",
+                actor: "system",
+                payload: {
+                  to: maskedTo,
+                  attempt: error.attemptNumber,
+                  error: errorMessage,
+                },
+              });
+            },
+          }
+        );
+
+        console.log(`[Twilio OTP] Sent successfully, SID: ${result.sid}`);
+        
+        await audit.logEvent({
+          action: "twilio.sendOtp.success",
+          actor: "system",
+          payload: { to: maskedTo, sid: result.sid, status: result.status },
+        });
+
+        return {
+          success: true,
+          sid: result.sid,
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        console.error("[Twilio OTP] Failed after all retries:", errorMessage);
+        
+        await audit.logEvent({
+          action: "twilio.sendOtp.failed",
+          actor: "system",
+          payload: { to: maskedTo, error: errorMessage },
+        });
+
+        return {
+          success: false,
+          error: errorMessage,
+        };
+      }
+    }
+
+    const mockSid = `SMOTP${Date.now().toString(36)}${Math.random().toString(36).substring(2, 8)}`;
+    console.log(`[Mock Twilio OTP] Would send to ${maskedTo}: ${body}`);
+    
+    await audit.logEvent({
+      action: "twilio.sendOtp.mock",
+      actor: "system",
+      payload: { to: maskedTo, sid: mockSid },
+    });
+
+    return {
+      success: true,
+      sid: mockSid,
+    };
   }
 }
 
