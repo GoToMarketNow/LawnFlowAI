@@ -1,0 +1,184 @@
+You are a senior security-minded full-stack engineer implementing SMS-based two-factor authentication (2FA) for LawnFlow.
+
+GOAL
+Implement a secure registration + login verification flow using Twilio Verify OR (preferred for MVP) Twilio Messaging Service SID with one-time passcodes (OTP) sent via SMS.
+
+We must:
+- Collect registrant mobile phone number during registration
+- Verify phone number ownership via OTP before activating the account (trial or paid)
+- Support OTP resend, attempt limits, and expiration
+- Store Twilio credentials securely via env vars (never in client code)
+- Use the Twilio Messaging Service SID already configured in Twilio
+
+STACK
+- Next.js (App Router) + TypeScript
+- Node backend (existing)
+- Prisma + SQLite
+- Twilio SDK on server only
+- Session/auth already exists OR implement minimal cookie session for MVP
+
+SECURITY REQUIREMENTS
+- OTP length: 6 digits
+- OTP expiration: 10 minutes
+- Max verify attempts per OTP: 5
+- Max sends per phone per hour: 5 (rate limit)
+- Hash OTP in DB (never store plaintext OTP)
+- Do not reveal whether a phone number is registered in error messages
+- Server-side only: NEVER expose Twilio Auth Token or Account SID to the client
+
+TWILIO CONFIG
+Use Twilio Messaging Service SID for sending:
+- TWILIO_ACCOUNT_SID (server env)
+- TWILIO_AUTH_TOKEN (server env)
+- TWILIO_MESSAGING_SERVICE_SID (server env)
+
+(If Twilio Verify is available and you want less security code, optionally support:
+- TWILIO_VERIFY_SERVICE_SID
+But MVP should use Messaging Service SID + our OTP store.)
+
+DATA MODEL (Prisma)
+Add tables:
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  passwordHash    String
+  phoneE164       String?  @unique
+  phoneVerifiedAt DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model PhoneVerification {
+  id              String   @id @default(cuid())
+  userId          String
+  phoneE164       String
+  otpHash         String
+  expiresAt       DateTime
+  attemptsUsed    Int      @default(0)
+  sendsUsedHour   Int      @default(0)
+  sendWindowStart DateTime
+  verifiedAt      DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([phoneE164])
+  @@index([expiresAt])
+}
+
+REGISTRATION FLOW (UI)
+1) Registration page collects:
+- Email
+- Password
+- Mobile phone number
+2) After submit:
+- Create user (unverified)
+- Normalize phone to E.164
+- Trigger OTP send
+- Navigate to /verify-phone with masked phone display
+3) Verify page:
+- Enter 6-digit code
+- Verify -> if success: set phoneVerifiedAt and allow access
+- Resend code button with cooldown
+
+BACKEND ENDPOINTS
+Implement server routes:
+
+POST /api/auth/register
+Input: { email, password, phone }
+Behavior:
+- Validate email/password
+- Normalize phone to E.164 (use libphonenumber-js)
+- Create user if not exists
+- Create PhoneVerification record
+- Send OTP via Twilio messaging service
+- Return generic success response
+
+POST /api/auth/send-otp
+Input: { phoneE164, userId }
+Behavior:
+- Rate limit by phone number (max 5/hour)
+- Generate OTP, hash, store with expiry
+- Send SMS with MessagingServiceSid
+- Response: { ok: true }
+
+POST /api/auth/verify-otp
+Input: { userId, code }
+Behavior:
+- Load active PhoneVerification for user
+- If expired -> reject
+- If attemptsUsed >= 5 -> reject
+- Hash code and compare
+- If match -> mark verifiedAt, set user.phoneVerifiedAt, delete/expire verification record
+- Return { ok: true }
+
+OTP GENERATION + STORAGE
+- OTP = random 6-digit numeric string
+- Hash OTP with bcrypt or scrypt/argon2 (preferred)
+- Store otpHash only
+- Compare by hashing input with same algorithm
+
+TWILIO SEND IMPLEMENTATION (SERVER ONLY)
+Use Twilio SDK:
+
+client.messages.create({
+  to: phoneE164,
+  messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID,
+  body: `Your LawnFlow verification code is ${OTP}. It expires in 10 minutes.`
+})
+
+IMPORTANT: Do not include sensitive info in SMS beyond OTP.
+
+ERROR MESSAGES (NON-ENUMERATING)
+- Always return “If the code is correct, you’ll be verified” style messaging
+- Do not reveal whether a phone/email exists
+
+CLIENT UI REQUIREMENTS
+- Mask phone: +1 (***) ***-1234
+- “Resend code” disabled for 30 seconds after send
+- Show remaining attempts if you want, but not required
+
+RECOMMENDATIONS FOR TWILIO CREDENTIAL STORAGE
+1) Put the following only in server env vars (Replit Secrets / .env):
+- TWILIO_ACCOUNT_SID
+- TWILIO_AUTH_TOKEN
+- TWILIO_MESSAGING_SERVICE_SID
+
+2) Never store these in:
+- frontend code
+- database
+- localStorage
+- logs
+
+3) For Next.js:
+- Only variables prefixed with NEXT_PUBLIC_ are exposed to client
+- Therefore DO NOT prefix Twilio credentials with NEXT_PUBLIC_
+
+4) Add a configuration check at server startup:
+- if any required env vars missing -> log a clear error and disable 2FA endpoints
+
+5) Logging:
+- Log Twilio message SID and status
+- Never log phone numbers in plaintext (mask them) unless you have explicit reason
+
+ADDITIONAL HARDENING (RECOMMENDED)
+- Use hCaptcha/Turnstile on registration to reduce SMS abuse
+- Add IP-based rate limiting on send-otp endpoint
+- Add device fingerprint or session binding for OTP verification
+- Store audit events for sends/verifications
+
+DELIVERABLES
+- Prisma migration
+- API routes
+- UI pages: /register and /verify-phone
+- Utility: phone normalization (libphonenumber-js)
+- Utility: OTP gen + hashing
+- Rate limiting implementation
+- Tests for OTP expiry and attempt limits
+- README: env vars required and setup steps
+
+OUTPUT FORMAT
+Generate code file-by-file with paths, include Prisma schema updates, and ensure Twilio SDK is imported server-side only.
