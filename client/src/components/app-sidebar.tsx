@@ -3,11 +3,13 @@ import {
   LayoutDashboard,
   MessageSquare,
   CheckCircle,
-  Building2,
+  User,
   Zap,
   ClipboardList,
   FileText,
   Radio,
+  Settings,
+  CreditCard,
 } from "lucide-react";
 import {
   Sidebar,
@@ -22,57 +24,94 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 
-const navigationItems = [
+interface AppSidebarProps {
+  isOnboardingComplete: boolean;
+}
+
+const primaryNavItems = [
   {
     title: "Dashboard",
     url: "/",
     icon: LayoutDashboard,
+    requiresOnboarding: false,
   },
+  {
+    title: "My Profile",
+    url: "/profile",
+    icon: User,
+    requiresOnboarding: false,
+  },
+];
+
+const operationsItems = [
   {
     title: "Events Feed",
     url: "/events",
     icon: Radio,
+    requiresOnboarding: true,
   },
   {
     title: "Conversations",
     url: "/conversations",
     icon: MessageSquare,
+    requiresOnboarding: true,
   },
   {
     title: "Pending Actions",
     url: "/actions",
     icon: CheckCircle,
+    requiresOnboarding: true,
   },
   {
     title: "Jobs",
     url: "/jobs",
     icon: ClipboardList,
+    requiresOnboarding: true,
   },
 ];
 
 const settingsItems = [
   {
-    title: "Business Profile",
-    url: "/profile",
-    icon: Building2,
-  },
-  {
     title: "Event Simulator",
     url: "/simulator",
     icon: Zap,
+    requiresOnboarding: true,
   },
   {
     title: "Audit Log",
     url: "/audit",
     icon: FileText,
+    requiresOnboarding: true,
   },
 ];
 
-export function AppSidebar() {
+const placeholderItems = [
+  {
+    title: "Settings",
+    url: "#",
+    icon: Settings,
+    placeholder: true,
+  },
+  {
+    title: "Billing",
+    url: "#",
+    icon: CreditCard,
+    placeholder: true,
+  },
+];
+
+export function AppSidebar({ isOnboardingComplete }: AppSidebarProps) {
   const [location] = useLocation();
 
+  const isActive = (url: string) => {
+    if (url === "/") {
+      return location === "/" || location === "/dashboard";
+    }
+    return location === url || location.startsWith(url + "/");
+  };
+
   return (
-    <Sidebar>
+    <Sidebar aria-label="Primary">
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
@@ -91,16 +130,18 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Operations</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navigationItems.map((item) => (
+              {primaryNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
-                    isActive={location === item.url}
+                    isActive={isActive(item.url)}
                   >
-                    <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase().replace(" ", "-")}`}>
+                    <Link
+                      href={item.url}
+                      data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                    >
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </Link>
@@ -112,19 +153,82 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Settings</SidebarGroupLabel>
+          <SidebarGroupLabel>Operations</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {settingsItems.map((item) => (
+              {operationsItems.map((item) => {
+                const disabled = item.requiresOnboarding && !isOnboardingComplete;
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive(item.url)}
+                      disabled={disabled}
+                      className={disabled ? "opacity-50 cursor-not-allowed" : ""}
+                    >
+                      {disabled ? (
+                        <span className="flex items-center gap-2">
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </span>
+                      ) : (
+                        <Link
+                          href={item.url}
+                          data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      )}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Tools</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {settingsItems.map((item) => {
+                const disabled = item.requiresOnboarding && !isOnboardingComplete;
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive(item.url)}
+                      disabled={disabled}
+                      className={disabled ? "opacity-50 cursor-not-allowed" : ""}
+                    >
+                      {disabled ? (
+                        <span className="flex items-center gap-2">
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </span>
+                      ) : (
+                        <Link
+                          href={item.url}
+                          data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      )}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+              {placeholderItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
-                    asChild
-                    isActive={location === item.url}
+                    asChild={false}
+                    disabled
+                    className="opacity-50 cursor-not-allowed"
                   >
-                    <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase().replace(" ", "-")}`}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.title}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -135,7 +239,7 @@ export function AppSidebar() {
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">
         <div className="text-xs text-muted-foreground">
-          MVP v1.0 - Mock Mode
+          MVP v1.0
         </div>
       </SidebarFooter>
     </Sidebar>

@@ -322,6 +322,9 @@ export function registerAuthRoutes(app: Express): void {
         });
       }
 
+      req.session.userId = user.id;
+      req.session.email = user.email;
+
       await audit.logEvent({
         action: "auth.login.success",
         actor: "user",
@@ -339,6 +342,52 @@ export function registerAuthRoutes(app: Express): void {
       console.error("Login error:", error);
       res.status(500).json({ error: "Login failed" });
     }
+  });
+
+  app.get("/api/auth/me", async (req: Request, res: Response) => {
+    try {
+      if (!req.session.userId) {
+        return res.status(401).json({ authenticated: false });
+      }
+
+      const user = await storage.getUserById(req.session.userId);
+      if (!user) {
+        req.session.destroy(() => {});
+        return res.status(401).json({ authenticated: false });
+      }
+
+      res.json({
+        authenticated: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          phoneVerified: !!user.phoneVerifiedAt,
+        },
+      });
+    } catch (error) {
+      console.error("Auth check error:", error);
+      res.status(500).json({ error: "Failed to check auth status" });
+    }
+  });
+
+  app.post("/api/auth/logout", async (req: Request, res: Response) => {
+    const userId = req.session.userId;
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("Logout error:", err);
+        return res.status(500).json({ error: "Logout failed" });
+      }
+
+      if (userId) {
+        audit.logEvent({
+          action: "auth.logout.success",
+          actor: "user",
+          payload: { userId },
+        });
+      }
+
+      res.json({ ok: true, message: "Logged out successfully" });
+    });
   });
 
   app.get("/api/auth/status", async (req: Request, res: Response) => {

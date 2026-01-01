@@ -4,7 +4,9 @@ import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
+import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { UserMenu } from "@/components/user-menu";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import Dashboard from "@/pages/dashboard";
@@ -21,16 +23,16 @@ import RegisterPage from "@/pages/register";
 import LoginPage from "@/pages/login";
 import VerifyPhonePage from "@/pages/verify-phone";
 import NotFound from "@/pages/not-found";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 
 function OnboardingCheck({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  
+
   const { data: onboarding, isLoading } = useQuery<{ isOnboardingComplete: boolean }>({
     queryKey: ["/api/onboarding"],
     staleTime: 60000,
   });
-  
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -38,19 +40,42 @@ function OnboardingCheck({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  
+
   if (location === "/onboarding") {
     return <>{children}</>;
   }
-  
+
   if (onboarding && !onboarding.isOnboardingComplete) {
     return <Redirect to="/onboarding" />;
   }
-  
+
   return <>{children}</>;
 }
 
-function MainLayout() {
+function SetupBanner() {
+  const { data: onboarding } = useQuery<{ isOnboardingComplete: boolean }>({
+    queryKey: ["/api/onboarding"],
+    staleTime: 60000,
+  });
+
+  if (onboarding?.isOnboardingComplete) {
+    return null;
+  }
+
+  return (
+    <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+      <AlertCircle className="h-4 w-4" />
+      <span>Setup in progress - Complete onboarding to unlock all features</span>
+    </div>
+  );
+}
+
+function AuthenticatedLayout() {
+  const { data: onboarding } = useQuery<{ isOnboardingComplete: boolean }>({
+    queryKey: ["/api/onboarding"],
+    staleTime: 60000,
+  });
+
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -59,15 +84,20 @@ function MainLayout() {
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       <div className="flex h-screen w-full">
-        <AppSidebar />
+        <AppSidebar isOnboardingComplete={onboarding?.isOnboardingComplete ?? false} />
         <div className="flex flex-col flex-1 overflow-hidden">
+          <SetupBanner />
           <header className="flex items-center justify-between gap-4 p-3 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
-            <ThemeToggle />
+            <SidebarTrigger data-testid="button-sidebar-toggle" aria-label="Toggle sidebar" />
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <UserMenu />
+            </div>
           </header>
           <main className="flex-1 overflow-auto bg-background">
             <Switch>
               <Route path="/" component={Dashboard} />
+              <Route path="/dashboard" component={Dashboard} />
               <Route path="/conversations" component={ConversationsPage} />
               <Route path="/conversations/:id" component={ConversationDetailPage} />
               <Route path="/actions" component={PendingActionsPage} />
@@ -85,24 +115,60 @@ function MainLayout() {
   );
 }
 
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  const [location] = useLocation();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const publicPaths = ["/login", "/register", "/verify-phone"];
+  const isPublicPath = publicPaths.includes(location);
+
+  if (!isAuthenticated && !isPublicPath) {
+    return <Redirect to="/login" />;
+  }
+
+  if (isAuthenticated && isPublicPath) {
+    return <Redirect to="/" />;
+  }
+
+  return <>{children}</>;
+}
+
+function AppRoutes() {
+  return (
+    <AuthGuard>
+      <Switch>
+        <Route path="/register" component={RegisterPage} />
+        <Route path="/login" component={LoginPage} />
+        <Route path="/verify-phone" component={VerifyPhonePage} />
+        <Route>
+          <OnboardingCheck>
+            <Switch>
+              <Route path="/onboarding" component={OnboardingPage} />
+              <Route component={AuthenticatedLayout} />
+            </Switch>
+          </OnboardingCheck>
+        </Route>
+      </Switch>
+    </AuthGuard>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="light" storageKey="lawnflow-ui-theme">
         <TooltipProvider>
-          <Switch>
-            <Route path="/register" component={RegisterPage} />
-            <Route path="/login" component={LoginPage} />
-            <Route path="/verify-phone" component={VerifyPhonePage} />
-            <Route>
-              <OnboardingCheck>
-                <Switch>
-                  <Route path="/onboarding" component={OnboardingPage} />
-                  <Route component={MainLayout} />
-                </Switch>
-              </OnboardingCheck>
-            </Route>
-          </Switch>
+          <AuthProvider>
+            <AppRoutes />
+          </AuthProvider>
           <Toaster />
         </TooltipProvider>
       </ThemeProvider>
