@@ -137,6 +137,263 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // Onboarding API Routes
+  // ============================================
+
+  // Get onboarding state (creates default profile if none exists)
+  app.get("/api/onboarding", async (req, res) => {
+    try {
+      let profile = await storage.getBusinessProfile();
+      
+      if (!profile) {
+        // Create a minimal profile for onboarding
+        profile = await storage.createBusinessProfile({
+          name: "",
+          phone: "",
+          email: "",
+          onboardingStep: "welcome",
+          isOnboardingComplete: false,
+        });
+      }
+      
+      res.json({
+        id: profile.id,
+        onboardingRoute: profile.onboardingRoute,
+        onboardingStep: profile.onboardingStep || "welcome",
+        isOnboardingComplete: profile.isOnboardingComplete || false,
+        businessBasics: {
+          businessName: profile.name,
+          ownerName: profile.ownerName,
+          email: profile.email,
+          phone: profile.phone,
+          address: profile.address,
+        },
+        serviceArea: {
+          centerLat: profile.serviceAreaCenterLat,
+          centerLng: profile.serviceAreaCenterLng,
+          radiusMi: profile.serviceAreaRadiusMi,
+          maxMi: profile.serviceAreaMaxMi,
+          allowExtended: profile.serviceAreaAllowExtended,
+        },
+        integration: {
+          fsmProvider: profile.fsmProvider,
+          fsmConnected: profile.fsmConnected,
+          fsmProviderOther: profile.fsmProviderOther,
+        },
+        communication: {
+          phoneProvider: profile.phoneProvider,
+          twilioAreaCode: profile.twilioAreaCode,
+          textingEnabled: profile.textingEnabled,
+        },
+        services: {
+          serviceTypes: profile.serviceTypes || profile.services,
+          typicalResponseTime: profile.typicalResponseTime,
+          weeklyCapacity: profile.weeklyCapacity,
+        },
+        pricing: {
+          pricingModel: profile.pricingModel,
+          mowingMinPrice: profile.mowingMinPrice,
+          cleanupMinPrice: profile.cleanupMinPrice,
+          mulchMinPrice: profile.mulchMinPrice,
+        },
+        automation: {
+          missedCallRecoveryEnabled: profile.missedCallRecoveryEnabled,
+          autoTextEnabled: profile.autoTextEnabled,
+          autoQuoteEnabled: profile.autoQuoteEnabled,
+          approvalsRequiredForBooking: profile.approvalsRequiredForBooking,
+        },
+        standalone: {
+          trackCustomersEnabled: profile.trackCustomersEnabled,
+          trackJobsEnabled: profile.trackJobsEnabled,
+        },
+        onboardingNotes: profile.onboardingNotes,
+      });
+    } catch (error) {
+      console.error("Error fetching onboarding state:", error);
+      res.status(500).json({ error: "Failed to fetch onboarding state" });
+    }
+  });
+
+  // Save onboarding progress (partial updates)
+  app.post("/api/onboarding", async (req, res) => {
+    try {
+      let profile = await storage.getBusinessProfile();
+      
+      if (!profile) {
+        // Create profile if it doesn't exist
+        profile = await storage.createBusinessProfile({
+          name: req.body.businessBasics?.businessName || "",
+          phone: req.body.businessBasics?.phone || "",
+          email: req.body.businessBasics?.email || "",
+          onboardingStep: req.body.onboardingStep || "welcome",
+          isOnboardingComplete: false,
+        });
+      }
+      
+      // Build update object from request
+      const updates: Record<string, any> = {};
+      
+      // Step tracking
+      if (req.body.onboardingStep) {
+        updates.onboardingStep = req.body.onboardingStep;
+      }
+      if (req.body.onboardingRoute) {
+        updates.onboardingRoute = req.body.onboardingRoute;
+      }
+      
+      // Business basics
+      if (req.body.businessBasics) {
+        const bb = req.body.businessBasics;
+        if (bb.businessName !== undefined) updates.name = bb.businessName;
+        if (bb.ownerName !== undefined) updates.ownerName = bb.ownerName;
+        if (bb.email !== undefined) updates.email = bb.email;
+        if (bb.phone !== undefined) updates.phone = bb.phone;
+        if (bb.address !== undefined) updates.address = bb.address;
+      }
+      
+      // Service area
+      if (req.body.serviceArea) {
+        const sa = req.body.serviceArea;
+        if (sa.centerLat !== undefined) updates.serviceAreaCenterLat = sa.centerLat;
+        if (sa.centerLng !== undefined) updates.serviceAreaCenterLng = sa.centerLng;
+        if (sa.radiusMi !== undefined) updates.serviceAreaRadiusMi = sa.radiusMi;
+        if (sa.maxMi !== undefined) updates.serviceAreaMaxMi = sa.maxMi;
+        if (sa.allowExtended !== undefined) updates.serviceAreaAllowExtended = sa.allowExtended;
+      }
+      
+      // Integration
+      if (req.body.integration) {
+        const int = req.body.integration;
+        if (int.fsmProvider !== undefined) updates.fsmProvider = int.fsmProvider;
+        if (int.fsmConnected !== undefined) updates.fsmConnected = int.fsmConnected;
+        if (int.fsmProviderOther !== undefined) updates.fsmProviderOther = int.fsmProviderOther;
+      }
+      
+      // Communication
+      if (req.body.communication) {
+        const comm = req.body.communication;
+        if (comm.phoneProvider !== undefined) updates.phoneProvider = comm.phoneProvider;
+        if (comm.twilioAreaCode !== undefined) updates.twilioAreaCode = comm.twilioAreaCode;
+        if (comm.textingEnabled !== undefined) updates.textingEnabled = comm.textingEnabled;
+      }
+      
+      // Services
+      if (req.body.services) {
+        const svc = req.body.services;
+        if (svc.serviceTypes !== undefined) {
+          updates.serviceTypes = svc.serviceTypes;
+          updates.services = svc.serviceTypes; // Also update legacy field
+        }
+        if (svc.typicalResponseTime !== undefined) updates.typicalResponseTime = svc.typicalResponseTime;
+        if (svc.weeklyCapacity !== undefined) updates.weeklyCapacity = svc.weeklyCapacity;
+      }
+      
+      // Pricing
+      if (req.body.pricing) {
+        const price = req.body.pricing;
+        if (price.pricingModel !== undefined) updates.pricingModel = price.pricingModel;
+        if (price.mowingMinPrice !== undefined) updates.mowingMinPrice = price.mowingMinPrice;
+        if (price.cleanupMinPrice !== undefined) updates.cleanupMinPrice = price.cleanupMinPrice;
+        if (price.mulchMinPrice !== undefined) updates.mulchMinPrice = price.mulchMinPrice;
+      }
+      
+      // Automation
+      if (req.body.automation) {
+        const auto = req.body.automation;
+        if (auto.missedCallRecoveryEnabled !== undefined) updates.missedCallRecoveryEnabled = auto.missedCallRecoveryEnabled;
+        if (auto.autoTextEnabled !== undefined) updates.autoTextEnabled = auto.autoTextEnabled;
+        if (auto.autoQuoteEnabled !== undefined) updates.autoQuoteEnabled = auto.autoQuoteEnabled;
+        if (auto.approvalsRequiredForBooking !== undefined) updates.approvalsRequiredForBooking = auto.approvalsRequiredForBooking;
+      }
+      
+      // Standalone CRM
+      if (req.body.standalone) {
+        const sa = req.body.standalone;
+        if (sa.trackCustomersEnabled !== undefined) updates.trackCustomersEnabled = sa.trackCustomersEnabled;
+        if (sa.trackJobsEnabled !== undefined) updates.trackJobsEnabled = sa.trackJobsEnabled;
+      }
+      
+      // Notes
+      if (req.body.onboardingNotes !== undefined) {
+        updates.onboardingNotes = req.body.onboardingNotes;
+      }
+      
+      const updatedProfile = await storage.updateBusinessProfile(profile.id, updates);
+      
+      res.json({
+        success: true,
+        id: updatedProfile.id,
+        onboardingStep: updatedProfile.onboardingStep,
+      });
+    } catch (error) {
+      console.error("Error saving onboarding progress:", error);
+      res.status(500).json({ error: "Failed to save onboarding progress" });
+    }
+  });
+
+  // Complete onboarding
+  app.post("/api/onboarding/complete", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      
+      if (!profile) {
+        return res.status(404).json({ error: "No profile found to complete" });
+      }
+      
+      // Validate required fields
+      if (!profile.name || !profile.phone || !profile.email) {
+        return res.status(400).json({ 
+          error: "Missing required fields: business name, phone, and email are required" 
+        });
+      }
+      
+      if (!profile.serviceAreaCenterLat || !profile.serviceAreaCenterLng || !profile.serviceAreaRadiusMi) {
+        return res.status(400).json({ 
+          error: "Missing required fields: service area must be configured" 
+        });
+      }
+      
+      if (!profile.serviceTypes?.length && !profile.services?.length) {
+        return res.status(400).json({ 
+          error: "Missing required fields: at least one service type must be selected" 
+        });
+      }
+      
+      // Mark onboarding as complete
+      const updatedProfile = await storage.updateBusinessProfile(profile.id, {
+        isOnboardingComplete: true,
+        onboardingStep: "complete",
+      });
+      
+      // Create policy profile if doesn't exist
+      let policyProfile = await storage.getPolicyProfile(profile.id);
+      if (!policyProfile) {
+        await PolicyService.createDefaultPolicy(profile.id, "owner_operator");
+        
+        // Update policy with automation preferences
+        policyProfile = await storage.getPolicyProfile(profile.id);
+        if (policyProfile) {
+          await storage.updatePolicyProfile(policyProfile.id, {
+            autoSendMessages: profile.autoTextEnabled ?? true,
+            autoSendQuotes: profile.autoQuoteEnabled ?? false,
+            autoBookJobs: !(profile.approvalsRequiredForBooking ?? true),
+            serviceAreaRadius: profile.serviceAreaRadiusMi,
+          });
+        }
+      }
+      
+      res.json({
+        success: true,
+        message: "Onboarding completed successfully",
+        profile: updatedProfile,
+      });
+    } catch (error) {
+      console.error("Error completing onboarding:", error);
+      res.status(500).json({ error: "Failed to complete onboarding" });
+    }
+  });
+
+  // ============================================
   // Business Profile Routes
   // ============================================
 
@@ -226,6 +483,232 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating business profile:", error);
       res.status(500).json({ error: "Failed to update profile" });
+    }
+  });
+
+  // ============================================
+  // Onboarding Routes
+  // ============================================
+
+  app.get("/api/onboarding", async (req, res) => {
+    try {
+      let profile = await storage.getBusinessProfile();
+      
+      // Create a default profile if none exists
+      if (!profile) {
+        profile = await storage.createBusinessProfile({
+          name: "",
+          phone: "",
+          email: "",
+          onboardingStep: "welcome",
+          isOnboardingComplete: false,
+        });
+      }
+
+      // Return onboarding state
+      res.json({
+        id: profile.id,
+        onboardingRoute: profile.onboardingRoute,
+        onboardingStep: profile.onboardingStep || "welcome",
+        isOnboardingComplete: profile.isOnboardingComplete || false,
+        businessBasics: {
+          businessName: profile.name || "",
+          ownerName: profile.ownerName || null,
+          email: profile.email || "",
+          phone: profile.phone || "",
+          address: profile.address || null,
+        },
+        serviceArea: {
+          centerLat: profile.serviceAreaCenterLat,
+          centerLng: profile.serviceAreaCenterLng,
+          radiusMi: profile.serviceAreaRadiusMi,
+          maxMi: profile.serviceAreaMaxMi,
+          allowExtended: profile.serviceAreaAllowExtended,
+        },
+        integration: {
+          fsmProvider: profile.fsmProvider,
+          fsmConnected: profile.fsmConnected,
+          fsmProviderOther: profile.fsmProviderOther,
+        },
+        communication: {
+          phoneProvider: profile.phoneProvider,
+          twilioAreaCode: profile.twilioAreaCode,
+          textingEnabled: profile.textingEnabled,
+        },
+        services: {
+          serviceTypes: profile.serviceTypes,
+          typicalResponseTime: profile.typicalResponseTime,
+          weeklyCapacity: profile.weeklyCapacity,
+        },
+        pricing: {
+          pricingModel: profile.pricingModel,
+          mowingMinPrice: profile.mowingMinPrice,
+          cleanupMinPrice: profile.cleanupMinPrice,
+          mulchMinPrice: profile.mulchMinPrice,
+        },
+        automation: {
+          missedCallRecoveryEnabled: profile.missedCallRecoveryEnabled,
+          autoTextEnabled: profile.autoTextEnabled,
+          autoQuoteEnabled: profile.autoQuoteEnabled,
+          approvalsRequiredForBooking: profile.approvalsRequiredForBooking,
+        },
+        standalone: {
+          trackCustomersEnabled: profile.trackCustomersEnabled,
+          trackJobsEnabled: profile.trackJobsEnabled,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching onboarding state:", error);
+      res.status(500).json({ error: "Failed to fetch onboarding state" });
+    }
+  });
+
+  app.post("/api/onboarding", async (req, res) => {
+    try {
+      const data = req.body;
+      let profile = await storage.getBusinessProfile();
+
+      const updateData: any = {
+        onboardingStep: data.onboardingStep,
+        onboardingRoute: data.onboardingRoute,
+      };
+
+      // Map business basics
+      if (data.businessBasics) {
+        updateData.name = data.businessBasics.businessName || "";
+        updateData.ownerName = data.businessBasics.ownerName || null;
+        updateData.email = data.businessBasics.email || "";
+        updateData.phone = data.businessBasics.phone || "";
+        updateData.address = data.businessBasics.address || null;
+      }
+
+      // Map service area
+      if (data.serviceArea) {
+        updateData.serviceAreaCenterLat = data.serviceArea.centerLat;
+        updateData.serviceAreaCenterLng = data.serviceArea.centerLng;
+        updateData.serviceAreaRadiusMi = data.serviceArea.radiusMi;
+        updateData.serviceAreaMaxMi = data.serviceArea.maxMi;
+        updateData.serviceAreaAllowExtended = data.serviceArea.allowExtended;
+      }
+
+      // Map integration
+      if (data.integration) {
+        updateData.fsmProvider = data.integration.fsmProvider;
+        updateData.fsmConnected = data.integration.fsmConnected;
+        updateData.fsmProviderOther = data.integration.fsmProviderOther;
+      }
+
+      // Map communication
+      if (data.communication) {
+        updateData.phoneProvider = data.communication.phoneProvider;
+        updateData.twilioAreaCode = data.communication.twilioAreaCode;
+        updateData.textingEnabled = data.communication.textingEnabled;
+      }
+
+      // Map services
+      if (data.services) {
+        updateData.serviceTypes = data.services.serviceTypes;
+        updateData.typicalResponseTime = data.services.typicalResponseTime;
+        updateData.weeklyCapacity = data.services.weeklyCapacity;
+      }
+
+      // Map pricing
+      if (data.pricing) {
+        updateData.pricingModel = data.pricing.pricingModel;
+        updateData.mowingMinPrice = data.pricing.mowingMinPrice;
+        updateData.cleanupMinPrice = data.pricing.cleanupMinPrice;
+        updateData.mulchMinPrice = data.pricing.mulchMinPrice;
+      }
+
+      // Map automation
+      if (data.automation) {
+        updateData.missedCallRecoveryEnabled = data.automation.missedCallRecoveryEnabled;
+        updateData.autoTextEnabled = data.automation.autoTextEnabled;
+        updateData.autoQuoteEnabled = data.automation.autoQuoteEnabled;
+        updateData.approvalsRequiredForBooking = data.automation.approvalsRequiredForBooking;
+      }
+
+      // Map standalone
+      if (data.standalone) {
+        updateData.trackCustomersEnabled = data.standalone.trackCustomersEnabled;
+        updateData.trackJobsEnabled = data.standalone.trackJobsEnabled;
+      }
+
+      if (profile) {
+        profile = await storage.updateBusinessProfile(profile.id, updateData);
+      } else {
+        profile = await storage.createBusinessProfile({
+          name: updateData.name || "",
+          phone: updateData.phone || "",
+          email: updateData.email || "",
+          ...updateData,
+        });
+      }
+
+      res.json({ success: true, profile });
+    } catch (error) {
+      console.error("Error saving onboarding state:", error);
+      res.status(500).json({ error: "Failed to save onboarding state" });
+    }
+  });
+
+  app.post("/api/onboarding/complete", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+
+      if (!profile) {
+        return res.status(400).json({ error: "No business profile found" });
+      }
+
+      // Validate required fields
+      const errors: string[] = [];
+
+      if (!profile.name) {
+        errors.push("Business name is required");
+      }
+      if (!profile.email) {
+        errors.push("Email is required");
+      }
+      if (!profile.phone) {
+        errors.push("Phone number is required");
+      }
+      if (!profile.serviceAreaCenterLat || !profile.serviceAreaRadiusMi) {
+        errors.push("Service area is required");
+      }
+      if (!profile.serviceTypes || profile.serviceTypes.length === 0) {
+        errors.push("At least one service type is required");
+      }
+
+      if (errors.length > 0) {
+        return res.status(400).json({ error: errors.join(", ") });
+      }
+
+      // Mark onboarding complete
+      await storage.updateBusinessProfile(profile.id, {
+        isOnboardingComplete: true,
+        onboardingStep: "review",
+      });
+
+      // Create or update policy profile based on automation preferences
+      let tier: "owner_operator" | "smb" | "commercial" = "owner_operator";
+      if (profile.autoQuoteEnabled && !profile.approvalsRequiredForBooking) {
+        tier = "commercial";
+      } else if (profile.autoQuoteEnabled) {
+        tier = "smb";
+      }
+
+      // Check if policy exists
+      const existingPolicy = await storage.getPolicyProfile(profile.id);
+      if (!existingPolicy) {
+        await PolicyService.createDefaultPolicy(profile.id, tier);
+      } else {
+        await storage.updatePolicyProfile(existingPolicy.id, { tier });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error completing onboarding:", error);
+      res.status(500).json({ error: "Failed to complete onboarding" });
     }
   });
 

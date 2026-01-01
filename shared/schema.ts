@@ -7,6 +7,7 @@ import { z } from "zod";
 export const businessProfiles = pgTable("business_profiles", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  ownerName: text("owner_name"),
   phone: text("phone").notNull(),
   email: text("email").notNull(),
   address: text("address"),
@@ -14,12 +15,53 @@ export const businessProfiles = pgTable("business_profiles", {
   services: text("services").array(),
   businessHours: text("business_hours"),
   autoResponseEnabled: boolean("auto_response_enabled").default(true),
+  
   // Service Area Builder fields
   serviceAreaCenterLat: doublePrecision("service_area_center_lat"),
   serviceAreaCenterLng: doublePrecision("service_area_center_lng"),
   serviceAreaRadiusMi: integer("service_area_radius_mi"),
   serviceAreaMaxMi: integer("service_area_max_mi"), // Must be 5, 10, 20, or 40
   serviceAreaAllowExtended: boolean("service_area_allow_extended").default(true),
+  
+  // Onboarding state
+  onboardingRoute: text("onboarding_route"), // "connect_existing" | "standalone"
+  onboardingStep: text("onboarding_step").default("welcome"),
+  isOnboardingComplete: boolean("is_onboarding_complete").default(false),
+  
+  // FSM Integration
+  fsmProvider: text("fsm_provider"), // "jobber" | "housecall_pro" | "service_autopilot" | "other" | "none"
+  fsmConnected: boolean("fsm_connected").default(false),
+  fsmProviderOther: text("fsm_provider_other"),
+  
+  // Communication settings
+  phoneProvider: text("phone_provider"), // "twilio" | "existing_number" | "none"
+  twilioAreaCode: text("twilio_area_code"),
+  textingEnabled: boolean("texting_enabled").default(true),
+  
+  // Services & Capacity
+  serviceTypes: text("service_types").array(), // mowing, cleanup, mulch, landscaping, irrigation, other
+  typicalResponseTime: text("typical_response_time"), // same_day, 24h, 48h
+  weeklyCapacity: text("weekly_capacity"), // light, medium, heavy
+  
+  // Pricing basics
+  pricingModel: text("pricing_model"), // flat_per_visit, range_estimate, site_visit_first
+  mowingMinPrice: integer("mowing_min_price"), // in cents
+  cleanupMinPrice: integer("cleanup_min_price"), // in cents
+  mulchMinPrice: integer("mulch_min_price"), // in cents
+  
+  // Automation preferences
+  missedCallRecoveryEnabled: boolean("missed_call_recovery_enabled").default(true),
+  autoTextEnabled: boolean("auto_text_enabled").default(true),
+  autoQuoteEnabled: boolean("auto_quote_enabled").default(false),
+  approvalsRequiredForBooking: boolean("approvals_required_for_booking").default(true),
+  
+  // Standalone CRM settings (for Route B)
+  trackCustomersEnabled: boolean("track_customers_enabled").default(true),
+  trackJobsEnabled: boolean("track_jobs_enabled").default(true),
+  
+  // Misc
+  onboardingNotes: jsonb("onboarding_notes"),
+  
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
