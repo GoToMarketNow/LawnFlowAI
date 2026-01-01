@@ -149,7 +149,42 @@ npm run db:push
 - Modern B2B SaaS design aesthetic
 - Clean, efficient admin interface
 
+## Lot Size Resolver (server/services/lotSizeResolver.ts)
+FREE-FIRST lot size resolution with aggressive caching and ArcGIS integration:
+
+### Architecture
+- Multi-tier caching: geocode cache (180 days) -> parcel cache (365 days)
+- Stale-while-revalidate: serve cached data immediately, refresh in background
+- Negative result caching (30 days) to avoid repeated failed lookups
+- 3-second timeout for ArcGIS queries to prevent blocking
+
+### Database Tables
+- `countySource`: ArcGIS REST endpoints per county (state, countyFips, arcgisUrl)
+- `geocodeCache`: Cached geocode results by normalized address hash
+- `parcelCache`: Cached parcel lookups by lat/lng (5-decimal rounding)
+- `zipCountyCrosswalk`: ZIP code to county mapping
+
+### API Endpoints
+- `POST /api/geo/lot-size`: Look up lot size by address
+- `GET /api/admin/county-sources`: List all county sources
+- `POST /api/admin/county-sources`: Add new county source
+- `DELETE /api/admin/county-sources/:id`: Remove county source
+- `POST /api/admin/county-sources/seed`: Seed default county sources
+
+### Admin Coverage Page (/admin/coverage)
+- View and manage ArcGIS endpoints by county
+- Test address lookups with real-time results
+- Seed default data for DC metro area (Montgomery MD, DC, Arlington VA, Fulton GA)
+
+### Integration with Quote Engine
+- Quote engine uses lotSizeResolver.resolve() as primary method
+- Falls back to geoService on error for backward compatibility
+- Customer-provided area bands still work but parcel lookup continues for higher accuracy
+
 ## Recent Changes
+- Lot size resolver with FREE-FIRST caching strategy and ArcGIS integration
+- Admin coverage page for managing county data sources
+- Quote engine integration with lot size resolver
 - Persistent navigation with Dashboard and My Profile as primary nav items
 - User authentication with session management (express-session + memorystore)
 - UserMenu component with avatar dropdown (My Profile, Logout)
