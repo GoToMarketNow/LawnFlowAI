@@ -9,8 +9,10 @@ import {
   insertJobSchema,
   insertPolicyProfileSchema,
   PolicyTiers,
+  insertAccountPackageSchema,
 } from "@shared/schema";
 import { PolicyService } from "./policy";
+import { growthAdvisor } from "./growth-advisor";
 import { z } from "zod";
 
 export async function registerRoutes(
@@ -78,6 +80,153 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // Growth Advisor API Routes
+  // ============================================
+
+  app.get("/api/growth-advisor/usage", async (req, res) => {
+    try {
+      const businessId = parseInt(req.query.businessId as string) || 1;
+      const usageStats = await growthAdvisor.getUsageStats(businessId);
+      res.json(usageStats);
+    } catch (error) {
+      console.error("Error fetching usage stats:", error);
+      res.status(500).json({ error: "Failed to fetch usage stats" });
+    }
+  });
+
+  app.get("/api/growth-advisor/recommendation", async (req, res) => {
+    try {
+      const businessId = parseInt(req.query.businessId as string) || 1;
+      const recommendation = await growthAdvisor.generateRecommendation(businessId);
+      
+      if (!recommendation) {
+        return res.status(404).json({ 
+          error: "No account package found",
+          message: "Please set up your account package first."
+        });
+      }
+      
+      res.json(recommendation);
+    } catch (error) {
+      console.error("Error generating recommendation:", error);
+      res.status(500).json({ error: "Failed to generate recommendation" });
+    }
+  });
+
+  app.get("/api/growth-advisor/package", async (req, res) => {
+    try {
+      const businessId = parseInt(req.query.businessId as string) || 1;
+      const accountPackage = await storage.getAccountPackage(businessId);
+      
+      if (!accountPackage) {
+        return res.status(404).json({ error: "Account package not found" });
+      }
+      
+      res.json(accountPackage);
+    } catch (error) {
+      console.error("Error fetching account package:", error);
+      res.status(500).json({ error: "Failed to fetch account package" });
+    }
+  });
+
+  app.post("/api/growth-advisor/package", async (req, res) => {
+    try {
+      const parsed = insertAccountPackageSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.message });
+      }
+      
+      const existingPackage = await storage.getAccountPackage(parsed.data.businessId);
+      if (existingPackage) {
+        return res.status(409).json({ 
+          error: "Account package already exists",
+          message: "Use PATCH to update the existing package."
+        });
+      }
+      
+      const accountPackage = await storage.createAccountPackage(parsed.data);
+      res.status(201).json(accountPackage);
+    } catch (error) {
+      console.error("Error creating account package:", error);
+      res.status(500).json({ error: "Failed to create account package" });
+    }
+  });
+
+  app.patch("/api/growth-advisor/package/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updateSchema = insertAccountPackageSchema.partial();
+      const parsed = updateSchema.safeParse(req.body);
+      
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.message });
+      }
+      
+      const accountPackage = await storage.updateAccountPackage(id, parsed.data);
+      res.json(accountPackage);
+    } catch (error) {
+      console.error("Error updating account package:", error);
+      res.status(500).json({ error: "Failed to update account package" });
+    }
+  });
+
+  app.post("/api/growth-advisor/recommendation/:id/action", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { action } = req.body;
+      
+      if (!["accepted", "dismissed", "ignored"].includes(action)) {
+        return res.status(400).json({ error: "Invalid action. Must be: accepted, dismissed, or ignored" });
+      }
+      
+      const recommendation = await storage.updateGrowthRecommendation(id, {
+        userAction: action,
+        userActionAt: new Date(),
+      });
+      
+      res.json(recommendation);
+    } catch (error) {
+      console.error("Error updating recommendation action:", error);
+      res.status(500).json({ error: "Failed to update recommendation" });
+    }
+  });
+
+  app.get("/api/growth-advisor/history", async (req, res) => {
+    try {
+      const businessId = parseInt(req.query.businessId as string) || 1;
+      const recommendations = await storage.getGrowthRecommendations(businessId);
+      res.json(recommendations);
+    } catch (error) {
+      console.error("Error fetching recommendation history:", error);
+      res.status(500).json({ error: "Failed to fetch history" });
+    }
+  });
+
+  app.post("/api/growth-advisor/simulate-usage", async (req, res) => {
+    try {
+      const { businessId, actionType, count = 1 } = req.body;
+      
+      if (!businessId || !actionType) {
+        return res.status(400).json({ error: "businessId and actionType are required" });
+      }
+      
+      for (let i = 0; i < count; i++) {
+        await storage.incrementActionUsage(businessId, actionType);
+      }
+      
+      const todayUsage = await storage.getTodayUsage(businessId);
+      res.json({
+        success: true,
+        message: `Added ${count} ${actionType} action(s)`,
+        todayUsage,
+      });
+    } catch (error) {
+      console.error("Error simulating usage:", error);
+      res.status(500).json({ error: "Failed to simulate usage" });
+    }
+  });
+
+  // ============================================
   // Seed Data Route (for development)
   // ============================================
 
@@ -115,6 +264,20 @@ export async function registerRoutes(
                 mulch: { minPrice: 30000, unit: "job" }, // min $300
               },
             },
+          });
+        }
+
+        // Create account package for Growth Advisor
+        const existingPackage = await storage.getAccountPackage(profile.id);
+        if (!existingPackage) {
+          await storage.createAccountPackage({
+            businessId: profile.id,
+            packageName: "starter",
+            monthlyActionsIncluded: 3000,
+            hardCapActions: 3500,
+            packSizeActions: 1000,
+            packPriceUsd: 25,
+            peakMonths: [4, 5, 6, 9, 10],
           });
         }
 

@@ -13,6 +13,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { GrowthAdvisorWidget } from "@/components/growth-advisor-widget";
 import type { Conversation, PendingAction } from "@shared/schema";
 
 interface Metrics {
@@ -283,36 +284,40 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg font-medium">ROI Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
-            <div className="text-center p-4 rounded-lg bg-muted/50">
-              <DollarSign className="h-8 w-8 mx-auto text-green-600 dark:text-green-400 mb-2" />
-              <p className="text-2xl font-bold" data-testid="metric-total-revenue">
-                ${((metrics?.totalRevenue || 0) / 100).toFixed(2)}
-              </p>
-              <p className="text-xs text-muted-foreground">Total Revenue</p>
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-medium">ROI Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
+              <div className="text-center p-4 rounded-lg bg-muted/50">
+                <DollarSign className="h-8 w-8 mx-auto text-green-600 dark:text-green-400 mb-2" />
+                <p className="text-2xl font-bold" data-testid="metric-total-revenue">
+                  ${((metrics?.totalRevenue || 0) / 100).toFixed(2)}
+                </p>
+                <p className="text-xs text-muted-foreground">Total Revenue</p>
+              </div>
+              <div className="text-center p-4 rounded-lg bg-muted/50">
+                <TrendingUp className="h-8 w-8 mx-auto text-blue-600 dark:text-blue-400 mb-2" />
+                <p className="text-2xl font-bold" data-testid="metric-conversion-rate">
+                  {metrics?.conversionRate || 0}%
+                </p>
+                <p className="text-xs text-muted-foreground">Conversion Rate</p>
+              </div>
+              <div className="text-center p-4 rounded-lg bg-muted/50">
+                <CheckCircle2 className="h-8 w-8 mx-auto text-purple-600 dark:text-purple-400 mb-2" />
+                <p className="text-2xl font-bold" data-testid="metric-completed-jobs">
+                  {metrics?.completedJobs || 0}
+                </p>
+                <p className="text-xs text-muted-foreground">Completed Jobs</p>
+              </div>
             </div>
-            <div className="text-center p-4 rounded-lg bg-muted/50">
-              <TrendingUp className="h-8 w-8 mx-auto text-blue-600 dark:text-blue-400 mb-2" />
-              <p className="text-2xl font-bold" data-testid="metric-conversion-rate">
-                {metrics?.conversionRate || 0}%
-              </p>
-              <p className="text-xs text-muted-foreground">Conversion Rate</p>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-muted/50">
-              <CheckCircle2 className="h-8 w-8 mx-auto text-purple-600 dark:text-purple-400 mb-2" />
-              <p className="text-2xl font-bold" data-testid="metric-completed-jobs">
-                {metrics?.completedJobs || 0}
-              </p>
-              <p className="text-xs text-muted-foreground">Completed Jobs</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        <GrowthAdvisorWidget businessId={1} />
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, serial, integer, timestamp, boolean, jsonb, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, serial, integer, timestamp, boolean, jsonb, doublePrecision, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -196,6 +196,75 @@ export const leads = pgTable("leads", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// Account Packages - subscription package definitions
+export const accountPackages = pgTable("account_packages", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  packageName: text("package_name").notNull().default("starter"), // starter, growth, pro
+  monthlyActionsIncluded: integer("monthly_actions_included").notNull().default(3000),
+  hardCapActions: integer("hard_cap_actions").notNull().default(3500),
+  packSizeActions: integer("pack_size_actions").notNull().default(1000),
+  packPriceUsd: integer("pack_price_usd").notNull().default(25), // in dollars
+  
+  // Peak months for seasonality (1-12)
+  peakMonths: integer("peak_months").array(),
+  
+  // Cooldowns for nudge timing
+  lastUpgradeNudge: timestamp("last_upgrade_nudge"),
+  lastPackNudge: timestamp("last_pack_nudge"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// AI Action Usage - tracks daily AI action consumption
+export const aiActionUsage = pgTable("ai_action_usage", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  date: timestamp("date").notNull(), // Date of usage (start of day)
+  
+  // Action type breakdowns
+  inboundQualification: integer("inbound_qualification").default(0).notNull(),
+  supervisorOrchestration: integer("supervisor_orchestration").default(0).notNull(),
+  quoteGeneration: integer("quote_generation").default(0).notNull(),
+  schedulingProposal: integer("scheduling_proposal").default(0).notNull(),
+  billingFollowup: integer("billing_followup").default(0).notNull(),
+  reviewRequest: integer("review_request").default(0).notNull(),
+  
+  // Total for the day
+  totalActions: integer("total_actions").default(0).notNull(),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessDateIdx: uniqueIndex("ai_action_usage_business_date_idx").on(table.businessId, table.date),
+}));
+
+// Growth Advisor Recommendations - stores recommendation history
+export const growthRecommendations = pgTable("growth_recommendations", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  
+  recommendationType: text("recommendation_type").notNull(), // upgrade, pack, monitor, seasonal_boost
+  packageRecommended: text("package_recommended"), // growth, pro
+  urgency: text("urgency").notNull(), // low, moderate, high
+  reasoning: text("reasoning").notNull(),
+  
+  // Cost analysis (stored as JSON)
+  costAnalysis: jsonb("cost_analysis"),
+  
+  // Predictions at time of recommendation
+  projectedMonthlyActions: integer("projected_monthly_actions"),
+  projectedDateHitAllowance: timestamp("projected_date_hit_allowance"),
+  projectedDateHitHardCap: timestamp("projected_date_hit_hard_cap"),
+  modelConfidence: doublePrecision("model_confidence"),
+  
+  // User action
+  userAction: text("user_action"), // accepted, dismissed, ignored
+  userActionAt: timestamp("user_action_at"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // ZIP Geocode Cache - caches geocoding results to reduce API calls
 export const zipGeoCache = pgTable("zip_geo_cache", {
   zip: text("zip").primaryKey(),
@@ -325,6 +394,22 @@ export const insertZipGeoCacheSchema = createInsertSchema(zipGeoCache).omit({
   updatedAt: true,
 });
 
+export const insertAccountPackageSchema = createInsertSchema(accountPackages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAiActionUsageSchema = createInsertSchema(aiActionUsage).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertGrowthRecommendationSchema = createInsertSchema(growthRecommendations).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type BusinessProfile = typeof businessProfiles.$inferSelect;
 export type InsertBusinessProfile = z.infer<typeof insertBusinessProfileSchema>;
@@ -358,6 +443,15 @@ export type InsertPolicyProfile = z.infer<typeof insertPolicyProfileSchema>;
 
 export type ZipGeoCache = typeof zipGeoCache.$inferSelect;
 export type InsertZipGeoCache = z.infer<typeof insertZipGeoCacheSchema>;
+
+export type AccountPackage = typeof accountPackages.$inferSelect;
+export type InsertAccountPackage = z.infer<typeof insertAccountPackageSchema>;
+
+export type AiActionUsage = typeof aiActionUsage.$inferSelect;
+export type InsertAiActionUsage = z.infer<typeof insertAiActionUsageSchema>;
+
+export type GrowthRecommendation = typeof growthRecommendations.$inferSelect;
+export type InsertGrowthRecommendation = z.infer<typeof insertGrowthRecommendationSchema>;
 
 // Policy tier enum for type safety
 export const PolicyTiers = ["owner_operator", "smb", "commercial"] as const;
