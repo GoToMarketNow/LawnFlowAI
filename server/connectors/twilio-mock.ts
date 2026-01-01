@@ -90,18 +90,33 @@ async function getCredentialsFromReplitIntegration(): Promise<TwilioCredentials 
 function getCredentialsFromEnv(): TwilioCredentials | null {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const apiKey = process.env.TWILIO_API_KEY;
+  const apiKeySecret = process.env.TWILIO_API_KEY_SECRET;
   const phoneNumber = process.env.TWILIO_PHONE_NUMBER;
 
-  if (!accountSid || !authToken) {
-    return null;
+  // Prefer API Key authentication if available (more secure)
+  if (accountSid && apiKey && apiKeySecret && apiKey.startsWith("SK")) {
+    console.log("[Twilio] Using API Key authentication from environment");
+    return {
+      accountSid,
+      apiKey,
+      apiKeySecret,
+      phoneNumber,
+      useApiKey: true,
+    };
   }
 
-  return {
-    accountSid,
-    authToken,
-    phoneNumber,
-    useApiKey: false,
-  };
+  // Fall back to Auth Token authentication
+  if (accountSid && authToken) {
+    return {
+      accountSid,
+      authToken,
+      phoneNumber,
+      useApiKey: false,
+    };
+  }
+
+  return null;
 }
 
 async function getCredentials(): Promise<TwilioCredentials> {

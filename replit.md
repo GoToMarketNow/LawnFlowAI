@@ -126,10 +126,13 @@ To enable the interactive Service Area Builder with Google Maps:
   - Note: Without this key, the Service Area section will show an error message but other functionality works
 
 ### Twilio (Configured)
-Real SMS is enabled via Replit Twilio Integration with fallback to environment variables:
-- Replit Twilio Integration is configured (uses API Key authentication)
-- Falls back to `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` secrets if Replit integration is unavailable
+Real SMS is enabled with API Key authentication:
+- `TWILIO_ACCOUNT_SID` - Your Twilio Account SID
+- `TWILIO_API_KEY` - API Key SID (starts with SK)
+- `TWILIO_API_KEY_SECRET` - API Key Secret
 - `TWILIO_MESSAGING_SERVICE_SID` - Messaging Service for OTP delivery (MG277f5b29887900045def40b5363a2d1e)
+- Falls back to `TWILIO_AUTH_TOKEN` if API Key not configured
+- Replit Twilio Integration is also supported as primary source
 
 ## Running Locally
 ```bash
