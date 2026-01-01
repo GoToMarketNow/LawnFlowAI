@@ -17,6 +17,9 @@ import JobsPage from "@/pages/jobs";
 import AuditLogPage from "@/pages/audit-log";
 import EventsFeedPage from "@/pages/events-feed";
 import OnboardingPage from "@/pages/onboarding";
+import RegisterPage from "@/pages/register";
+import LoginPage from "@/pages/login";
+import VerifyPhonePage from "@/pages/verify-phone";
 import NotFound from "@/pages/not-found";
 import { Loader2 } from "lucide-react";
 
@@ -87,12 +90,19 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="light" storageKey="lawnflow-ui-theme">
         <TooltipProvider>
-          <OnboardingCheck>
-            <Switch>
-              <Route path="/onboarding" component={OnboardingPage} />
-              <Route component={MainLayout} />
-            </Switch>
-          </OnboardingCheck>
+          <Switch>
+            <Route path="/register" component={RegisterPage} />
+            <Route path="/login" component={LoginPage} />
+            <Route path="/verify-phone" component={VerifyPhonePage} />
+            <Route>
+              <OnboardingCheck>
+                <Switch>
+                  <Route path="/onboarding" component={OnboardingPage} />
+                  <Route component={MainLayout} />
+                </Switch>
+              </OnboardingCheck>
+            </Route>
+          </Switch>
           <Toaster />
         </TooltipProvider>
       </ThemeProvider>
