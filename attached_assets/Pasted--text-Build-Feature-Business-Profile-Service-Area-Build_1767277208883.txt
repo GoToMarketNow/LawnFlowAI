@@ -1,0 +1,120 @@
+```text
+Build Feature: Business Profile → Service Area Builder (Google Maps)
+
+Context
+We are building an agentic add-on MVP for lawn/landscaping SMBs. Agents must accurately accept/decline new service requests based on the business service area.
+
+Goal
+Add a Service Area Builder to Business Profile setup using Google Maps, where the business can define a circular service area and a hard max travel limit.
+
+TECH STACK
+- Next.js (App Router)
+- Node backend (existing)
+- Prisma + SQLite
+- TypeScript
+
+REQUIREMENTS
+
+1) Data Model (Prisma)
+Add these fields to BusinessProfile:
+- serviceAreaCenterLat (Float?)
+- serviceAreaCenterLng (Float?)
+- serviceAreaRadiusMi (Int?)            // core service radius drawn/selected by business
+- serviceAreaMaxMi (Int?)               // hard max travel limit: must be one of 5,10,20,40
+- serviceAreaAllowExtended (Boolean)    // default true: allow requests beyond radius up to max
+
+Validation rules (server-side):
+- serviceAreaMaxMi must be one of [5,10,20,40]
+- serviceAreaRadiusMi must be <= serviceAreaMaxMi
+- if any service area fields are set, require center lat/lng + radius + max
+
+2) Business Profile UI (Google Maps)
+Add a new section: "Service Area"
+
+UI elements:
+- Google Map embed
+- Draggable center marker (service area center)
+- Circle overlay centered on marker
+- Radius slider (miles) to control circle radius
+- Dropdown: "Max Travel Limit" with options: 5, 10, 20, 40 miles
+- Toggle: "Allow extended area up to max travel limit" (default ON)
+- Readout text:
+  - Core coverage: {radiusMi} miles
+  - Max travel limit: {maxMi} miles
+  - If radius > max, clamp radius to max and show inline error
+
+Circle radius conversion:
+- radiusMeters = radiusMi * 1609.344
+
+Maps setup:
+- Use env var: NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+- Load maps via @googlemaps/js-api-loader (or a clean script loader component)
+- Keep dependencies minimal
+
+3) API / Persistence
+Update the Business Profile save endpoint to persist:
+- serviceAreaCenterLat
+- serviceAreaCenterLng
+- serviceAreaRadiusMi
+- serviceAreaMaxMi
+- serviceAreaAllowExtended
+
+Enforce validation in the API handler:
+- Reject invalid max values
+- Reject radius > max (or clamp and return corrected value)
+- Store values in DB
+
+4) Service Area Evaluation (Server Utility)
+Implement server-side distance check with Haversine:
+
+- haversineDistanceMi(lat1,lng1,lat2,lng2) -> number
+- checkServiceArea(leadLat, leadLng, profile) -> ServiceAreaResult
+
+ServiceAreaResult union:
+- { eligible: true, tier: "core", distanceMi: number }
+- { eligible: true, tier: "extended", distanceMi: number }
+- { eligible: false, tier: "out_of_area", distanceMi: number }
+
+Logic:
+- distanceMi = haversineDistanceMi(lead, center)
+- if distanceMi <= radiusMi => eligible core
+- else if allowExtended && distanceMi <= maxMi => eligible extended
+- else => out_of_area
+
+5) Orchestration Integration
+When a new lead includes an address:
+- Geocode address -> lat/lng
+  - For PoC, a mock geocoder is acceptable; document how to switch to Google Geocoding API later
+- Run checkServiceArea with lead lat/lng and business profile service area
+- Attach result into supervisor context as:
+
+service_area_eval = {
+  eligible: true/false,
+  tier: "core|extended|out_of_area",
+  distance_mi: number,
+  radius_mi: number,
+  max_mi: number,
+  allow_extended: boolean
+}
+
+Policy gating:
+- If tier == out_of_area: do NOT schedule or quote automatically; produce a polite decline or handoff-to-human response
+- If tier == extended: require human approval for Owner and SMB tiers (Commercial can be allowed later by policy)
+
+6) Tests + Documentation
+- Add unit tests for haversineDistanceMi and checkServiceArea covering:
+  - inside radius => core
+  - outside radius but inside max with allowExtended true => extended
+  - outside max => out_of_area
+  - radius > max => invalid/clamped
+- Update README with required env var:
+  - NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+
+DELIVERABLES
+- Prisma migration
+- Updated Business Profile UI with Google Maps circle builder
+- Updated API route + validation
+- checkServiceArea utility + tests
+- Orchestrator update to include service_area_eval and gating behavior
+- README env var notes
+```

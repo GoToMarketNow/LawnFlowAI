@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, serial, integer, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, serial, integer, timestamp, boolean, jsonb, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -14,6 +14,12 @@ export const businessProfiles = pgTable("business_profiles", {
   services: text("services").array(),
   businessHours: text("business_hours"),
   autoResponseEnabled: boolean("auto_response_enabled").default(true),
+  // Service Area Builder fields
+  serviceAreaCenterLat: doublePrecision("service_area_center_lat"),
+  serviceAreaCenterLng: doublePrecision("service_area_center_lng"),
+  serviceAreaRadiusMi: integer("service_area_radius_mi"),
+  serviceAreaMaxMi: integer("service_area_max_mi"), // Must be 5, 10, 20, or 40
+  serviceAreaAllowExtended: boolean("service_area_allow_extended").default(true),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
