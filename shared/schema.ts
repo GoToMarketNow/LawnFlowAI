@@ -456,3 +456,54 @@ export type InsertGrowthRecommendation = z.infer<typeof insertGrowthRecommendati
 // Policy tier enum for type safety
 export const PolicyTiers = ["owner_operator", "smb", "commercial"] as const;
 export type PolicyTier = typeof PolicyTiers[number];
+
+// ============================================
+// User Authentication & Phone Verification
+// ============================================
+
+// Users table for authentication
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  phoneE164: text("phone_e164").unique(), // E.164 format phone number
+  phoneVerifiedAt: timestamp("phone_verified_at"),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Phone verification records for OTP
+export const phoneVerifications = pgTable("phone_verifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  phoneE164: text("phone_e164").notNull(),
+  otpHash: text("otp_hash").notNull(), // Hashed OTP, never stored in plaintext
+  expiresAt: timestamp("expires_at").notNull(),
+  attemptsUsed: integer("attempts_used").default(0).notNull(),
+  sendsUsedHour: integer("sends_used_hour").default(0).notNull(),
+  sendWindowStart: timestamp("send_window_start").notNull(),
+  verifiedAt: timestamp("verified_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Insert schemas
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPhoneVerificationSchema = createInsertSchema(phoneVerifications).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export type PhoneVerification = typeof phoneVerifications.$inferSelect;
+export type InsertPhoneVerification = z.infer<typeof insertPhoneVerificationSchema>;
