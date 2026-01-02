@@ -2012,5 +2012,194 @@ export async function registerRoutes(
     }
   });
 
+  // ============================================
+  // Dispatch & Routing Routes
+  // ============================================
+
+  app.get("/api/dispatch/plans", async (req, res) => {
+    try {
+      const { dispatchPlans } = await import("@shared/schema");
+      const plans = await db
+        .select()
+        .from(dispatchPlans)
+        .orderBy(sql`${dispatchPlans.planDate} DESC`)
+        .limit(20);
+      res.json(plans);
+    } catch (error: any) {
+      console.error("[Dispatch] Error fetching plans:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/dispatch/plans/:id", async (req, res) => {
+    try {
+      const { dispatchPlans, dispatchPlanEvents } = await import("@shared/schema");
+      const id = parseInt(req.params.id);
+      
+      const [plan] = await db
+        .select()
+        .from(dispatchPlans)
+        .where(eq(dispatchPlans.id, id))
+        .limit(1);
+      
+      if (!plan) {
+        return res.status(404).json({ error: "Plan not found" });
+      }
+      
+      const events = await db
+        .select()
+        .from(dispatchPlanEvents)
+        .where(eq(dispatchPlanEvents.planId, id))
+        .orderBy(dispatchPlanEvents.createdAt);
+      
+      res.json({ ...plan, events });
+    } catch (error: any) {
+      console.error("[Dispatch] Error fetching plan:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/dispatch/plans/:id/apply", async (req, res) => {
+    try {
+      const { dispatchPlans } = await import("@shared/schema");
+      const { applyDispatchPlan } = await import("./workers/dispatch/dispatcher");
+      const id = parseInt(req.params.id);
+      
+      const [plan] = await db
+        .select()
+        .from(dispatchPlans)
+        .where(eq(dispatchPlans.id, id))
+        .limit(1);
+      
+      if (!plan) {
+        return res.status(404).json({ error: "Plan not found" });
+      }
+      
+      if (!plan.jobberAccountId) {
+        return res.status(400).json({ error: "Plan has no Jobber account" });
+      }
+      
+      const success = await applyDispatchPlan(id, plan.jobberAccountId);
+      res.json({ success });
+    } catch (error: any) {
+      console.error("[Dispatch] Error applying plan:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/dispatch/compute", async (req, res) => {
+    try {
+      const { processDispatch } = await import("./workers/dispatch/dispatcher");
+      const { planDate, jobberAccountId } = req.body;
+      
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const date = planDate ? new Date(planDate) : new Date();
+      date.setDate(date.getDate() + 1);
+      
+      const plan = await processDispatch({
+        businessId: profile.id,
+        jobberAccountId: jobberAccountId || "mock",
+        planDate: date,
+        mode: "nightly",
+      });
+      
+      res.json(plan || { message: "No plan created (no jobs or crews)" });
+    } catch (error: any) {
+      console.error("[Dispatch] Error computing plan:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/dispatch/crews", async (req, res) => {
+    try {
+      const { crewRoster } = await import("@shared/schema");
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const crews = await db
+        .select()
+        .from(crewRoster)
+        .where(eq(crewRoster.businessId, profile.id));
+      
+      res.json(crews);
+    } catch (error: any) {
+      console.error("[Dispatch] Error fetching crews:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/dispatch/crews", async (req, res) => {
+    try {
+      const { crewRoster, insertCrewRosterSchema } = await import("@shared/schema");
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const parsed = insertCrewRosterSchema.safeParse({
+        ...req.body,
+        businessId: profile.id,
+      });
+      
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.message });
+      }
+      
+      const [crew] = await db
+        .insert(crewRoster)
+        .values(parsed.data)
+        .returning();
+      
+      res.json(crew);
+    } catch (error: any) {
+      console.error("[Dispatch] Error creating crew:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/dispatch/crews/:id", async (req, res) => {
+    try {
+      const { crewRoster } = await import("@shared/schema");
+      const id = parseInt(req.params.id);
+      
+      const [crew] = await db
+        .update(crewRoster)
+        .set({ ...req.body, updatedAt: new Date() })
+        .where(eq(crewRoster.id, id))
+        .returning();
+      
+      if (!crew) {
+        return res.status(404).json({ error: "Crew not found" });
+      }
+      
+      res.json(crew);
+    } catch (error: any) {
+      console.error("[Dispatch] Error updating crew:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/dispatch/crews/:id", async (req, res) => {
+    try {
+      const { crewRoster } = await import("@shared/schema");
+      const id = parseInt(req.params.id);
+      
+      await db
+        .delete(crewRoster)
+        .where(eq(crewRoster.id, id));
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Dispatch] Error deleting crew:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }

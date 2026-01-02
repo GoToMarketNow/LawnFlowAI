@@ -25,6 +25,10 @@ const SUPPORTED_TOPICS = [
   "PROPERTY_UPDATE",
   "QUOTE_CREATE",
   "QUOTE_UPDATE",
+  "JOB_CREATE",
+  "JOB_UPDATE",
+  "JOB_SCHEDULE_UPDATE",
+  "JOB_ASSIGNMENT_UPDATE",
 ];
 
 const MAX_RETRY_ATTEMPTS = 3;
@@ -154,6 +158,8 @@ class JobberWebhookProcessor {
           return;
         }
         enrichmentData = await this.enrichQuote(accountId, objectId, result.quote);
+      } else if (topic.startsWith("JOB_")) {
+        await this.handleJobEvent(accountId, objectId, topic, data, webhookEventId);
       }
 
       await db
@@ -274,6 +280,43 @@ class JobberWebhookProcessor {
     if (sqft < 15000) return "residential_medium";
     if (sqft < 43560) return "residential_large";
     return "commercial";
+  }
+
+  private async handleJobEvent(
+    accountId: string,
+    objectId: string,
+    topic: string,
+    data: any,
+    webhookEventId: string
+  ): Promise<void> {
+    console.log(`[Jobber Webhook] Processing job event: ${topic} for job ${objectId}`);
+    
+    const { enqueueDispatch } = await import("../workers/dispatch/dispatcher");
+    
+    const [account] = await db
+      .select()
+      .from(jobberAccounts)
+      .where(eq(jobberAccounts.jobberAccountId, accountId))
+      .limit(1);
+    
+    if (!account?.businessId) {
+      console.log(`[Jobber Webhook] No business linked to account ${accountId}, skipping dispatch`);
+      return;
+    }
+
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+
+    enqueueDispatch({
+      businessId: account.businessId,
+      jobberAccountId: accountId,
+      planDate: tomorrow,
+      mode: "event",
+      triggerEventId: webhookEventId,
+    });
+
+    console.log(`[Jobber Webhook] Enqueued dispatch recompute for business ${account.businessId}`);
   }
 
   private async saveEnrichment(

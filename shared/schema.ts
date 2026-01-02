@@ -830,3 +830,134 @@ export type InsertJobberEnrichment = z.infer<typeof insertJobberEnrichmentSchema
 
 export type JobberQuoteJobSync = typeof jobberQuoteJobSync.$inferSelect;
 export type InsertJobberQuoteJobSync = z.infer<typeof insertJobberQuoteJobSyncSchema>;
+
+// ============================================
+// Dispatch & Routing Tables
+// ============================================
+
+// Crew Roster - crew capacity and equipment capabilities
+export const crewRoster = pgTable("crew_roster", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  jobberCrewId: text("jobber_crew_id"), // External Jobber team/crew ID if synced
+  name: text("name").notNull(),
+  color: text("color"), // For UI display (hex color)
+  capacity: integer("capacity").default(8), // Max jobs per day
+  equipmentCapabilities: text("equipment_capabilities").array(), // mower, aerator, trailer, etc.
+  homeBaseLat: doublePrecision("home_base_lat"),
+  homeBaseLng: doublePrecision("home_base_lng"),
+  homeBaseAddress: text("home_base_address"),
+  availabilityStart: text("availability_start").default("08:00"), // HH:mm format
+  availabilityEnd: text("availability_end").default("17:00"), // HH:mm format
+  workDays: text("work_days").array().default(["mon", "tue", "wed", "thu", "fri"]),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Dispatch Plans - route plans for a given date
+export const dispatchPlans = pgTable("dispatch_plans", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  jobberAccountId: text("jobber_account_id"),
+  planDate: timestamp("plan_date").notNull(), // Date this plan is for
+  mode: text("mode").notNull().default("nightly"), // "nightly" | "event"
+  status: text("status").notNull().default("draft"), // draft, pending_apply, applied, rejected, failed
+  triggerEventId: text("trigger_event_id"), // Webhook event ID that triggered this plan
+  
+  // Algorithm inputs snapshot
+  totalJobs: integer("total_jobs").default(0),
+  totalCrews: integer("total_crews").default(0),
+  inputSnapshot: jsonb("input_snapshot"), // { jobs, crews, constraints }
+  
+  // Algorithm outputs
+  crewAssignments: jsonb("crew_assignments"), // { crewId: [jobId, ...], ... }
+  routeStops: jsonb("route_stops"), // { crewId: [{ jobId, order, arriveBy, departBy, driveMins }, ...] }
+  totalDriveMinutes: integer("total_drive_minutes"),
+  utilizationPercent: integer("utilization_percent"),
+  
+  // Jobber sync
+  routeUrl: text("route_url"), // Link to route visualization
+  autoApplyEnabled: boolean("auto_apply_enabled").default(false),
+  appliedAt: timestamp("applied_at"),
+  applyError: text("apply_error"),
+  
+  // Metadata
+  algorithmVersion: text("algorithm_version").default("v1-greedy"),
+  computeTimeMs: integer("compute_time_ms"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  planDateIdx: uniqueIndex("dispatch_plans_date_idx").on(table.businessId, table.planDate, table.mode),
+}));
+
+// Dispatch Plan Events - audit log for dispatch operations
+export const dispatchPlanEvents = pgTable("dispatch_plan_events", {
+  id: serial("id").primaryKey(),
+  planId: integer("plan_id").references(() => dispatchPlans.id).notNull(),
+  eventType: text("event_type").notNull(), // created, computed, approved, applied, rejected, failed
+  actor: text("actor").default("system"), // system, user, webhook
+  details: jsonb("details"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Insert schemas for dispatch tables
+export const insertCrewRosterSchema = createInsertSchema(crewRoster).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertDispatchPlanSchema = createInsertSchema(dispatchPlans).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertDispatchPlanEventSchema = createInsertSchema(dispatchPlanEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types for dispatch
+export type CrewRoster = typeof crewRoster.$inferSelect;
+export type InsertCrewRoster = z.infer<typeof insertCrewRosterSchema>;
+
+export type DispatchPlan = typeof dispatchPlans.$inferSelect;
+export type InsertDispatchPlan = z.infer<typeof insertDispatchPlanSchema>;
+
+export type DispatchPlanEvent = typeof dispatchPlanEvents.$inferSelect;
+export type InsertDispatchPlanEvent = z.infer<typeof insertDispatchPlanEventSchema>;
+
+// Dispatch algorithm types
+export interface RouteStop {
+  jobId: string;
+  jobberJobId?: string;
+  order: number;
+  propertyAddress: string;
+  lat: number;
+  lng: number;
+  arriveBy: string; // ISO timestamp
+  departBy: string; // ISO timestamp
+  driveMinsFromPrev: number;
+  serviceType?: string;
+  estimatedDurationMins: number;
+}
+
+export interface CrewAssignment {
+  crewId: number;
+  crewName: string;
+  stops: RouteStop[];
+  totalDriveMins: number;
+  totalServiceMins: number;
+  utilizationPercent: number;
+}
+
+export interface DispatchPlanResult {
+  planDate: string;
+  assignments: CrewAssignment[];
+  unassignedJobs: string[];
+  totalDriveMins: number;
+  overallUtilization: number;
+  warnings: string[];
+}
