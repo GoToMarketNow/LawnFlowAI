@@ -252,15 +252,29 @@ export function evaluateRules(
   }
 
   const originalJobTotal = diffs
-    .filter(d => d.type === "modified" || d.type === "removed")
+    .filter(d => d.jobItem)
     .reduce((sum, d) => sum + (d.jobItem?.total || 0), 0);
   
-  if (originalJobTotal > 0 && rules.maxTotalChangePercent > 0) {
-    const totalChangePercent = Math.abs(quoteTotalDiff / originalJobTotal) * 100;
+  const newQuoteTotal = diffs
+    .filter(d => d.quoteItem)
+    .reduce((sum, d) => sum + (d.quoteItem?.total || 0), 0);
+  
+  const baseTotal = Math.max(originalJobTotal, 1);
+  
+  if (rules.maxTotalChangePercent > 0) {
+    const totalChangePercent = Math.abs(quoteTotalDiff / baseTotal) * 100;
     if (totalChangePercent > rules.maxTotalChangePercent) {
       violations.push({
         rule: "maxTotalChangePercent",
         message: `Total change ${totalChangePercent.toFixed(1)}% exceeds ${rules.maxTotalChangePercent}%`,
+        severity: "error",
+      });
+    }
+    
+    if (originalJobTotal === 0 && newQuoteTotal > 0) {
+      violations.push({
+        rule: "maxTotalChangePercent",
+        message: `Addition of $${(newQuoteTotal / 100).toFixed(2)} to empty job requires review`,
         severity: "error",
       });
     }
