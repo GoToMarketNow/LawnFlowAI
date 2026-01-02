@@ -23,6 +23,9 @@ import {
   handoffTickets,
   clickToCallTokens,
   callEvents,
+  pricingPolicies,
+  quoteProposals,
+  quoteAdjustmentLogs,
   type BusinessProfile,
   type InsertBusinessProfile,
   type Conversation,
@@ -71,6 +74,12 @@ import {
   type InsertClickToCallToken,
   type CallEvent,
   type InsertCallEvent,
+  type PricingPolicy,
+  type InsertPricingPolicy,
+  type QuoteProposal,
+  type InsertQuoteProposal,
+  type QuoteAdjustmentLog,
+  type InsertQuoteAdjustmentLog,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, inArray, sql, and, gte, lte } from "drizzle-orm";
@@ -196,6 +205,24 @@ export interface IStorage {
   
   // Call Events
   createCallEvent(event: Partial<InsertCallEvent> & { callEventId: string; sessionId: string; type: string }): Promise<CallEvent>;
+
+  // Pricing Policies
+  getPricingPolicies(businessId: number): Promise<PricingPolicy[]>;
+  getActivePricingPolicy(businessId: number): Promise<PricingPolicy | undefined>;
+  getPricingPolicy(id: number): Promise<PricingPolicy | undefined>;
+  createPricingPolicy(policy: InsertPricingPolicy): Promise<PricingPolicy>;
+  updatePricingPolicy(id: number, updates: Partial<InsertPricingPolicy>): Promise<PricingPolicy>;
+  
+  // Quote Proposals
+  getQuoteProposals(businessId: number): Promise<QuoteProposal[]>;
+  getPendingQuoteProposals(businessId: number): Promise<QuoteProposal[]>;
+  getQuoteProposal(id: number): Promise<QuoteProposal | undefined>;
+  createQuoteProposal(proposal: InsertQuoteProposal): Promise<QuoteProposal>;
+  updateQuoteProposal(id: number, updates: Partial<QuoteProposal>): Promise<QuoteProposal>;
+  
+  // Quote Adjustment Logs
+  getQuoteAdjustmentLogs(quoteProposalId: number): Promise<QuoteAdjustmentLog[]>;
+  createQuoteAdjustmentLog(log: InsertQuoteAdjustmentLog): Promise<QuoteAdjustmentLog>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1004,6 +1031,108 @@ export class DatabaseStorage implements IStorage {
       type: event.type,
       metadataJson: event.metadataJson,
     }).returning();
+    return created;
+  }
+
+  // Pricing Policies
+  async getPricingPolicies(businessId: number): Promise<PricingPolicy[]> {
+    return db
+      .select()
+      .from(pricingPolicies)
+      .where(eq(pricingPolicies.businessId, businessId))
+      .orderBy(desc(pricingPolicies.version));
+  }
+
+  async getActivePricingPolicy(businessId: number): Promise<PricingPolicy | undefined> {
+    const [policy] = await db
+      .select()
+      .from(pricingPolicies)
+      .where(and(
+        eq(pricingPolicies.businessId, businessId),
+        eq(pricingPolicies.isActive, true)
+      ))
+      .orderBy(desc(pricingPolicies.version))
+      .limit(1);
+    return policy;
+  }
+
+  async getPricingPolicy(id: number): Promise<PricingPolicy | undefined> {
+    const [policy] = await db
+      .select()
+      .from(pricingPolicies)
+      .where(eq(pricingPolicies.id, id))
+      .limit(1);
+    return policy;
+  }
+
+  async createPricingPolicy(policy: InsertPricingPolicy): Promise<PricingPolicy> {
+    const [created] = await db.insert(pricingPolicies).values(policy).returning();
+    return created;
+  }
+
+  async updatePricingPolicy(id: number, updates: Partial<InsertPricingPolicy>): Promise<PricingPolicy> {
+    const [updated] = await db
+      .update(pricingPolicies)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(pricingPolicies.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Quote Proposals
+  async getQuoteProposals(businessId: number): Promise<QuoteProposal[]> {
+    return db
+      .select()
+      .from(quoteProposals)
+      .where(eq(quoteProposals.businessId, businessId))
+      .orderBy(desc(quoteProposals.createdAt));
+  }
+
+  async getPendingQuoteProposals(businessId: number): Promise<QuoteProposal[]> {
+    return db
+      .select()
+      .from(quoteProposals)
+      .where(and(
+        eq(quoteProposals.businessId, businessId),
+        eq(quoteProposals.status, "pending")
+      ))
+      .orderBy(desc(quoteProposals.createdAt));
+  }
+
+  async getQuoteProposal(id: number): Promise<QuoteProposal | undefined> {
+    const [proposal] = await db
+      .select()
+      .from(quoteProposals)
+      .where(eq(quoteProposals.id, id))
+      .limit(1);
+    return proposal;
+  }
+
+  async createQuoteProposal(proposal: InsertQuoteProposal): Promise<QuoteProposal> {
+    const [created] = await db.insert(quoteProposals).values(proposal).returning();
+    return created;
+  }
+
+  async updateQuoteProposal(id: number, updates: Partial<QuoteProposal>): Promise<QuoteProposal> {
+    const [updated] = await db
+      .update(quoteProposals)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(quoteProposals.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Quote Adjustment Logs
+  async getQuoteAdjustmentLogs(quoteProposalId: number): Promise<QuoteAdjustmentLog[]> {
+    return db
+      .select()
+      .from(quoteAdjustmentLogs)
+      .where(eq(quoteAdjustmentLogs.quoteProposalId, quoteProposalId))
+      .orderBy(desc(quoteAdjustmentLogs.createdAt));
+  }
+
+  async createQuoteAdjustmentLog(log: InsertQuoteAdjustmentLog): Promise<QuoteAdjustmentLog> {
+    const [created] = await db.insert(quoteAdjustmentLogs).values(log).returning();
     return created;
   }
 }

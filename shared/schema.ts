@@ -1582,3 +1582,168 @@ export type InsertClickToCallToken = z.infer<typeof insertClickToCallTokenSchema
 
 export type CallEvent = typeof callEvents.$inferSelect;
 export type InsertCallEvent = z.infer<typeof insertCallEventSchema>;
+
+// ============================================
+// Pricing Control Center
+// ============================================
+
+// Global positioning options for pricing strategy
+export const GlobalPositioning = ["aggressive", "balanced", "premium"] as const;
+export type GlobalPositioningType = typeof GlobalPositioning[number];
+
+// Property type bands for lot size classification
+export const PropertyTypeBands = ["townhome", "small", "medium", "large", "multi_acre"] as const;
+export type PropertyTypeBandType = typeof PropertyTypeBands[number];
+
+// Pricing Policies - owner/operator pricing configuration
+export const pricingPolicies = pgTable("pricing_policies", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  
+  name: text("name").notNull().default("Default Policy"),
+  version: integer("version").notNull().default(1),
+  isActive: boolean("is_active").notNull().default(true),
+  
+  // Global positioning strategy
+  globalPositioning: text("global_positioning").notNull().default("balanced"), // aggressive, balanced, premium
+  globalMultiplier: doublePrecision("global_multiplier").notNull().default(1.0), // 0.85 aggressive, 1.0 balanced, 1.15 premium
+  
+  // Per-service configuration: { [serviceType]: { minPrice, baseRate, multiplier, enabled } }
+  serviceConfigs: jsonb("service_configs").notNull().default({}),
+  
+  // Property type band configurations: { [band]: { minSqft, maxSqft, baseMultiplier } }
+  propertyTypeConfigs: jsonb("property_type_configs").notNull().default({}),
+  
+  // Guardrails: { floor, ceiling, lowConfidenceThreshold, reviewThreshold }
+  guardrails: jsonb("guardrails").notNull().default({}),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("pricing_policy_business_idx").on(table.businessId),
+  activeIdx: index("pricing_policy_active_idx").on(table.isActive),
+}));
+
+// Quote Proposals - computed quotes awaiting review/approval
+export const quoteProposals = pgTable("quote_proposals", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  
+  // Link to lead/session
+  leadId: integer("lead_id").references(() => leads.id),
+  smsSessionId: text("sms_session_id"), // References sms_sessions.sessionId
+  
+  // Services requested
+  servicesRequested: jsonb("services_requested").notNull().default([]), // Array of { serviceType, frequency, notes }
+  
+  // Property signals from parcel resolver
+  propertySignals: jsonb("property_signals").notNull().default({}), // { lotAreaSqft, confidence, propertyType, source }
+  
+  // Policy used for calculation
+  policyId: integer("policy_id").references(() => pricingPolicies.id),
+  policyVersion: integer("policy_version"),
+  
+  // Computed quote range (in cents)
+  rangeLow: integer("range_low").notNull(),
+  rangeHigh: integer("range_high").notNull(),
+  
+  // Calculation details
+  assumptions: jsonb("assumptions").notNull().default([]), // Array of { key, value, reason }
+  calculationBreakdown: jsonb("calculation_breakdown").default({}), // Detailed calculation steps
+  
+  // Review flags
+  needsReview: boolean("needs_review").notNull().default(false),
+  reviewReasons: jsonb("review_reasons").notNull().default([]), // Array of reason codes
+  
+  // Status workflow
+  status: text("status").notNull().default("pending"), // pending, approved, adjusted, sent, expired, declined
+  
+  // Final approved values (after adjustment)
+  approvedAmount: integer("approved_amount"), // Final approved quote in cents
+  approvedBy: integer("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  
+  // Sent tracking
+  sentAt: timestamp("sent_at"),
+  expiresAt: timestamp("expires_at"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("quote_proposal_business_idx").on(table.businessId),
+  leadIdx: index("quote_proposal_lead_idx").on(table.leadId),
+  sessionIdx: index("quote_proposal_session_idx").on(table.smsSessionId),
+  statusIdx: index("quote_proposal_status_idx").on(table.status),
+  needsReviewIdx: index("quote_proposal_needs_review_idx").on(table.needsReview),
+}));
+
+// Quote Adjustment Logs - audit trail for manual quote changes
+export const quoteAdjustmentLogs = pgTable("quote_adjustment_logs", {
+  id: serial("id").primaryKey(),
+  quoteProposalId: integer("quote_proposal_id").references(() => quoteProposals.id).notNull(),
+  
+  // Change details
+  changeType: text("change_type").notNull(), // approve, adjust_amount, add_note, decline, expire
+  beforeState: jsonb("before_state").notNull(), // Snapshot before change
+  afterState: jsonb("after_state").notNull(), // Snapshot after change
+  reason: text("reason"), // User-provided reason for change
+  
+  // Who made the change
+  changedByUserId: integer("changed_by_user_id").references(() => users.id),
+  changedByRole: text("changed_by_role"), // owner, operator, system
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  quoteIdx: index("quote_adjustment_quote_idx").on(table.quoteProposalId),
+  userIdx: index("quote_adjustment_user_idx").on(table.changedByUserId),
+}));
+
+// Insert schemas for Pricing Control Center
+export const insertPricingPolicySchema = createInsertSchema(pricingPolicies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertQuoteProposalSchema = createInsertSchema(quoteProposals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertQuoteAdjustmentLogSchema = createInsertSchema(quoteAdjustmentLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types for Pricing Control Center
+export type PricingPolicy = typeof pricingPolicies.$inferSelect;
+export type InsertPricingPolicy = z.infer<typeof insertPricingPolicySchema>;
+
+export type QuoteProposal = typeof quoteProposals.$inferSelect;
+export type InsertQuoteProposal = z.infer<typeof insertQuoteProposalSchema>;
+
+export type QuoteAdjustmentLog = typeof quoteAdjustmentLogs.$inferSelect;
+export type InsertQuoteAdjustmentLog = z.infer<typeof insertQuoteAdjustmentLogSchema>;
+
+// Typed JSON structures for pricing configuration
+export interface ServiceConfig {
+  enabled: boolean;
+  minPrice: number; // cents
+  baseRate: number; // cents per sqft or flat rate
+  rateType: "per_sqft" | "flat";
+  multiplier: number;
+}
+
+export interface PropertyTypeBandConfig {
+  minSqft: number;
+  maxSqft: number;
+  baseMultiplier: number;
+}
+
+export interface PricingGuardrails {
+  floorPrice: number; // cents - absolute minimum quote
+  ceilingPrice: number; // cents - absolute maximum quote
+  lowConfidenceThreshold: number; // 0-1, below this triggers review
+  reviewAboveAmount: number; // cents - quotes above this need review
+}
