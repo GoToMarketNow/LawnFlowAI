@@ -25,6 +25,7 @@ import {
 import { evaluateFeasibility, type FeasibilityResult } from "./agents/jobFeasibility";
 import { getCrewToJobTravelMinutes, type TravelEstimate } from "./agents/routeCost";
 import { computeMarginScore, type MarginBurnResult } from "./agents/marginBurn";
+import { runSimulations, type SimulationResult } from "./agents/simulationRanking";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -4590,7 +4591,9 @@ Return JSON format:
         jobRequestId, 
         dateRangeDays = 7,
         skillMatchMinPct = 100,
-        equipmentMatchMinPct = 100 
+        equipmentMatchMinPct = 100,
+        persistTopN = 10,
+        returnTopN = 3
       } = req.body;
       
       if (!jobRequestId) {
@@ -4607,166 +4610,21 @@ Return JSON format:
         return res.status(404).json({ error: "Business not found" });
       }
 
-      // Delete any existing simulations for this job
-      await storage.deleteSimulationsForJobRequest(jobRequestId);
+      // Use Simulation & Ranking Agent to generate and persist simulations
+      const result = await runSimulations(profile.id, jobRequestId, {
+        dateRangeDays,
+        skillMatchMinPct,
+        equipmentMatchMinPct,
+        persistTopN,
+        returnTopN,
+      });
 
-      // Use Crew Intelligence Agent to get eligible crews with analysis
-      const eligibleCrews = await getEligibleCrews(profile.id, jobRequestId, dateRangeDays);
-      
-      if (eligibleCrews.length === 0) {
-        return res.json({ 
-          simulations: [], 
-          eligibleCrews: [],
-          message: "No crews available" 
-        });
-      }
-
-      // Build thresholds from request or defaults
-      const thresholds: EligibilityThresholds = {
-        skillMatchMinPct: Math.max(0, Math.min(100, skillMatchMinPct)),
-        equipmentMatchMinPct: Math.max(0, Math.min(100, equipmentMatchMinPct)),
-      };
-
-      // Filter to eligible crews that meet thresholds
-      const fullyEligible = filterEligibleCrewsWithThresholds(eligibleCrews, thresholds);
-
-      if (fullyEligible.length === 0) {
-        return res.json({ 
-          simulations: [], 
-          eligibleCrews,
-          message: "No fully eligible crews - check flags for requirements" 
-        });
-      }
-
-      // Generate simulations for each fully eligible crew
-      const simulations = [];
-      const laborMinutes = jobRequest.laborHighMinutes || jobRequest.laborLowMinutes || 60;
-      
-      for (const eligibleCrew of fullyEligible) {
-        // Get the actual crew data
-        const crew = await storage.getCrew(eligibleCrew.crewId);
-        if (!crew) continue;
-
-        // Calculate travel time using Route Cost Agent (with caching)
-        let travelMinutes = 15; // Default estimate
-        let travelSource: "api" | "cache" | "haversine" | "estimate" = "estimate";
-        
-        const travelEstimate = await getCrewToJobTravelMinutes(
-          profile.id,
-          { lat: crew.homeBaseLat, lng: crew.homeBaseLng },
-          { lat: jobRequest.lat, lng: jobRequest.lng }
-        );
-        
-        if (travelEstimate) {
-          travelMinutes = travelEstimate.minutes;
-          travelSource = travelEstimate.source;
-        } else if (eligibleCrew.distanceFromHomeEstimate !== null) {
-          // Fallback to Haversine distance estimate from crew intelligence
-          travelMinutes = Math.round(eligibleCrew.distanceFromHomeEstimate * 2);
-          travelSource = "haversine";
-        }
-
-        // Calculate load impact
-        const loadDelta = laborMinutes + travelMinutes * 2; // Round trip travel
-
-        // Get required equipment from job request
-        const requiredEquipment = Array.isArray(jobRequest.requiredEquipmentJson) 
-          ? (jobRequest.requiredEquipmentJson as string[])
-          : [];
-
-        // Compute margin score using Margin & Burn Agent
-        const marginResult = computeMarginScore({
-          laborLowMinutes: jobRequest.laborLowMinutes,
-          laborHighMinutes: jobRequest.laborHighMinutes,
-          travelMinutesDelta: travelMinutes,
-          crewSizeMin: jobRequest.crewSizeMin,
-          lotAreaSqft: jobRequest.lotAreaSqft,
-          requiredEquipment,
-        });
-
-        const marginScore = marginResult.marginScore;
-        const riskScore = Math.round(travelMinutes * 2); // Higher travel = higher risk
-
-        // Create simulations for each day with available capacity
-        for (const dayCapacity of eligibleCrew.capacityRemainingByDay) {
-          if (dayCapacity.minutes < laborMinutes) {
-            continue; // Skip days without enough capacity
-          }
-
-          // Evaluate feasibility using Job Feasibility Agent
-          const feasibility = await evaluateFeasibility({
-            job: jobRequest,
-            crew,
-            date: dayCapacity.date,
-            crewMemberCount: eligibleCrew.memberCount,
-          });
-
-          // Skip infeasible crew/date combinations - hard failures are gated
-          if (!feasibility.feasible) {
-            continue;
-          }
-
-          // Calculate day offset from today for date preference scoring
-          const today = new Date();
-          const proposedDate = new Date(dayCapacity.date);
-          const dayOffset = Math.round((proposedDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-          // Adjust total score based on date preference (earlier = better)
-          const dateBonus = Math.max(0, 10 - dayOffset);
-          const capacityBonus = Math.round((dayCapacity.minutes / crew.dailyCapacityMinutes) * 10);
-          
-          // Use feasibility riskScore instead of travel-based risk
-          const adjustedRiskScore = feasibility.riskScore;
-          const totalScore = marginScore * 0.6 + (100 - adjustedRiskScore) * 0.2 + dateBonus * 1 + capacityBonus * 1;
-
-          const sim = await storage.createSimulation({
-            businessId: profile.id,
-            jobRequestId,
-            crewId: crew.id,
-            proposedDate: dayCapacity.date,
-            insertionType: "anytime",
-            travelMinutesDelta: travelMinutes,
-            loadMinutesDelta: loadDelta,
-            marginScore: Math.round(marginScore),
-            riskScore: Math.round(adjustedRiskScore),
-            totalScore: Math.round(totalScore),
-            explanationJson: {
-              crewName: crew.name,
-              travelEstimate: `${travelMinutes} min`,
-              travelSource,
-              laborEstimate: `${laborMinutes} min`,
-              skillMatch: eligibleCrew.skillsMatchPct === 100,
-              equipMatch: eligibleCrew.equipmentMatchPct === 100,
-              capacityRemaining: dayCapacity.minutes,
-              distanceFromHome: eligibleCrew.distanceFromHomeEstimate,
-              feasibility: {
-                feasible: feasibility.feasible,
-                needsReview: feasibility.needsReview,
-                reasons: feasibility.reasons,
-              },
-              marginBurn: {
-                burnMinutes: marginResult.burnMinutes,
-                estLaborCost: marginResult.estLaborCost,
-                estEquipmentCost: marginResult.estEquipmentCost,
-                estTotalCost: marginResult.estTotalCost,
-                revenueEstimate: marginResult.revenueEstimate,
-                notes: marginResult.notes,
-              },
-            },
-          });
-          simulations.push(sim);
-        }
-      }
-
-      // Update job request status
-      await storage.updateJobRequest(jobRequestId, { status: "simulated" });
-
-      // Return top simulations sorted by score, plus eligible crews analysis
-      const sortedSims = simulations.sort((a, b) => b.totalScore - a.totalScore);
-      res.json({ 
-        simulations: sortedSims.slice(0, 15),
-        eligibleCrews,
-        thresholdsUsed: thresholds,
+      res.json({
+        simulations: result.simulations,
+        eligibleCrews: result.eligibleCrews,
+        thresholdsUsed: result.thresholdsUsed,
+        candidatesGenerated: result.candidatesGenerated,
+        candidatesPersisted: result.candidatesPersisted,
       });
     } catch (error: any) {
       console.error("[Optimizer] Error simulating:", error);
