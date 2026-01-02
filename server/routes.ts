@@ -2840,5 +2840,412 @@ export async function registerRoutes(
     }
   });
 
+  // ============================================
+  // Agent Management Control Center API
+  // ============================================
+
+  const DEFAULT_AGENTS = [
+    {
+      agentKey: "orchestration_engine",
+      displayName: "Orchestration Engine",
+      description: "AI-powered supervisor that generates and executes workflow plans for customer engagement",
+      category: "core",
+      schedule: "event-driven",
+    },
+    {
+      agentKey: "margin_worker",
+      displayName: "Margin & Variance Worker",
+      description: "Tracks job profitability, detects cost overruns, and creates alerts for margin issues",
+      category: "finance",
+      schedule: "event-driven",
+    },
+    {
+      agentKey: "reconciliation_worker",
+      displayName: "Reconciliation Worker",
+      description: "Validates invoice/payment integrity and manages dead letter queue processing",
+      category: "finance",
+      schedule: "event-driven",
+    },
+    {
+      agentKey: "dispatch_worker",
+      displayName: "Dispatch & Routing Worker",
+      description: "Intelligent route planning and crew dispatch with optimal job assignment",
+      category: "ops",
+      schedule: "0 2 * * *", // Nightly at 2 AM
+    },
+    {
+      agentKey: "comms_worker",
+      displayName: "Customer Comms Worker",
+      description: "Sends compliant customer messages for job updates, reminders, and follow-ups",
+      category: "comms",
+      schedule: "event-driven",
+    },
+    {
+      agentKey: "upsell_worker",
+      displayName: "Renewal & Upsell Worker",
+      description: "Generates next-best-offer recommendations and creates draft quotes in Jobber",
+      category: "finance",
+      schedule: "0 6 * * 1", // Weekly on Monday 6 AM
+    },
+    {
+      agentKey: "billing_worker",
+      displayName: "Billing Orchestrator",
+      description: "Automated milestone-based invoicing for multi-phase projects",
+      category: "finance",
+      schedule: "event-driven",
+    },
+  ];
+
+  // Get all agents for the business
+  app.get("/api/agents", async (req, res) => {
+    try {
+      const { agentRegistry } = await import("@shared/schema");
+      const profile = await storage.getBusinessProfile();
+      
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+
+      let agents = await db
+        .select()
+        .from(agentRegistry)
+        .where(eq(agentRegistry.businessId, profile.id))
+        .orderBy(agentRegistry.category, agentRegistry.displayName);
+
+      // Seed default agents if none exist
+      if (agents.length === 0) {
+        for (const agent of DEFAULT_AGENTS) {
+          await db.insert(agentRegistry).values({
+            ...agent,
+            businessId: profile.id,
+            status: "active",
+            healthScore: 100,
+            successRate24h: 100,
+            totalRuns: 0,
+          });
+        }
+        agents = await db
+          .select()
+          .from(agentRegistry)
+          .where(eq(agentRegistry.businessId, profile.id))
+          .orderBy(agentRegistry.category, agentRegistry.displayName);
+      }
+
+      res.json(agents);
+    } catch (error: any) {
+      console.error("[Agents] Error fetching agents:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get agent details with recent runs
+  app.get("/api/agents/:id", async (req, res) => {
+    try {
+      const { agentRegistry, agentRuns } = await import("@shared/schema");
+      const profile = await storage.getBusinessProfile();
+      
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const id = parseInt(req.params.id);
+      
+      const [agent] = await db
+        .select()
+        .from(agentRegistry)
+        .where(and(
+          eq(agentRegistry.id, id),
+          eq(agentRegistry.businessId, profile.id)
+        ))
+        .limit(1);
+      
+      if (!agent) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+
+      const recentRuns = await db
+        .select()
+        .from(agentRuns)
+        .where(and(
+          eq(agentRuns.agentId, id),
+          eq(agentRuns.businessId, profile.id)
+        ))
+        .orderBy(desc(agentRuns.startedAt))
+        .limit(20);
+
+      res.json({ agent, recentRuns });
+    } catch (error: any) {
+      console.error("[Agents] Error fetching agent:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update agent status (pause/resume/disable)
+  app.patch("/api/agents/:id/status", async (req, res) => {
+    try {
+      const { agentRegistry } = await import("@shared/schema");
+      const profile = await storage.getBusinessProfile();
+      
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const id = parseInt(req.params.id);
+      const { status } = req.body;
+      
+      if (!["active", "paused", "disabled"].includes(status)) {
+        return res.status(400).json({ error: "Invalid status. Must be active, paused, or disabled" });
+      }
+
+      const [updated] = await db
+        .update(agentRegistry)
+        .set({ status, updatedAt: new Date() })
+        .where(and(
+          eq(agentRegistry.id, id),
+          eq(agentRegistry.businessId, profile.id)
+        ))
+        .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("[Agents] Error updating agent status:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get agent runs with filtering
+  app.get("/api/agents/:id/runs", async (req, res) => {
+    try {
+      const { agentRegistry, agentRuns } = await import("@shared/schema");
+      const profile = await storage.getBusinessProfile();
+      
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const id = parseInt(req.params.id);
+      
+      // Verify agent belongs to this business
+      const [agent] = await db
+        .select()
+        .from(agentRegistry)
+        .where(and(
+          eq(agentRegistry.id, id),
+          eq(agentRegistry.businessId, profile.id)
+        ))
+        .limit(1);
+      
+      if (!agent) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+      
+      const status = req.query.status as string | undefined;
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+      
+      const conditions = [eq(agentRuns.agentId, id), eq(agentRuns.businessId, profile.id)];
+      if (status) {
+        conditions.push(eq(agentRuns.status, status));
+      }
+
+      const runs = await db
+        .select()
+        .from(agentRuns)
+        .where(and(...conditions))
+        .orderBy(desc(agentRuns.startedAt))
+        .limit(limit);
+
+      res.json(runs);
+    } catch (error: any) {
+      console.error("[Agents] Error fetching runs:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get agent summary metrics
+  app.get("/api/agents/summary", async (req, res) => {
+    try {
+      const { agentRegistry } = await import("@shared/schema");
+      const profile = await storage.getBusinessProfile();
+      
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+
+      const agents = await db
+        .select()
+        .from(agentRegistry)
+        .where(eq(agentRegistry.businessId, profile.id));
+
+      const summary = {
+        totalAgents: agents.length,
+        activeAgents: agents.filter(a => a.status === "active").length,
+        pausedAgents: agents.filter(a => a.status === "paused").length,
+        disabledAgents: agents.filter(a => a.status === "disabled").length,
+        avgHealthScore: agents.length > 0 
+          ? Math.round(agents.reduce((sum, a) => sum + (a.healthScore || 100), 0) / agents.length)
+          : 100,
+        totalTimeSavedMinutes: agents.reduce((sum, a) => sum + (a.timeSavedMinutes || 0), 0),
+        totalCashAcceleratedCents: agents.reduce((sum, a) => sum + (a.cashAcceleratedCents || 0), 0),
+        totalRevenueProtectedCents: agents.reduce((sum, a) => sum + (a.revenueProtectedCents || 0), 0),
+        byCategory: {
+          core: agents.filter(a => a.category === "core").length,
+          ops: agents.filter(a => a.category === "ops").length,
+          finance: agents.filter(a => a.category === "finance").length,
+          comms: agents.filter(a => a.category === "comms").length,
+        },
+      };
+
+      res.json(summary);
+    } catch (error: any) {
+      console.error("[Agents] Error fetching summary:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Record an agent run (used by workers internally)
+  app.post("/api/agents/:agentKey/runs", async (req, res) => {
+    try {
+      const { agentRegistry, agentRuns, insertAgentRunSchema } = await import("@shared/schema");
+      const { agentKey } = req.params;
+      const profile = await storage.getBusinessProfile();
+      
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+
+      const [agent] = await db
+        .select()
+        .from(agentRegistry)
+        .where(and(
+          eq(agentRegistry.businessId, profile.id),
+          eq(agentRegistry.agentKey, agentKey)
+        ))
+        .limit(1);
+
+      if (!agent) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+
+      const runData = insertAgentRunSchema.parse({
+        agentId: agent.id,
+        businessId: profile.id,
+        ...req.body,
+      });
+
+      const [run] = await db.insert(agentRuns).values(runData).returning();
+      
+      // Update agent metrics (with businessId scoping for security)
+      await db
+        .update(agentRegistry)
+        .set({
+          lastRunAt: new Date(),
+          totalRuns: (agent.totalRuns || 0) + 1,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(agentRegistry.id, agent.id),
+          eq(agentRegistry.businessId, profile.id)
+        ));
+
+      res.json(run);
+    } catch (error: any) {
+      console.error("[Agents] Error recording run:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Complete an agent run
+  app.patch("/api/agents/runs/:runId", async (req, res) => {
+    try {
+      const { agentRegistry, agentRuns } = await import("@shared/schema");
+      const profile = await storage.getBusinessProfile();
+      
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const { runId } = req.params;
+      const { status, error, result, itemsProcessed, timeSavedMinutes, cashAcceleratedCents, revenueProtectedCents } = req.body;
+      
+      const [run] = await db
+        .select()
+        .from(agentRuns)
+        .where(and(
+          eq(agentRuns.runId, runId),
+          eq(agentRuns.businessId, profile.id)
+        ))
+        .limit(1);
+
+      if (!run) {
+        return res.status(404).json({ error: "Run not found" });
+      }
+
+      const completedAt = new Date();
+      const durationMs = completedAt.getTime() - new Date(run.startedAt).getTime();
+
+      const [updatedRun] = await db
+        .update(agentRuns)
+        .set({
+          status,
+          completedAt,
+          durationMs,
+          error,
+          result,
+          itemsProcessed: itemsProcessed || 0,
+          timeSavedMinutes: timeSavedMinutes || 0,
+          cashAcceleratedCents: cashAcceleratedCents || 0,
+          revenueProtectedCents: revenueProtectedCents || 0,
+        })
+        .where(and(
+          eq(agentRuns.runId, runId),
+          eq(agentRuns.businessId, profile.id)
+        ))
+        .returning();
+
+      // Update agent metrics based on run result
+      const [agent] = await db
+        .select()
+        .from(agentRegistry)
+        .where(and(
+          eq(agentRegistry.id, run.agentId),
+          eq(agentRegistry.businessId, profile.id)
+        ))
+        .limit(1);
+
+      if (agent) {
+        const updates: any = { updatedAt: new Date() };
+        
+        if (status === "success") {
+          updates.lastSuccessAt = completedAt;
+          updates.failureStreak = 0;
+          updates.timeSavedMinutes = (agent.timeSavedMinutes || 0) + (timeSavedMinutes || 0);
+          updates.cashAcceleratedCents = (agent.cashAcceleratedCents || 0) + (cashAcceleratedCents || 0);
+          updates.revenueProtectedCents = (agent.revenueProtectedCents || 0) + (revenueProtectedCents || 0);
+        } else if (status === "failed") {
+          updates.lastErrorAt = completedAt;
+          updates.lastError = error;
+          updates.failureStreak = (agent.failureStreak || 0) + 1;
+        }
+
+        await db
+          .update(agentRegistry)
+          .set(updates)
+          .where(and(
+            eq(agentRegistry.id, agent.id),
+            eq(agentRegistry.businessId, profile.id)
+          ));
+      }
+
+      res.json(updatedRun);
+    } catch (error: any) {
+      console.error("[Agents] Error completing run:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }

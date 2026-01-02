@@ -1287,6 +1287,112 @@ export const insertCustomerCommLogSchema = createInsertSchema(customerCommLog).o
   createdAt: true,
 });
 
+// ============================================
+// Agent Management Control Center
+// ============================================
+
+// Agent Registry - All workers/agents registered in the system
+export const agentRegistry = pgTable("agent_registry", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  
+  // Agent identification
+  agentKey: text("agent_key").notNull(), // unique key: margin_worker, dispatch_worker, comms_worker, etc.
+  displayName: text("display_name").notNull(),
+  description: text("description"),
+  category: text("category").notNull(), // core, ops, finance, comms
+  
+  // Status & Control
+  status: text("status").notNull().default("active"), // active, paused, disabled
+  lastRunAt: timestamp("last_run_at"),
+  lastSuccessAt: timestamp("last_success_at"),
+  lastErrorAt: timestamp("last_error_at"),
+  lastError: text("last_error"),
+  
+  // Health metrics (computed)
+  healthScore: integer("health_score").default(100), // 0-100
+  successRate24h: doublePrecision("success_rate_24h").default(100),
+  avgLatencyMs: integer("avg_latency_ms"),
+  failureStreak: integer("failure_streak").default(0),
+  
+  // Value metrics
+  totalRuns: integer("total_runs").default(0),
+  timeSavedMinutes: integer("time_saved_minutes").default(0),
+  cashAcceleratedCents: integer("cash_accelerated_cents").default(0),
+  revenueProtectedCents: integer("revenue_protected_cents").default(0),
+  
+  // Configuration
+  config: jsonb("config"), // agent-specific config
+  schedule: text("schedule"), // cron expression or "event-driven"
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessAgentIdx: uniqueIndex("agent_business_key_idx").on(table.businessId, table.agentKey),
+  categoryIdx: index("agent_category_idx").on(table.category),
+  statusIdx: index("agent_status_idx").on(table.status),
+}));
+
+// Agent Run Log - Execution history for each agent
+export const agentRuns = pgTable("agent_runs", {
+  id: serial("id").primaryKey(),
+  agentId: integer("agent_id").references(() => agentRegistry.id).notNull(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  
+  // Run details
+  runId: text("run_id").notNull(), // UUID for deduplication
+  status: text("status").notNull().default("running"), // running, success, failed, timeout
+  triggeredBy: text("triggered_by").notNull(), // cron, event, manual
+  eventType: text("event_type"), // For event-driven runs
+  eventPayload: jsonb("event_payload"),
+  
+  // Timing
+  startedAt: timestamp("started_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  completedAt: timestamp("completed_at"),
+  durationMs: integer("duration_ms"),
+  
+  // Outputs
+  result: jsonb("result"), // Output data
+  error: text("error"),
+  errorStack: text("error_stack"),
+  
+  // Metrics for this run
+  itemsProcessed: integer("items_processed").default(0),
+  timeSavedMinutes: integer("time_saved_minutes").default(0),
+  cashAcceleratedCents: integer("cash_accelerated_cents").default(0),
+  revenueProtectedCents: integer("revenue_protected_cents").default(0),
+  
+  // Related entities
+  relatedJobId: text("related_job_id"),
+  relatedClientId: text("related_client_id"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  agentIdx: index("run_agent_idx").on(table.agentId),
+  statusIdx: index("run_status_idx").on(table.status),
+  startedIdx: index("run_started_idx").on(table.startedAt),
+  runIdIdx: uniqueIndex("run_id_unique_idx").on(table.runId),
+}));
+
+// Insert schemas
+export const insertAgentRegistrySchema = createInsertSchema(agentRegistry).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAgentRunSchema = createInsertSchema(agentRuns).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types
+export type AgentRegistryEntry = typeof agentRegistry.$inferSelect;
+export type InsertAgentRegistryEntry = z.infer<typeof insertAgentRegistrySchema>;
+
+export type AgentRunEntry = typeof agentRuns.$inferSelect;
+export type InsertAgentRunEntry = z.infer<typeof insertAgentRunSchema>;
+
 // Types
 export type ReconciliationAlert = typeof reconciliationAlerts.$inferSelect;
 export type InsertReconciliationAlert = z.infer<typeof insertReconciliationAlertSchema>;
