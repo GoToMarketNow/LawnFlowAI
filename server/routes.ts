@@ -2011,6 +2011,174 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // Jobber Integration Stub Endpoints (MVP)
+  // These prepare the system for real Jobber overlay integration
+  // ============================================
+
+  // Webhook receiver at the canonical integration path
+  app.post("/api/integrations/jobber/webhook", async (req, res) => {
+    const startTime = Date.now();
+    
+    try {
+      const { jobberWebhookProcessor } = await import("./connectors/jobber-webhook");
+      const { jobberWebhookEvents } = await import("@shared/schema");
+      const { db } = await import("./db");
+      
+      const payload = req.body;
+      
+      // For MVP stub: accept any payload and log it
+      if (!payload.webhookEventId) {
+        payload.webhookEventId = `stub_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      }
+      if (!payload.accountId) {
+        payload.accountId = "stub_account";
+      }
+      if (!payload.topic) {
+        payload.topic = payload.event_type || "UNKNOWN";
+      }
+      
+      // Log the event
+      await db.insert(jobberWebhookEvents).values({
+        webhookEventId: payload.webhookEventId,
+        jobberAccountId: payload.accountId,
+        topic: payload.topic,
+        objectId: payload.resource_id || payload.objectId || "unknown",
+        payload: payload,
+        status: "received",
+        receivedAt: new Date(),
+      }).onConflictDoNothing();
+      
+      const elapsed = Date.now() - startTime;
+      console.log(`[Jobber Integration] Webhook stub received ${payload.topic} in ${elapsed}ms`);
+      
+      res.status(200).json({ 
+        acknowledged: true,
+        stub: true,
+        eventId: payload.webhookEventId,
+        message: "Webhook received (stub mode)",
+      });
+    } catch (error) {
+      console.error("[Jobber Integration] Webhook error:", error);
+      res.status(500).json({ error: "Webhook processing failed" });
+    }
+  });
+
+  // Refresh endpoint - stub for syncing data from Jobber
+  app.post("/api/integrations/jobber/refresh", async (req, res) => {
+    try {
+      const { scheduleItems, crews, jobRequests, businessProfiles } = await import("@shared/schema");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+      
+      // Get the business profile
+      const [profile] = await db.select().from(businessProfiles).limit(1);
+      if (!profile) {
+        return res.status(404).json({ error: "No business profile found" });
+      }
+      
+      // Get crews for this business
+      const allCrews = await db.select().from(crews).where(eq(crews.businessId, profile.id));
+      
+      if (allCrews.length === 0) {
+        return res.status(200).json({
+          stub: true,
+          message: "No crews found to seed schedule items",
+          scheduleItemsCreated: 0,
+        });
+      }
+      
+      // Generate stub schedule items for the next 7 days
+      const now = new Date();
+      const scheduleItemsToCreate = [];
+      
+      for (const crew of allCrews) {
+        // Create 2-4 jobs per day for each crew for the next 5 days
+        for (let dayOffset = 0; dayOffset < 5; dayOffset++) {
+          const date = new Date(now);
+          date.setDate(date.getDate() + dayOffset);
+          date.setHours(8, 0, 0, 0);
+          
+          const jobsPerDay = 2 + Math.floor(Math.random() * 3); // 2-4 jobs
+          
+          for (let jobNum = 0; jobNum < jobsPerDay; jobNum++) {
+            const startHour = 8 + jobNum * 2; // Jobs at 8am, 10am, 12pm, 2pm
+            const durationMinutes = 45 + Math.floor(Math.random() * 60); // 45-105 min
+            
+            const startAt = new Date(date);
+            startAt.setHours(startHour, 0, 0, 0);
+            
+            const endAt = new Date(startAt);
+            endAt.setMinutes(endAt.getMinutes() + durationMinutes);
+            
+            // Atlanta area coordinates with some variation
+            const baseLat = 33.749;
+            const baseLng = -84.388;
+            const latOffset = (Math.random() - 0.5) * 0.2;
+            const lngOffset = (Math.random() - 0.5) * 0.2;
+            
+            scheduleItemsToCreate.push({
+              businessId: profile.id,
+              externalProvider: "jobber",
+              externalId: `jobber_visit_${crew.id}_${dayOffset}_${jobNum}`,
+              crewId: crew.id,
+              startAt,
+              endAt,
+              lat: baseLat + latOffset,
+              lng: baseLng + lngOffset,
+              address: `${1000 + jobNum * 100} Peachtree St, Atlanta, GA 30309`,
+              description: `Lawn maintenance - Crew ${crew.name}`,
+              status: "scheduled",
+            });
+          }
+        }
+      }
+      
+      // Insert schedule items (ignore duplicates by externalId)
+      let created = 0;
+      for (const item of scheduleItemsToCreate) {
+        try {
+          await db.insert(scheduleItems).values(item).onConflictDoNothing();
+          created++;
+        } catch (e) {
+          // Ignore duplicate key errors
+        }
+      }
+      
+      console.log(`[Jobber Integration] Refresh stub created ${created} schedule items for ${allCrews.length} crews`);
+      
+      res.json({
+        stub: true,
+        message: "Refresh completed (stub mode) - seeded schedule items",
+        scheduleItemsCreated: created,
+        crewsProcessed: allCrews.length,
+      });
+    } catch (error) {
+      console.error("[Jobber Integration] Refresh error:", error);
+      res.status(500).json({ error: "Refresh failed" });
+    }
+  });
+
+  // Get connection status
+  app.get("/api/integrations/jobber/status", async (req, res) => {
+    try {
+      const { jobberAccounts } = await import("@shared/schema");
+      const { db } = await import("./db");
+      
+      const accounts = await db.select().from(jobberAccounts);
+      
+      res.json({
+        connected: accounts.length > 0 && accounts.some(a => a.isActive),
+        accountCount: accounts.length,
+        stub: true,
+        message: "Jobber integration in stub mode - ready for real connection",
+      });
+    } catch (error) {
+      console.error("[Jobber Integration] Status error:", error);
+      res.status(500).json({ error: "Failed to get status" });
+    }
+  });
+
+  // ============================================
   // Policy Profile Routes
   // ============================================
 
