@@ -1,0 +1,198 @@
+You are a senior full-stack engineer + UX designer implementing LawnFlow’s Unified Quote Builder (UQB) as an overlay feature.
+
+GOAL
+Build a single quote builder experience that works for:
+- Crew Leaders (field use, fast voice workflow)
+- Owner/Operators (review + send)
+- Approved Office Personnel (create + send)
+
+The Quote Builder must support:
+1) Voice-enabled quote creation:
+   - Tap mic → speak → transcribe → extract structured quote inputs
+   - Ask follow-up questions if required data is missing
+   - Build a quote RANGE using the active Pricing Policy template
+2) Dropdown / form UI (“AX”): same workflow without voice
+3) One voice command to send the quote via SMS to the customer
+4) Human approval gates:
+   - Crew leaders can draft/recommend
+   - Owner/operators can approve & send (configurable role policy)
+5) Fast operation: “good initial quote” not perfect; includes assumptions and verification options.
+
+STACK
+- Next.js (App Router) + TypeScript
+- Prisma + SQLite
+- Existing PricingPolicy + QuoteRaterService + SMS (Twilio) + LotSizeResolver
+- Voice transcription: use browser Web Speech API for MVP OR server-side transcription if already implemented.
+  IMPORTANT: implement Web Speech API fallback to text input so MVP works everywhere.
+
+ROLES / PERMISSIONS
+Implement RBAC:
+- role: OWNER, ADMIN, CREW_LEAD, STAFF
+Permissions:
+- CREW_LEAD: create quote drafts, cannot send unless explicitly allowed by policy
+- STAFF: can create + send if allowed by policy
+- OWNER/ADMIN: can create + approve + send always
+Add policy flag:
+- allowCrewLeadSend: boolean default false
+
+UX
+Entry points:
+- Persistent nav: “Quote Builder”
+- Contextual: “Create quote” button from lead/job/customer profile
+
+Two modes:
+A) Voice Mode (default on mobile)
+- Mic button: start/stop
+- Live transcript area
+- Detected fields chips (editable)
+- Follow-up questions shown one at a time
+- “Say: ‘Send quote’” voice command once complete and approved
+
+B) Dropdown/Form Mode (default on desktop)
+- Customer phone + address
+- Services multi-select
+- Frequency dropdown
+- Complexity dropdown (light/medium/heavy)
+- Lot size source: auto (parcel) / manual band
+- Optional: distance miles (auto later)
+- “Generate range” button
+
+QUOTE INPUT MODEL (unified for both modes)
+QuoteDraftInput:
+{
+  customer_name?: string,
+  customer_phone: string,
+  service_address: string,
+  services_requested: string[],
+  frequency: "one_time|weekly|biweekly|monthly|unknown",
+  complexity: "light|medium|heavy|unknown",
+  lot_area_sqft?: number,
+  lot_confidence?: "high|medium|low",
+  property_band?: "small|medium|large|xlarge|unknown",
+  photos_provided?: boolean
+}
+
+BACKEND MODULES / TOOLS
+1) Transcription (MVP):
+- client: Web Speech API returns transcript string
+- fallback: text input
+
+2) NLP Field Extractor (LLM call):
+POST /api/quote/voice/parse
+Input: { transcript: string }
+Output: Partial<QuoteDraftInput> + missing_fields[] + followup_questions[]
+Rules:
+- Extract phone (if spoken), address, services, frequency, complexity cues
+- If phone missing, ask for it
+- If address missing, ask for it
+- If services missing, ask “What services?”
+- If frequency missing, ask “Is this one-time or recurring? weekly/biweekly/monthly?”
+- If complexity missing, default to policy property band default once lot size known; else ask light/medium/heavy
+Return JSON only.
+
+3) Lot size resolver:
+Call lotSizeResolver(address) -> lot_area_sqft + confidence + band
+
+4) Quote rater:
+Call QuoteRaterService(policy, draftInput + resolved lot data) -> quote_proposal preview:
+- range_low, range_high
+- assumptions
+- needs_review boolean + reasons
+- recommended_next_step: request_photos | site_visit | ready_to_send
+
+5) SMS Sender:
+POST /api/quote/send
+Input: quote_proposal_id
+Action:
+- enforce RBAC
+- if needs_review true and user not OWNER/ADMIN -> block send
+- send SMS via Twilio using your existing messaging service
+SMS content:
+- short range + what’s included + next step link or reply to confirm
+
+DATABASE
+Add tables:
+- quote_draft:
+  id, account_id, created_by_user_id
+  customer_phone, service_address, transcript_text
+  structured_input_json
+  status: draft|ready|sent|blocked
+  created_at
+
+- quote_proposal (reuse existing):
+  ties to quote_draft_id
+
+ENDPOINTS
+1) POST /api/quote/draft/create
+2) POST /api/quote/voice/parse
+3) POST /api/quote/rate (existing)
+4) POST /api/quote/send
+5) GET /api/quote/draft/:id
+
+VOICE COMMANDS
+Implement simple command detection on transcript:
+- If transcript includes: "send quote" OR "text the quote" OR "send it"
+Then:
+- Validate required fields complete
+- Generate proposal preview (if not already)
+- If user has permission + no review gates -> send
+- Else show “Needs approval” and route to owner approval queue
+
+FOLLOW-UP QUESTION LOOP
+UQB must behave like a guided wizard:
+- parse transcript -> identify missing fields
+- ask 1 question at a time (voice or UI)
+- user answers (voice or dropdown)
+- re-run parse with incremental context until complete
+
+QUOTE OUTPUT (UI)
+Show:
+- Range: $low–$high
+- Services included
+- Frequency
+- Assumptions (lot size band, complexity)
+- Confidence indicator
+- Next step:
+  - Request photos to tighten range
+  - Schedule site visit
+  - Ready to send
+
+APPROVAL FLOW
+If needs_review = true OR user lacks send permission:
+- Save draft + proposal
+- Show banner: “Needs approval”
+- Add to /admin/quotes queue
+- Owner can open, adjust +/-10%, and send
+
+UI IMPLEMENTATION
+Create page: /quote-builder
+Layout:
+- Left panel: Voice transcript + mic + follow-up question prompt
+- Right panel: Detected fields (editable chips) + dropdown inputs
+- Bottom: “Generate range” + “Send quote” buttons
+- Mobile: stacked layout, mic prominent, send as sticky button
+
+OUTPUT FORMAT
+Generate code file-by-file with paths:
+- RBAC utilities
+- QuoteBuilder page + components
+- API routes
+- Prisma migrations
+- LLM parse prompt constants
+- Tests for parse schema validation and send permission gating
+
+PROMPT ENGINEERING (LLM PARSER)
+System prompt:
+“You extract structured quote inputs from a transcript for lawn care quotes. Return JSON only.”
+Developer rules:
+- Never hallucinate phone numbers or addresses
+- Use explicit lists for services/frequency
+- Ask clarifying questions when missing or ambiguous
+Return:
+{ extracted: {...}, missing_fields: [...], questions: [...] }
+
+DONE CRITERIA
+- A user can speak: “Quote for mowing and edging weekly at 123 Oak Street. Customer is John, phone 555-123-4567.”
+- System extracts fields, resolves lot size, rates quote, shows range
+- Voice command “Send quote” sends SMS (if permitted) or queues for approval
+- Same flow works via dropdown UI without voice
