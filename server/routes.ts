@@ -1673,6 +1673,124 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // Jobber Webhook Routes
+  // ============================================
+  
+  app.post("/webhooks/jobber", async (req, res) => {
+    const startTime = Date.now();
+    
+    try {
+      const { jobberWebhookProcessor, verifyJobberWebhookSignature } = await import("./connectors/jobber-webhook");
+      const { jobberAccounts } = await import("@shared/schema");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+      
+      const payload = req.body;
+      
+      if (!payload.webhookEventId || !payload.accountId || !payload.topic) {
+        console.error("[Jobber Webhook] Invalid payload structure");
+        return res.status(400).json({ error: "Invalid payload" });
+      }
+      
+      const signature = req.headers["x-jobber-signature"] as string | undefined;
+      
+      if (signature) {
+        const [account] = await db
+          .select({ webhookSecret: jobberAccounts.webhookSecret })
+          .from(jobberAccounts)
+          .where(eq(jobberAccounts.jobberAccountId, payload.accountId))
+          .limit(1);
+        
+        if (account?.webhookSecret) {
+          const rawBody = (req as any).rawBody?.toString() || JSON.stringify(payload);
+          const isValid = verifyJobberWebhookSignature(rawBody, signature, account.webhookSecret);
+          
+          if (!isValid) {
+            console.error("[Jobber Webhook] Invalid signature");
+            return res.status(401).json({ error: "Invalid signature" });
+          }
+        }
+      }
+      
+      const result = await jobberWebhookProcessor.receiveWebhook(payload);
+      
+      const elapsed = Date.now() - startTime;
+      console.log(`[Jobber Webhook] Acknowledged ${payload.topic} in ${elapsed}ms`);
+      
+      res.status(200).json({ 
+        acknowledged: result.acknowledged,
+        eventId: result.eventId,
+      });
+    } catch (error) {
+      console.error("[Jobber Webhook] Error:", error);
+      res.status(500).json({ error: "Webhook processing failed" });
+    }
+  });
+
+  app.get("/api/jobber/accounts", async (req, res) => {
+    try {
+      const { jobberAccounts } = await import("@shared/schema");
+      const { db } = await import("./db");
+      
+      const accounts = await db
+        .select({
+          id: jobberAccounts.id,
+          jobberAccountId: jobberAccounts.jobberAccountId,
+          isActive: jobberAccounts.isActive,
+          createdAt: jobberAccounts.createdAt,
+        })
+        .from(jobberAccounts);
+      
+      res.json(accounts);
+    } catch (error) {
+      console.error("[Jobber] Error fetching accounts:", error);
+      res.status(500).json({ error: "Failed to fetch accounts" });
+    }
+  });
+
+  app.get("/api/jobber/events", async (req, res) => {
+    try {
+      const { jobberWebhookEvents } = await import("@shared/schema");
+      const { db } = await import("./db");
+      const { desc } = await import("drizzle-orm");
+      
+      const limit = parseInt(req.query.limit as string) || 50;
+      
+      const events = await db
+        .select()
+        .from(jobberWebhookEvents)
+        .orderBy(desc(jobberWebhookEvents.receivedAt))
+        .limit(limit);
+      
+      res.json(events);
+    } catch (error) {
+      console.error("[Jobber] Error fetching events:", error);
+      res.status(500).json({ error: "Failed to fetch events" });
+    }
+  });
+
+  app.get("/api/jobber/enrichments", async (req, res) => {
+    try {
+      const { jobberEnrichments } = await import("@shared/schema");
+      const { db } = await import("./db");
+      const { desc } = await import("drizzle-orm");
+      
+      const limit = parseInt(req.query.limit as string) || 50;
+      
+      const enrichments = await db
+        .select()
+        .from(jobberEnrichments)
+        .orderBy(desc(jobberEnrichments.updatedAt))
+        .limit(limit);
+      
+      res.json(enrichments);
+    } catch (error) {
+      console.error("[Jobber] Error fetching enrichments:", error);
+      res.status(500).json({ error: "Failed to fetch enrichments" });
+    }
+  });
+
+  // ============================================
   // Policy Profile Routes
   // ============================================
 

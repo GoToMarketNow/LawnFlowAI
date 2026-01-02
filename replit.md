@@ -134,6 +134,12 @@ Real SMS is enabled with API Key authentication:
 - Falls back to `TWILIO_AUTH_TOKEN` if API Key not configured
 - Replit Twilio Integration is also supported as primary source
 
+### Jobber Integration
+For Jobber webhook processing and data enrichment:
+- `JOBBER_CLIENT_ID` - OAuth client ID from Jobber Developer Portal
+- `JOBBER_CLIENT_SECRET` - OAuth client secret
+- `JOBBER_REDIRECT_URI` - OAuth redirect URI for authorization flow
+
 ## Running Locally
 ```bash
 npm run dev
@@ -181,7 +187,40 @@ FREE-FIRST lot size resolution with aggressive caching and ArcGIS integration:
 - Falls back to geoService on error for backward compatibility
 - Customer-provided area bands still work but parcel lookup continues for higher accuracy
 
+## Jobber Integration (server/connectors/jobber-*.ts)
+Async webhook processing with GraphQL API integration:
+
+### Architecture
+- Fast webhook receiver (<1s acknowledgment) with async background processing
+- In-memory queue for webhook events with exponential backoff retry
+- OAuth token management with automatic refresh before expiry
+- Idempotent webhook processing via webhookEventId deduplication
+
+### Database Tables
+- `jobberAccounts`: OAuth tokens, account ID, refresh token, expiry
+- `jobberWebhookEvents`: Webhook deduplication and processing status
+- `jobberEnrichments`: Cached enrichment data for Jobber objects
+
+### Webhook Endpoint
+- `POST /webhooks/jobber` - Receives Jobber webhooks, acks in <1s, queues for processing
+- Supported topics: CLIENT_*, PROPERTY_*, QUOTE_* (create/update)
+
+### Enrichment Flow
+1. Receive webhook -> dedupe -> queue for async processing
+2. Fetch current data via Jobber GraphQL API
+3. Compute enrichment: lot_size_estimate, service_class, access_constraints, slope_risk
+4. Store enrichment locally (jobberEnrichments table)
+5. Optionally write back to Jobber custom fields
+
+### API Endpoints
+- `GET /api/jobber/accounts` - List connected Jobber accounts
+- `GET /api/jobber/events` - List recent webhook events
+- `GET /api/jobber/enrichments` - List computed enrichments
+
 ## Recent Changes
+- Jobber webhook integration with async processing and GraphQL client
+- Property enrichment using lot size resolver
+- OAuth token refresh with exponential backoff retry
 - Lot size resolver with FREE-FIRST caching strategy and ArcGIS integration
 - Admin coverage page for managing county data sources
 - Quote engine integration with lot size resolver

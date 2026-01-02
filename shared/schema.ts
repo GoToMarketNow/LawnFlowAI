@@ -716,3 +716,87 @@ export interface LotSizeResult {
     questions: string[];
   };
 }
+
+// ============================================
+// Jobber Integration Tables
+// ============================================
+
+// Jobber Accounts - OAuth tokens and account info
+export const jobberAccounts = pgTable("jobber_accounts", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  jobberAccountId: text("jobber_account_id").notNull().unique(),
+  jobberUserId: text("jobber_user_id"),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  tokenExpiresAt: timestamp("token_expires_at").notNull(),
+  scopes: text("scopes").array(),
+  webhookSecret: text("webhook_secret"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Jobber Webhook Events - deduplication and tracking
+export const jobberWebhookEvents = pgTable("jobber_webhook_events", {
+  id: serial("id").primaryKey(),
+  webhookEventId: text("webhook_event_id").notNull().unique(),
+  jobberAccountId: text("jobber_account_id").notNull(),
+  topic: text("topic").notNull(), // CLIENT_CREATE, PROPERTY_UPDATE, QUOTE_CREATE, etc.
+  objectId: text("object_id").notNull(), // ID of the client/property/quote
+  payload: jsonb("payload").notNull(),
+  status: text("status").notNull().default("pending"), // pending, processing, completed, failed, skipped
+  error: text("error"),
+  attempts: integer("attempts").default(0),
+  nextRetryAt: timestamp("next_retry_at"),
+  receivedAt: timestamp("received_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Jobber Enrichments - cached enrichment data for Jobber objects
+export const jobberEnrichments = pgTable("jobber_enrichments", {
+  id: serial("id").primaryKey(),
+  jobberAccountId: text("jobber_account_id").notNull(),
+  objectType: text("object_type").notNull(), // client, property, quote
+  objectId: text("object_id").notNull(),
+  lotSizeEstimate: integer("lot_size_estimate"), // in sqft
+  serviceClass: text("service_class"), // residential_small, residential_medium, residential_large, commercial
+  accessConstraints: text("access_constraints").array(), // gated, narrow_access, steep_driveway, etc.
+  slopeRisk: text("slope_risk"), // low, medium, high
+  enrichmentData: jsonb("enrichment_data"), // full enrichment payload
+  syncedToJobber: boolean("synced_to_jobber").default(false),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  objectIdx: uniqueIndex("jobber_enrichments_object_idx").on(table.jobberAccountId, table.objectType, table.objectId),
+}));
+
+// Insert schemas for Jobber tables
+export const insertJobberAccountSchema = createInsertSchema(jobberAccounts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertJobberWebhookEventSchema = createInsertSchema(jobberWebhookEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertJobberEnrichmentSchema = createInsertSchema(jobberEnrichments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types for Jobber integration
+export type JobberAccount = typeof jobberAccounts.$inferSelect;
+export type InsertJobberAccount = z.infer<typeof insertJobberAccountSchema>;
+
+export type JobberWebhookEvent = typeof jobberWebhookEvents.$inferSelect;
+export type InsertJobberWebhookEvent = z.infer<typeof insertJobberWebhookEventSchema>;
+
+export type JobberEnrichment = typeof jobberEnrichments.$inferSelect;
+export type InsertJobberEnrichment = z.infer<typeof insertJobberEnrichmentSchema>;
