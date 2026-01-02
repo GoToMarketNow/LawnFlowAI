@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GrowthAdvisorWidget } from "@/components/growth-advisor-widget";
+import { MarginAlertTile } from "@/components/margin-alert-tile";
 import type { Conversation, PendingAction } from "@shared/schema";
 
 interface Metrics {
@@ -316,6 +317,10 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
+        <MarginAlertTile />
+      </div>
+
+      <div className="grid gap-6 grid-cols-1">
         <GrowthAdvisorWidget businessId={1} />
       </div>
     </div>

@@ -2207,7 +2207,9 @@ export async function registerRoutes(
 
   app.get("/api/margin/alerts", async (req, res) => {
     try {
+      const { db } = await import("./db");
       const { marginAlerts } = await import("@shared/schema");
+      const { eq, and, desc } = await import("drizzle-orm");
       const profile = await storage.getBusinessProfile();
       if (!profile) {
         return res.status(404).json({ error: "Business profile not found" });
@@ -2235,7 +2237,9 @@ export async function registerRoutes(
 
   app.get("/api/margin/alerts/:id", async (req, res) => {
     try {
+      const { db } = await import("./db");
       const { marginAlerts, jobSnapshots } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
       const id = parseInt(req.params.id);
       
       const [alert] = await db
@@ -2263,7 +2267,9 @@ export async function registerRoutes(
 
   app.post("/api/margin/alerts/:id/acknowledge", async (req, res) => {
     try {
+      const { db } = await import("./db");
       const { marginAlerts } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
       const { acknowledgeAlert } = await import("./workers/margin/marginWorker");
       const id = parseInt(req.params.id);
       const { acknowledgedBy } = req.body;
@@ -2293,7 +2299,9 @@ export async function registerRoutes(
 
   app.post("/api/margin/alerts/:id/resolve", async (req, res) => {
     try {
+      const { db } = await import("./db");
       const { marginAlerts } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
       const { resolveAlert } = await import("./workers/margin/marginWorker");
       const id = parseInt(req.params.id);
       const { resolvedBy, resolution } = req.body;
@@ -2323,7 +2331,9 @@ export async function registerRoutes(
 
   app.post("/api/margin/alerts/:id/dismiss", async (req, res) => {
     try {
+      const { db } = await import("./db");
       const { marginAlerts } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
       const { dismissAlert } = await import("./workers/margin/marginWorker");
       const id = parseInt(req.params.id);
       
@@ -2352,7 +2362,9 @@ export async function registerRoutes(
 
   app.get("/api/margin/snapshots", async (req, res) => {
     try {
+      const { db } = await import("./db");
       const { jobSnapshots } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
       const profile = await storage.getBusinessProfile();
       if (!profile) {
         return res.status(404).json({ error: "Business profile not found" });
@@ -2374,7 +2386,9 @@ export async function registerRoutes(
 
   app.get("/api/margin/snapshots/:jobId", async (req, res) => {
     try {
+      const { db } = await import("./db");
       const { jobSnapshots } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
       const { jobId } = req.params;
       
       const [snapshot] = await db
@@ -2399,7 +2413,9 @@ export async function registerRoutes(
 
   app.get("/api/margin/summary", async (req, res) => {
     try {
+      const { db } = await import("./db");
       const { marginAlerts, jobSnapshots } = await import("@shared/schema");
+      const { eq, and, desc } = await import("drizzle-orm");
       const profile = await storage.getBusinessProfile();
       if (!profile) {
         return res.status(404).json({ error: "Business profile not found" });
