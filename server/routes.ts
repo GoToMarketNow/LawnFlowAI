@@ -2899,6 +2899,8 @@ export async function registerRoutes(
   // Get all agents for the business
   app.get("/api/agents", async (req, res) => {
     try {
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
       const { agentRegistry } = await import("@shared/schema");
       const profile = await storage.getBusinessProfile();
       
@@ -2941,6 +2943,8 @@ export async function registerRoutes(
   // Get agent details with recent runs
   app.get("/api/agents/:id", async (req, res) => {
     try {
+      const { db } = await import("./db");
+      const { eq, and, desc } = await import("drizzle-orm");
       const { agentRegistry, agentRuns } = await import("@shared/schema");
       const profile = await storage.getBusinessProfile();
       
@@ -2983,6 +2987,8 @@ export async function registerRoutes(
   // Update agent status (pause/resume/disable)
   app.patch("/api/agents/:id/status", async (req, res) => {
     try {
+      const { db } = await import("./db");
+      const { eq, and } = await import("drizzle-orm");
       const { agentRegistry } = await import("@shared/schema");
       const profile = await storage.getBusinessProfile();
       
@@ -3020,6 +3026,8 @@ export async function registerRoutes(
   // Get agent runs with filtering
   app.get("/api/agents/:id/runs", async (req, res) => {
     try {
+      const { db } = await import("./db");
+      const { eq, and, desc } = await import("drizzle-orm");
       const { agentRegistry, agentRuns } = await import("@shared/schema");
       const profile = await storage.getBusinessProfile();
       
@@ -3068,6 +3076,8 @@ export async function registerRoutes(
   // Get agent summary metrics
   app.get("/api/agents/summary", async (req, res) => {
     try {
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
       const { agentRegistry } = await import("@shared/schema");
       const profile = await storage.getBusinessProfile();
       
@@ -3109,6 +3119,8 @@ export async function registerRoutes(
   // Record an agent run (used by workers internally)
   app.post("/api/agents/:agentKey/runs", async (req, res) => {
     try {
+      const { db } = await import("./db");
+      const { eq, and } = await import("drizzle-orm");
       const { agentRegistry, agentRuns, insertAgentRunSchema } = await import("@shared/schema");
       const { agentKey } = req.params;
       const profile = await storage.getBusinessProfile();
@@ -3161,6 +3173,8 @@ export async function registerRoutes(
   // Complete an agent run
   app.patch("/api/agents/runs/:runId", async (req, res) => {
     try {
+      const { db } = await import("./db");
+      const { eq, and } = await import("drizzle-orm");
       const { agentRegistry, agentRuns } = await import("@shared/schema");
       const profile = await storage.getBusinessProfile();
       

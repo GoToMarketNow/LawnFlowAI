@@ -1,0 +1,263 @@
+You are a senior full-stack engineer working inside the existing LawnFlow MVP repo on Replit.
+
+PROBLEM
+The front-end “Agents” tab exists, but no agents are showing up. We need to implement a complete end-to-end agents listing:
+- Back-end: provide an agents registry + status + controls endpoints
+- Front-end: tiled/grid view of all agents with name, description, status, health, and action controls
+- Support single-agent commands (activate/deactivate/pause/force run)
+- Support multi-select and global commands (activate/deactivate/pause/force run)
+
+ASSUMPTIONS
+- Agents are implemented as workers already (intake_enrichment, quote_job_orchestrator, dispatch_routing, margin_variance, billing_orchestrator, reconciliation, customer_comms, renewal_upsell).
+- There is an API server (Express/Fastify/Next API routes) already.
+- There is some persistence available (SQLite/Postgres/Prisma) OR we can do an in-memory store for MVP.
+- Current issue likely: the UI expects /api/agents but backend returns nothing or route is missing.
+
+GOALS
+1) Create a single source of truth “Agent Registry” in the backend:
+   - id, name, description, category, triggers, riskLevel, defaultControls
+2) Add runtime state per agent per Jobber account:
+   - status: active|paused|disabled
+   - pause info: until, reason
+   - lastRun, nextRun
+   - health summary (optional stub)
+3) Expose API endpoints consumed by UI
+4) Implement the Agents page as a tiled view:
+   - Each tile shows: agent name, brief description, status pill, last run
+   - Controls: Activate/Deactivate toggle, Pause, Force Run
+   - Multi-select across tiles + bulk action toolbar
+5) Make it work in MVP even without complete metrics/logs:
+   - Provide safe defaults and graceful empty states
+
+DELIVERABLES
+- Backend: agent registry module + endpoints:
+  GET /api/agents
+  GET /api/agents/:id
+  POST /api/agents/:id/activate
+  POST /api/agents/:id/deactivate
+  POST /api/agents/:id/pause
+  POST /api/agents/:id/resume
+  POST /api/agents/:id/force-run
+  POST /api/agents/bulk (bulk operations)
+- Frontend: AgentsGrid page using the endpoints:
+  - Tile cards + selection + bulk controls + optimistic UI
+
+========================================================
+PART A — BACKEND: AGENT REGISTRY (SOURCE OF TRUTH)
+Create a file: /server/agents/registry.ts (or appropriate location in repo)
+Export a constant array AGENTS:
+
+Each agent MUST include:
+- id: string (matches worker id)
+- name: string
+- description: string (1 sentence)
+- category: string
+- triggers: string[] (webhook/schedule/manual)
+- riskLevel: "low"|"med"|"high"
+- supports: { activate: boolean, pause: boolean, forceRun: boolean, bulk: boolean }
+
+Registry (use EXACT IDs):
+1) intake_enrichment
+   name: "Intake & Enrichment"
+   description: "Enriches clients/properties/quotes with lot size, service class, and access notes to speed quoting and dispatch."
+2) quote_job_orchestrator
+   name: "Quote → Job Orchestrator"
+   description: "Keeps quotes, jobs, and invoices aligned when scope changes and flags change-orders when needed."
+3) dispatch_routing
+   name: "Dispatch & Routing"
+   description: "Builds and updates crew assignments and route plans based on schedules, constraints, and service needs."
+4) margin_variance
+   name: "Margin & Variance Sentinel"
+   description: "Detects time/cost overruns early, flags margin risk, and alerts ops before profit leaks."
+5) billing_orchestrator
+   name: "Billing Orchestrator"
+   description: "Automates deposit/progress/final billing milestones and keeps billing stages consistent."
+6) reconciliation
+   name: "Reconciliation Agent"
+   description: "Monitors invoice/payment consistency, flags mismatches, and reduces accounting cleanup work."
+7) customer_comms
+   name: "Customer Comms"
+   description: "Sends proactive ETA, delay, reschedule, and completion updates to reduce inbound calls."
+8) renewal_upsell
+   name: "Renewal & Upsell"
+   description: "Identifies seasonal reactivation and upsell opportunities and creates draft offers or follow-up tasks."
+
+========================================================
+PART B — BACKEND: AGENT STATE STORAGE
+Implement agent state storage with a minimal DB model OR in-memory store.
+
+Preferred (if Prisma exists):
+- AgentState table keyed by (accountId, agentId):
+  account_id TEXT
+  agent_id TEXT
+  status TEXT ("active"|"paused"|"disabled")
+  paused_until DATETIME NULL
+  pause_reason TEXT NULL
+  updated_at DATETIME
+  last_run_at DATETIME NULL
+  last_run_status TEXT NULL
+
+If no DB exists, implement an in-memory Map:
+- key: `${accountId}:${agentId}`
+- value: AgentState
+Ensure defaults exist for all agents (status="active") when first requested.
+
+Also add a simple RunLog table/store if it already exists; if not, stub lastRunAt as null.
+
+========================================================
+PART C — BACKEND: API ENDPOINTS
+Implement these routes in the existing API server:
+
+1) GET /api/agents?accountId=...
+- Returns registry merged with state.
+- If accountId missing, infer default account or return “no account connected” error shape.
+
+Response example:
+[
+  {
+    "id": "dispatch_routing",
+    "name": "Dispatch & Routing",
+    "description": "...",
+    "category": "Dispatch",
+    "triggers": ["webhook","schedule","manual"],
+    "riskLevel": "high",
+    "supports": { "activate": true, "pause": true, "forceRun": true, "bulk": true },
+    "state": {
+      "status": "active",
+      "pausedUntil": null,
+      "pauseReason": null,
+      "lastRunAt": null,
+      "lastRunStatus": null
+    }
+  }
+]
+
+2) GET /api/agents/:id?accountId=...
+- Returns single agent + state + last runs if available (or empty arrays).
+
+3) POST /api/agents/:id/activate
+Body: { accountId }
+- sets status="active", clears pause fields
+
+4) POST /api/agents/:id/deactivate
+Body: { accountId }
+- sets status="disabled"
+
+5) POST /api/agents/:id/pause
+Body: { accountId, durationMinutes, reason }
+- sets status="paused", pausedUntil=now+duration, pauseReason=reason
+
+6) POST /api/agents/:id/resume
+Body: { accountId }
+- sets status="active", clears pause fields
+
+7) POST /api/agents/:id/force-run
+Body: { accountId, mode: "dry_run"|"apply", scope?: {...} }
+- Enqueue a job into the existing worker queue.
+- Record a RunLog entry with trigger_type="manual".
+- Return { queued: true, runId }
+
+8) POST /api/agents/bulk
+Body:
+{
+  "accountId": "...",
+  "agentIds": ["dispatch_routing","billing_orchestrator"],
+  "action": "activate|deactivate|pause|resume|force_run",
+  "pause": { "durationMinutes": 240, "reason": "..." } (only for pause),
+  "forceRun": { "mode": "dry_run|apply", "scope": {...} } (only for force_run)
+}
+- Apply action to all agentIds and return per-agent results:
+{ results: [{ agentId, ok: true }, { agentId, ok:false, error:"..." }] }
+
+IMPORTANT: Worker runtime must respect AgentState:
+- Before processing any queued job for an agent, check AgentState:
+  - disabled => skip
+  - paused AND now < pausedUntil => skip
+  - paused AND now >= pausedUntil => auto-resume to active
+This prevents UI toggles from being “cosmetic”.
+
+========================================================
+PART D — FRONTEND: AGENTS GRID (TILED VIEW)
+Update the Agents page to:
+- Fetch agents from GET /api/agents?accountId=...
+- Render a responsive grid of tiles (cards).
+
+Each tile must show:
+- Agent Name
+- Brief description (1–2 lines, clamp text)
+- Status pill: Active / Paused / Disabled
+- Last run (relative time) + last run status if available
+- Quick actions:
+  - Toggle Active/Disabled
+  - Pause button (opens modal: duration + reason)
+  - Force Run button (opens modal: dry-run/apply)
+
+Multi-select requirements:
+- Each tile includes a checkbox.
+- “Select all” at top.
+- Bulk action toolbar appears when selection > 0 with buttons:
+  - Activate
+  - Deactivate
+  - Pause (modal for duration+reason)
+  - Force Run (modal for dry-run/apply)
+- After bulk action, refresh the list and show toast summary.
+
+Empty states:
+- If no Jobber account connected: show “Connect Jobber to see agents” CTA.
+- If API fails: show error + retry.
+
+Optimistic UI:
+- For activate/deactivate/pause/resume, update tile state immediately, then rollback if API error.
+
+========================================================
+PART E — FRONTEND: REQUIRED COMPONENTS
+Create or update these components (use existing patterns and UI kit if present):
+
+- AgentTile.tsx
+  Props: agent + selected + onSelect + handlers
+- AgentStatusPill.tsx
+- BulkActionBar.tsx
+- PauseModal.tsx
+- ForceRunModal.tsx
+- useAgents(accountId) hook (react-query preferred)
+- api.ts client wrappers:
+  - listAgents(accountId)
+  - activateAgent(agentId, accountId)
+  - deactivateAgent(agentId, accountId)
+  - pauseAgent(agentId, accountId, durationMinutes, reason)
+  - resumeAgent(agentId, accountId)
+  - forceRunAgent(agentId, accountId, mode, scope)
+  - bulkAction(accountId, agentIds, action, payload)
+
+========================================================
+PART F — DIAGNOSTICS: WHY AGENTS WERE NOT SHOWING
+Add logging and a visible diagnostics widget on the Agents page (MVP only):
+- Show:
+  - current accountId
+  - last API fetch status
+  - number of agents returned
+- Console log network errors with request URL and response body.
+
+Also confirm:
+- Agents page route is correct
+- API base URL is correct (proxy/relative path)
+- CORS is configured if FE/BE origins differ in Replit
+
+========================================================
+PART G — IMPLEMENTATION IN REPO (DO THIS NOW)
+1) Locate API server entrypoint and route registration.
+2) Add registry + state store + routes.
+3) Integrate “force-run” with existing queue (or stub enqueue with TODO if queue path differs).
+4) Update Agents page to grid view with selection and bulk toolbar.
+5) Verify by running locally in Replit and ensuring:
+   - GET /api/agents returns 8 agents by default
+   - UI shows 8 tiles
+   - Toggle/pause updates reflect immediately
+   - Bulk actions work
+
+OUTPUT FORMAT
+- Brief summary of what you changed
+- List of files created/modified
+- Provide the actual code changes applied in the repository
+- Include TODOs only where absolutely necessary (e.g., queue integration specifics)
+Begin now.
