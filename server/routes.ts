@@ -2754,5 +2754,91 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/upsell/scan", async (req, res) => {
+    try {
+      const { runUpsellScan, getJobberAccountForBusiness } = await import("./workers/upsell/upsellWorker");
+      const profile = await storage.getBusinessProfile();
+      
+      if (!profile) {
+        return res.status(400).json({ error: "Business profile not found" });
+      }
+
+      const accountId = await getJobberAccountForBusiness(profile.id);
+      if (!accountId) {
+        return res.status(400).json({ error: "Jobber account not connected" });
+      }
+
+      const config = req.body || {};
+      const summary = await runUpsellScan(accountId, config);
+      res.json(summary);
+    } catch (error: any) {
+      console.error("[Upsell] Scan error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/upsell/preview/:clientId", async (req, res) => {
+    try {
+      const { previewUpsellOffers, getJobberAccountForBusiness } = await import("./workers/upsell/upsellWorker");
+      const profile = await storage.getBusinessProfile();
+      
+      if (!profile) {
+        return res.status(400).json({ error: "Business profile not found" });
+      }
+
+      const accountId = await getJobberAccountForBusiness(profile.id);
+      if (!accountId) {
+        return res.status(400).json({ error: "Jobber account not connected" });
+      }
+
+      const lotSize = req.query.lotSize ? parseInt(req.query.lotSize as string, 10) : undefined;
+      const offers = await previewUpsellOffers(accountId, req.params.clientId, lotSize);
+      res.json(offers);
+    } catch (error: any) {
+      console.error("[Upsell] Preview error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/upsell/catalog", async (req, res) => {
+    try {
+      const { OFFER_CATALOG, getCurrentSeason, getLotSizeTier } = await import("./workers/upsell/offerCatalog");
+      const season = getCurrentSeason();
+      const seasonalOffers = OFFER_CATALOG.filter(o => o.applicableSeasons.includes(season));
+      
+      res.json({
+        currentSeason: season,
+        totalOffers: OFFER_CATALOG.length,
+        seasonalOffers: seasonalOffers.length,
+        catalog: OFFER_CATALOG,
+      });
+    } catch (error: any) {
+      console.error("[Upsell] Catalog error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/upsell/config", async (req, res) => {
+    try {
+      const { UPSELL_OPT_IN_FIELD, LAWNFLOW_OFFER_ID_FIELD } = await import("./workers/upsell/upsellWorker");
+      const { getCurrentSeason, LOT_SIZE_TIERS } = await import("./workers/upsell/offerCatalog");
+      
+      res.json({
+        optInField: UPSELL_OPT_IN_FIELD,
+        offerTrackingField: LAWNFLOW_OFFER_ID_FIELD,
+        currentSeason: getCurrentSeason(),
+        lotSizeTiers: LOT_SIZE_TIERS,
+        defaultConfig: {
+          maxDaysLookback: 60,
+          maxOffersPerClient: 3,
+          minDaysBetweenOffers: 14,
+        },
+      });
+    } catch (error: any) {
+      console.error("[Upsell] Config error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }

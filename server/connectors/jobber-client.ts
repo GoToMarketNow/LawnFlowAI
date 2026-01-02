@@ -187,6 +187,215 @@ export class JobberClient {
     return this.query<{ quote: any }>(query, { id: quoteId });
   }
 
+  async getClientWithCustomFields(clientId: string) {
+    const query = `
+      query GetClientWithCustomFields($id: EncodedId!) {
+        client(id: $id) {
+          id
+          name
+          firstName
+          lastName
+          companyName
+          emails { address primary }
+          phones { number primary friendly }
+          billingAddress { street city province postalCode country }
+          properties { 
+            nodes { 
+              id 
+              street 
+              city 
+              province 
+              postalCode
+              customFields { nodes { label value } }
+            } 
+          }
+          customFields { nodes { label value } }
+        }
+      }
+    `;
+    return this.query<{ client: any }>(query, { id: clientId });
+  }
+
+  async getClientCustomField(clientId: string, fieldLabel: string): Promise<string | null> {
+    try {
+      const result = await this.getClientWithCustomFields(clientId);
+      if (!result.client?.customFields?.nodes) {
+        return null;
+      }
+      const field = result.client.customFields.nodes.find(
+        (f: { label: string; value: string }) => f.label === fieldLabel
+      );
+      return field?.value || null;
+    } catch (error) {
+      console.error(`[Jobber] Error getting custom field ${fieldLabel} for client ${clientId}:`, error);
+      return null;
+    }
+  }
+
+  async createQuote(input: {
+    clientId: string;
+    propertyId?: string;
+    title: string;
+    message?: string;
+    lineItems: Array<{
+      name: string;
+      description?: string;
+      quantity: number;
+      unitPrice: number;
+    }>;
+  }) {
+    const mutation = `
+      mutation CreateQuote($input: QuoteCreateInput!) {
+        quoteCreate(input: $input) {
+          quote {
+            id
+            quoteNumber
+            quoteStatus
+            title
+            client { id name }
+            amounts { total }
+          }
+          userErrors { message path }
+        }
+      }
+    `;
+    
+    const lineItems = input.lineItems.map(li => ({
+      name: li.name,
+      description: li.description || '',
+      quantity: li.quantity,
+      unitCost: li.unitPrice / 100,
+    }));
+
+    const variables: any = {
+      input: {
+        clientId: input.clientId,
+        title: input.title,
+        lineItems,
+      },
+    };
+
+    if (input.propertyId) {
+      variables.input.propertyId = input.propertyId;
+    }
+    if (input.message) {
+      variables.input.message = input.message;
+    }
+
+    return this.query<{ quoteCreate: { quote: any; userErrors: Array<{ message: string; path: string[] }> } }>(
+      mutation,
+      variables
+    );
+  }
+
+  async getCompletedJobsForClient(clientId: string, limit: number = 50) {
+    const query = `
+      query GetClientJobs($clientId: EncodedId!, $first: Int!) {
+        client(id: $clientId) {
+          id
+          name
+          jobs(first: $first, filter: { status: COMPLETED }) {
+            nodes {
+              id
+              title
+              jobNumber
+              jobStatus
+              jobType { name }
+              completedAt
+              property { id }
+              lineItems { nodes { name } }
+              amounts { total }
+            }
+          }
+        }
+      }
+    `;
+    return this.query<{ client: { jobs: { nodes: any[] } } }>(query, { clientId, first: limit });
+  }
+
+  async getClientsWithRecentCompletedJobs(daysBack: number = 60, limit: number = 100) {
+    const sinceDate = new Date();
+    sinceDate.setDate(sinceDate.getDate() - daysBack);
+    
+    const query = `
+      query GetRecentCompletedJobs($first: Int!) {
+        jobs(first: $first, filter: { status: COMPLETED }) {
+          nodes {
+            id
+            title
+            jobNumber
+            jobStatus
+            jobType { name }
+            completedAt
+            client { 
+              id 
+              name
+              customFields { nodes { label value } }
+            }
+            property { 
+              id
+              customFields { nodes { label value } }
+            }
+            lineItems { nodes { name } }
+            amounts { total }
+          }
+        }
+      }
+    `;
+    
+    const result = await this.query<{ jobs: { nodes: any[] } }>(query, { first: limit });
+    
+    const filteredJobs = result.jobs.nodes.filter(job => {
+      if (!job.completedAt) return false;
+      const completedDate = new Date(job.completedAt);
+      return completedDate >= sinceDate;
+    });
+    
+    return { jobs: { nodes: filteredJobs } };
+  }
+
+  private customFieldCache: Map<string, string> = new Map();
+
+  async getCustomFieldConfigurations() {
+    const query = `
+      query GetCustomFieldConfigs {
+        customFieldConfigurations(first: 100) {
+          nodes {
+            id
+            label
+            type
+            applicableTo
+          }
+        }
+      }
+    `;
+    return this.query<{
+      customFieldConfigurations: {
+        nodes: Array<{ id: string; label: string; type: string; applicableTo: string }>;
+      };
+    }>(query, {});
+  }
+
+  async getCustomFieldIdByLabel(label: string): Promise<string | null> {
+    if (this.customFieldCache.has(label)) {
+      return this.customFieldCache.get(label) || null;
+    }
+
+    try {
+      const result = await this.getCustomFieldConfigurations();
+      const configs = result.customFieldConfigurations?.nodes || [];
+      
+      for (const config of configs) {
+        this.customFieldCache.set(config.label, config.id);
+      }
+
+      return this.customFieldCache.get(label) || null;
+    } catch (error) {
+      console.error(`[Jobber] Error fetching custom field configs:`, error);
+      return null;
+    }
+  }
+
   async updateClientCustomFields(clientId: string, customFields: Array<{ name: string; value: string }>) {
     const mutation = `
       mutation UpdateClientCustomFields($clientId: EncodedId!, $customFieldValues: [CustomFieldValueInput!]!) {
@@ -203,6 +412,26 @@ export class JobberClient {
         valueText: cf.value,
       })),
     });
+  }
+
+  async updateClientCustomFieldByLabel(clientId: string, label: string, value: string): Promise<{ success: boolean; error?: string }> {
+    const fieldId = await this.getCustomFieldIdByLabel(label);
+    if (!fieldId) {
+      return { success: false, error: `Custom field "${label}" not found in Jobber. Please create it manually.` };
+    }
+
+    try {
+      const result = await this.updateClientCustomFields(clientId, [{ name: fieldId, value }]);
+      if (result.clientUpdate?.userErrors?.length > 0) {
+        return { 
+          success: false, 
+          error: result.clientUpdate.userErrors.map((e: any) => e.message).join(', ') 
+        };
+      }
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
   }
 
   async updatePropertyCustomFields(propertyId: string, customFields: Array<{ name: string; value: string }>) {
