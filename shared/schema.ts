@@ -1629,9 +1629,17 @@ export const quoteProposals = pgTable("quote_proposals", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
   
+  // Customer info (can be populated from lead or manually)
+  customerName: text("customer_name"),
+  customerPhone: text("customer_phone"),
+  customerAddress: text("customer_address"),
+  
   // Link to lead/session
   leadId: integer("lead_id").references(() => leads.id),
   smsSessionId: text("sms_session_id"), // References sms_sessions.sessionId
+  
+  // Property classification
+  propertyTypeBand: text("property_type_band"), // townhome, small, medium, large, multi_acre
   
   // Services requested
   servicesRequested: jsonb("services_requested").notNull().default([]), // Array of { serviceType, frequency, notes }

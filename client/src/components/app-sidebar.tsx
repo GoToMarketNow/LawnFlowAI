@@ -12,6 +12,7 @@ import {
   MapPin,
   Bot,
   LayoutGrid,
+  DollarSign,
 } from "lucide-react";
 import {
   Sidebar,
@@ -62,6 +63,12 @@ const operationsItems = [
     title: "Jobs",
     url: "/jobs",
     icon: ClipboardList,
+    requiresOnboarding: true,
+  },
+  {
+    title: "Pricing",
+    url: "/pricing",
+    icon: DollarSign,
     requiresOnboarding: true,
   },
   {

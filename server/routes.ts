@@ -3780,5 +3780,285 @@ export async function registerRoutes(
     }
   });
 
+  // Pricing Policy Routes (owner/operator only)
+  app.get("/api/pricing/policies", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      const policies = await storage.getPricingPolicies(profile.id);
+      res.json(policies);
+    } catch (error: any) {
+      console.error("[Pricing] Error fetching policies:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/pricing/policies/active", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      const policy = await storage.getActivePricingPolicy(profile.id);
+      if (!policy) {
+        const { getDefaultPricingPolicy } = await import("./pricing/quoteRater");
+        const defaultPolicy = getDefaultPricingPolicy();
+        return res.json({ ...defaultPolicy, id: 0, businessId: profile.id, isDefault: true });
+      }
+      res.json(policy);
+    } catch (error: any) {
+      console.error("[Pricing] Error fetching active policy:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/pricing/policies/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const policy = await storage.getPricingPolicy(parseInt(req.params.id));
+      if (!policy) {
+        return res.status(404).json({ error: "Policy not found" });
+      }
+      res.json(policy);
+    } catch (error: any) {
+      console.error("[Pricing] Error fetching policy:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/pricing/policies", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      const existingPolicies = await storage.getPricingPolicies(profile.id);
+      const maxVersion = existingPolicies.reduce((max, p) => Math.max(max, p.version), 0);
+      
+      if (req.body.isActive) {
+        for (const existing of existingPolicies) {
+          if (existing.isActive) {
+            await storage.updatePricingPolicy(existing.id, { isActive: false });
+          }
+        }
+      }
+
+      const policy = await storage.createPricingPolicy({
+        ...req.body,
+        businessId: profile.id,
+        version: maxVersion + 1,
+      });
+      res.json(policy);
+    } catch (error: any) {
+      console.error("[Pricing] Error creating policy:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/pricing/policies/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      if (req.body.isActive) {
+        const existingPolicies = await storage.getPricingPolicies(profile.id);
+        for (const existing of existingPolicies) {
+          if (existing.isActive && existing.id !== parseInt(req.params.id)) {
+            await storage.updatePricingPolicy(existing.id, { isActive: false });
+          }
+        }
+      }
+
+      const policy = await storage.updatePricingPolicy(parseInt(req.params.id), req.body);
+      res.json(policy);
+    } catch (error: any) {
+      console.error("[Pricing] Error updating policy:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Quote Proposal Routes
+  app.get("/api/pricing/quotes", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      const quotes = await storage.getQuoteProposals(profile.id);
+      res.json(quotes);
+    } catch (error: any) {
+      console.error("[Pricing] Error fetching quotes:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/pricing/quotes/pending", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      const quotes = await storage.getPendingQuoteProposals(profile.id);
+      res.json(quotes);
+    } catch (error: any) {
+      console.error("[Pricing] Error fetching pending quotes:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/pricing/quotes/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const quote = await storage.getQuoteProposal(parseInt(req.params.id));
+      if (!quote) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+      res.json(quote);
+    } catch (error: any) {
+      console.error("[Pricing] Error fetching quote:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/pricing/quotes/calculate", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+
+      const { calculateQuote } = await import("./pricing/quoteRater");
+      const policy = await storage.getActivePricingPolicy(profile.id);
+      
+      const { propertySignals, servicesRequested } = req.body;
+      const result = calculateQuote(policy || null, propertySignals, servicesRequested);
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Pricing] Error calculating quote:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/pricing/quotes", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+
+      const { calculateQuote } = await import("./pricing/quoteRater");
+      const policy = await storage.getActivePricingPolicy(profile.id);
+      
+      const { propertySignals, servicesRequested, customerName, customerPhone, customerAddress } = req.body;
+      const result = calculateQuote(policy || null, propertySignals, servicesRequested);
+
+      const quote = await storage.createQuoteProposal({
+        businessId: profile.id,
+        policyId: policy?.id,
+        customerName,
+        customerPhone,
+        customerAddress,
+        propertySignals,
+        servicesRequested,
+        rangeLow: result.rangeLow,
+        rangeHigh: result.rangeHigh,
+        assumptions: result.assumptions,
+        calculationBreakdown: result.calculationBreakdown,
+        needsReview: result.needsReview,
+        reviewReasons: result.reviewReasons,
+        propertyTypeBand: result.propertyTypeBand,
+        status: result.needsReview ? "pending" : "auto_approved",
+      });
+
+      res.json({ quote, calculation: result });
+    } catch (error: any) {
+      console.error("[Pricing] Error creating quote:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/pricing/quotes/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const existingQuote = await storage.getQuoteProposal(parseInt(req.params.id));
+      if (!existingQuote) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+
+      const { status, approvedAmount, adjustmentReason } = req.body;
+      
+      if (adjustmentReason && approvedAmount !== existingQuote.approvedAmount) {
+        await storage.createQuoteAdjustmentLog({
+          quoteProposalId: existingQuote.id,
+          changeType: status === "approved" ? "approve" : status === "rejected" ? "decline" : "adjust_amount",
+          beforeState: { status: existingQuote.status, approvedAmount: existingQuote.approvedAmount },
+          afterState: { status, approvedAmount },
+          reason: adjustmentReason,
+          changedByUserId: (req.user as any)?.id,
+          changedByRole: "owner",
+        });
+      }
+
+      const quote = await storage.updateQuoteProposal(parseInt(req.params.id), {
+        status,
+        approvedAmount,
+        approvedBy: (req.user as any)?.id,
+        approvedAt: new Date(),
+      });
+      res.json(quote);
+    } catch (error: any) {
+      console.error("[Pricing] Error updating quote:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/pricing/quotes/:id/adjustments", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const logs = await storage.getQuoteAdjustmentLogs(parseInt(req.params.id));
+      res.json(logs);
+    } catch (error: any) {
+      console.error("[Pricing] Error fetching adjustments:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }
