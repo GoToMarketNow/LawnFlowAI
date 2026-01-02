@@ -767,10 +767,32 @@ export const jobberEnrichments = pgTable("jobber_enrichments", {
   enrichmentData: jsonb("enrichment_data"), // full enrichment payload
   syncedToJobber: boolean("synced_to_jobber").default(false),
   lastSyncAt: timestamp("last_sync_at"),
+  lastWriteSource: text("last_write_source"), // "lawnflow" | "external" - for loop prevention
+  lastWriteAt: timestamp("last_write_at"), // timestamp of last LawnFlow write
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => ({
   objectIdx: uniqueIndex("jobber_enrichments_object_idx").on(table.jobberAccountId, table.objectType, table.objectId),
+}));
+
+// Quote-Job Sync - tracks quote-to-job synchronization events
+export const jobberQuoteJobSync = pgTable("jobber_quote_job_sync", {
+  id: serial("id").primaryKey(),
+  jobberAccountId: text("jobber_account_id").notNull(),
+  quoteId: text("quote_id").notNull(),
+  jobId: text("job_id"),
+  idempotencyKey: text("idempotency_key").notNull(), // topic + objectId + updatedAt hash
+  status: text("status").notNull().default("pending"), // pending, processing, applied, change_order, skipped, failed
+  diffComputed: jsonb("diff_computed"), // computed line item diff
+  rulesViolations: text("rules_violations").array(), // which rules were violated
+  appliedChanges: jsonb("applied_changes"), // changes that were applied
+  changeOrderReason: text("change_order_reason"), // reason change order was required
+  error: text("error"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  processedAt: timestamp("processed_at"),
+}, (table) => ({
+  idempotencyIdx: uniqueIndex("jobber_quote_job_sync_idempotency_idx").on(table.idempotencyKey),
+  quoteIdx: uniqueIndex("jobber_quote_job_sync_quote_idx").on(table.jobberAccountId, table.quoteId),
 }));
 
 // Insert schemas for Jobber tables
@@ -791,6 +813,11 @@ export const insertJobberEnrichmentSchema = createInsertSchema(jobberEnrichments
   updatedAt: true,
 });
 
+export const insertJobberQuoteJobSyncSchema = createInsertSchema(jobberQuoteJobSync).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types for Jobber integration
 export type JobberAccount = typeof jobberAccounts.$inferSelect;
 export type InsertJobberAccount = z.infer<typeof insertJobberAccountSchema>;
@@ -800,3 +827,6 @@ export type InsertJobberWebhookEvent = z.infer<typeof insertJobberWebhookEventSc
 
 export type JobberEnrichment = typeof jobberEnrichments.$inferSelect;
 export type InsertJobberEnrichment = z.infer<typeof insertJobberEnrichmentSchema>;
+
+export type JobberQuoteJobSync = typeof jobberQuoteJobSync.$inferSelect;
+export type InsertJobberQuoteJobSync = z.infer<typeof insertJobberQuoteJobSyncSchema>;

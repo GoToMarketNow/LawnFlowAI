@@ -216,6 +216,38 @@ Async webhook processing with GraphQL API integration:
 - `GET /api/jobber/accounts` - List connected Jobber accounts
 - `GET /api/jobber/events` - List recent webhook events
 - `GET /api/jobber/enrichments` - List computed enrichments
+- `GET /api/jobber/quote-job-sync` - List quote-to-job sync events
+- `POST /api/jobber/test-harness/diff` - Test diff computation with sample data
+- `POST /api/jobber/test-harness/replay` - Replay saved webhook payloads
+
+## Quote-to-Job Orchestrator (server/connectors/jobber-quote-job-worker.ts)
+Automatic synchronization of approved quote changes to linked jobs:
+
+### Architecture
+- Listens to QUOTE_APPROVED and QUOTE_UPDATED webhooks
+- Enhanced idempotency using `(topic + objectId + occurredAt)` hash
+- Writeback loop prevention via lastWriteSource tracking (5s buffer)
+- Auto-applies changes within rules, flags change orders for violations
+
+### Rules Engine (server/connectors/jobber-rules.ts)
+Configurable thresholds for auto-apply vs change-order-required:
+- `maxLineItemAddRemoveDollar: 500` - Max dollar value for auto add/remove
+- `maxQuantityChangePercent: 25` - Max quantity change percentage
+- `maxPriceChangePercent: 0` - Any price change requires approval
+- `blockedCategories: ["hardscape install", ...]` - Always requires change order
+
+### Flow
+1. Quote approved/updated -> dedup check -> loop detection
+2. Pull quote via GraphQL, find linked job
+3. Compute line item diff (added/removed/modified)
+4. Evaluate against rules engine
+5. If within rules: auto-apply via GraphQL mutation
+6. If outside rules: set CHANGE_ORDER_REQUIRED flag and add note
+
+### Test Harness (server/connectors/jobber-test-harness.ts)
+- `runDiffTests()` - Unit tests for diff computation
+- `replayWebhook(name)` - Replay sample webhook payloads
+- `replayCustomPayload(payload)` - Replay custom webhook data
 
 ## Recent Changes
 - Jobber webhook integration with async processing and GraphQL client

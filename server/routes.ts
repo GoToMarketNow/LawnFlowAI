@@ -1714,6 +1714,11 @@ export async function registerRoutes(
       
       const result = await jobberWebhookProcessor.receiveWebhook(payload);
       
+      if (payload.topic.startsWith("QUOTE_") || payload.topic.startsWith("JOB_")) {
+        const { handleQuoteJobWebhook } = await import("./connectors/jobber-quote-job-worker");
+        await handleQuoteJobWebhook(payload);
+      }
+      
       const elapsed = Date.now() - startTime;
       console.log(`[Jobber Webhook] Acknowledged ${payload.topic} in ${elapsed}ms`);
       
@@ -1787,6 +1792,62 @@ export async function registerRoutes(
     } catch (error) {
       console.error("[Jobber] Error fetching enrichments:", error);
       res.status(500).json({ error: "Failed to fetch enrichments" });
+    }
+  });
+
+  app.get("/api/jobber/quote-job-sync", async (req, res) => {
+    try {
+      const { getSyncEvents } = await import("./connectors/jobber-quote-job-worker");
+      const accountId = req.query.accountId as string | undefined;
+      const limit = parseInt(req.query.limit as string) || 50;
+      
+      const events = await getSyncEvents(accountId, limit);
+      res.json(events);
+    } catch (error) {
+      console.error("[Jobber] Error fetching sync events:", error);
+      res.status(500).json({ error: "Failed to fetch sync events" });
+    }
+  });
+
+  app.post("/api/jobber/test-harness/diff", async (req, res) => {
+    try {
+      const { computeLineItemDiff, evaluateRules, canAutoApply, getChangeOrderReason, DEFAULT_RULES } = 
+        await import("./connectors/jobber-rules");
+      
+      const { quoteItems, jobItems, rules } = req.body;
+      
+      if (!quoteItems || !jobItems) {
+        return res.status(400).json({ error: "quoteItems and jobItems required" });
+      }
+      
+      const diffs = computeLineItemDiff(quoteItems, jobItems);
+      const result = evaluateRules(diffs, rules || DEFAULT_RULES);
+      
+      res.json({
+        ...result,
+        canAutoApply: canAutoApply(result),
+        changeOrderReason: getChangeOrderReason(result.violations),
+      });
+    } catch (error: any) {
+      console.error("[Jobber] Test harness error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/jobber/test-harness/replay", async (req, res) => {
+    try {
+      const { replayCustomPayload } = await import("./connectors/jobber-test-harness");
+      const { payload, rules } = req.body;
+      
+      if (!payload) {
+        return res.status(400).json({ error: "payload required" });
+      }
+      
+      await replayCustomPayload(payload, { rules });
+      res.json({ success: true, message: "Webhook replayed" });
+    } catch (error: any) {
+      console.error("[Jobber] Replay error:", error);
+      res.status(500).json({ error: error.message });
     }
   });
 

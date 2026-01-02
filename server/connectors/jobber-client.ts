@@ -222,6 +222,103 @@ export class JobberClient {
       })),
     });
   }
+
+  async getJob(jobId: string) {
+    const query = `
+      query GetJob($id: EncodedId!) {
+        job(id: $id) {
+          id
+          title
+          jobNumber
+          jobStatus
+          createdAt
+          client { id name }
+          property { id street city province postalCode }
+          lineItems { nodes { id name description quantity unitPrice total } }
+          amounts { total depositAmount discountAmount subtotal outstanding }
+        }
+      }
+    `;
+    return this.query<{ job: any }>(query, { id: jobId });
+  }
+
+  async getClientJobs(clientId: string, first: number = 10) {
+    const query = `
+      query GetClientJobs($clientId: EncodedId!, $first: Int!) {
+        client(id: $clientId) {
+          id
+          jobs(first: $first, sortBy: { field: CREATED_AT, direction: DESC }) {
+            nodes {
+              id
+              title
+              jobNumber
+              jobStatus
+              createdAt
+            }
+          }
+        }
+      }
+    `;
+    return this.query<{ client: { jobs: { nodes: any[] } } }>(query, { 
+      clientId, 
+      first,
+    });
+  }
+
+  async updateJobLineItems(jobId: string, lineItems: Array<{ name: string; description?: string; quantity: number; unitPrice: number }>) {
+    const mutation = `
+      mutation UpdateJobLineItems($jobId: EncodedId!, $lineItems: [LineItemInput!]!) {
+        jobEdit(jobId: $jobId, lineItems: $lineItems) {
+          job { id }
+          userErrors { message path }
+        }
+      }
+    `;
+    return this.query<{ jobEdit: any }>(mutation, {
+      jobId,
+      lineItems: lineItems.map(li => ({
+        name: li.name,
+        description: li.description || "",
+        quantity: li.quantity.toString(),
+        unitCost: li.unitPrice.toString(),
+      })),
+    });
+  }
+
+  async setJobCustomField(jobId: string, fieldName: string, value: string) {
+    const mutation = `
+      mutation SetJobCustomField($jobId: EncodedId!, $customFieldValues: [CustomFieldValueInput!]!) {
+        jobEdit(jobId: $jobId, customFieldValues: $customFieldValues) {
+          job { id }
+          userErrors { message path }
+        }
+      }
+    `;
+    return this.query<{ jobEdit: any }>(mutation, {
+      jobId,
+      customFieldValues: [{
+        customFieldId: fieldName,
+        valueText: value,
+      }],
+    });
+  }
+
+  async addJobNote(jobId: string, noteText: string) {
+    const mutation = `
+      mutation AddJobNote($input: NoteCreateInput!) {
+        noteCreate(input: $input) {
+          note { id }
+          userErrors { message path }
+        }
+      }
+    `;
+    return this.query<{ noteCreate: any }>(mutation, {
+      input: {
+        linkedToId: jobId,
+        message: noteText,
+      },
+    });
+  }
 }
 
 export async function getJobberClient(accountId: string): Promise<JobberClient> {
