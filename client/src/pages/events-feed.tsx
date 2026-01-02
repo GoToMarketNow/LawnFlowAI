@@ -314,33 +314,42 @@ export default function EventsFeed() {
   
   const params = new URLSearchParams(search);
   const [channelFilter, setChannelFilter] = useState(params.get("channel") || "all");
-  const [customerTypeFilter, setCustomerTypeFilter] = useState(params.get("type") || "all");
+  const [customerTypeFilter, setCustomerTypeFilter] = useState(params.get("customerType") || "all");
   const [statusFilter, setStatusFilter] = useState(params.get("status") || "all");
   const [selectedItem, setSelectedItem] = useState<UnifiedItem | null>(null);
 
-  const queryParams = new URLSearchParams();
-  if (channelFilter !== "all") queryParams.set("channel", channelFilter);
-  if (customerTypeFilter !== "all") queryParams.set("customerType", customerTypeFilter);
-  if (statusFilter !== "all") queryParams.set("status", statusFilter);
+  const buildQueryUrl = () => {
+    const queryParams = new URLSearchParams();
+    if (channelFilter !== "all") queryParams.set("channel", channelFilter);
+    if (customerTypeFilter !== "all") queryParams.set("customerType", customerTypeFilter);
+    if (statusFilter !== "all") queryParams.set("status", statusFilter);
+    const qs = queryParams.toString();
+    return `/api/unified-feed${qs ? `?${qs}` : ""}`;
+  };
 
   const { data, isLoading, error, refetch } = useQuery<UnifiedFeedResponse>({
     queryKey: ["/api/unified-feed", channelFilter, customerTypeFilter, statusFilter],
+    queryFn: async () => {
+      const res = await fetch(buildQueryUrl(), { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
     refetchInterval: 5000,
   });
 
-  const updateFilters = (type: "channel" | "type" | "status", value: string) => {
+  const updateFilters = (filterType: "channel" | "customerType" | "status", value: string) => {
     const newParams = new URLSearchParams(search);
     if (value === "all") {
-      newParams.delete(type);
+      newParams.delete(filterType);
     } else {
-      newParams.set(type, value);
+      newParams.set(filterType, value);
     }
     const newSearch = newParams.toString();
     setLocation(`/events${newSearch ? `?${newSearch}` : ""}`);
     
-    if (type === "channel") setChannelFilter(value);
-    if (type === "type") setCustomerTypeFilter(value);
-    if (type === "status") setStatusFilter(value);
+    if (filterType === "channel") setChannelFilter(value);
+    if (filterType === "customerType") setCustomerTypeFilter(value);
+    if (filterType === "status") setStatusFilter(value);
   };
 
   const stats = data?.stats || {
@@ -422,7 +431,7 @@ export default function EventsFeed() {
         </Card>
         <Card 
           className={`cursor-pointer hover-elevate ${customerTypeFilter === "prospect" ? "ring-2 ring-primary" : ""}`}
-          onClick={() => updateFilters("type", customerTypeFilter === "prospect" ? "all" : "prospect")}
+          onClick={() => updateFilters("customerType", customerTypeFilter === "prospect" ? "all" : "prospect")}
         >
           <CardContent className="pt-4">
             <div className="flex items-center justify-between gap-2">
@@ -460,7 +469,7 @@ export default function EventsFeed() {
                   <SelectItem value="web">Web</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={customerTypeFilter} onValueChange={(v) => updateFilters("type", v)}>
+              <Select value={customerTypeFilter} onValueChange={(v) => updateFilters("customerType", v)}>
                 <SelectTrigger className="w-32" data-testid="select-customer-type">
                   <SelectValue placeholder="Type" />
                 </SelectTrigger>
