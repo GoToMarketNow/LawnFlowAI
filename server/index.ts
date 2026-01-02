@@ -6,6 +6,15 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { storage } from "./storage";
 import { PolicyService } from "./policy";
+import bcrypt from "bcrypt";
+
+const SUPER_ADMIN = {
+  email: "lawnflowai@gmail.com",
+  password: "lawnflowai!",
+  phone: "+15551234567",
+};
+
+let superAdminId: number | null = null;
 
 const app = express();
 const httpServer = createServer(app);
@@ -51,6 +60,15 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+// Auto-login middleware for super admin (development only)
+app.use(async (req: Request, _res: Response, next: NextFunction) => {
+  if (!req.session.userId && superAdminId) {
+    req.session.userId = superAdminId;
+    req.session.email = SUPER_ADMIN.email;
+  }
+  next();
+});
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -114,6 +132,31 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
+  // Seed super admin account
+  try {
+    let existingAdmin = await storage.getUserByEmail(SUPER_ADMIN.email);
+    if (!existingAdmin) {
+      log("Creating super admin account...", "seed");
+      const passwordHash = await bcrypt.hash(SUPER_ADMIN.password, 10);
+      existingAdmin = await storage.createUser({
+        email: SUPER_ADMIN.email,
+        passwordHash,
+        phoneE164: SUPER_ADMIN.phone,
+      });
+      log(`Super admin created: ${SUPER_ADMIN.email}`, "seed");
+    }
+    // Always ensure phone is verified for super admin
+    if (!existingAdmin.phoneVerifiedAt) {
+      await storage.updateUser(existingAdmin.id, {
+        phoneVerifiedAt: new Date(),
+      });
+      log("Super admin phone verified", "seed");
+    }
+    superAdminId = existingAdmin.id;
+  } catch (error) {
+    log(`Failed to create super admin: ${error}`, "seed");
+  }
+
   // Auto-seed database with Green Ridge Lawn Care on startup
   try {
     const existingProfile = await storage.getBusinessProfile();
