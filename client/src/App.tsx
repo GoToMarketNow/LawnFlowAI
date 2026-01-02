@@ -25,6 +25,7 @@ import LoginPage from "@/pages/login";
 import VerifyPhonePage from "@/pages/verify-phone";
 import AgentsPage from "@/pages/agents";
 import AgentDetailPage from "@/pages/agent-detail";
+import ViewsPage from "@/pages/views";
 import NotFound from "@/pages/not-found";
 import { Loader2, AlertCircle } from "lucide-react";
 
@@ -111,6 +112,7 @@ function AuthenticatedLayout() {
               <Route path="/events" component={EventsFeedPage} />
               <Route path="/agents" component={AgentsPage} />
               <Route path="/agents/:id" component={AgentDetailPage} />
+              <Route path="/views" component={ViewsPage} />
               <Route path="/admin/coverage" component={AdminCoveragePage} />
               <Route component={NotFound} />
             </Switch>

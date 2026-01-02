@@ -12,6 +12,7 @@ import {
   CreditCard,
   MapPin,
   Bot,
+  LayoutGrid,
 } from "lucide-react";
 import {
   Sidebar,
@@ -74,6 +75,12 @@ const operationsItems = [
     title: "Agents",
     url: "/agents",
     icon: Bot,
+    requiresOnboarding: true,
+  },
+  {
+    title: "Views",
+    url: "/views",
+    icon: LayoutGrid,
     requiresOnboarding: true,
   },
 ];
