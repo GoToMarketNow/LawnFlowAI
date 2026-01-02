@@ -4379,24 +4379,16 @@ Return JSON format:
       const highPrice = (rangeHigh / 100).toFixed(0);
       const message = `Thanks for your interest! Based on what you've described, we estimate $${lowPrice}-$${highPrice} for this service. Want us to schedule a visit? Reply YES to confirm or call us for questions.`;
 
-      // Send via SMS if Twilio configured
+      // Send via SMS using twilioConnector
       let sent = false;
-      if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
-        try {
-          const twilio = await import("twilio");
-          const client = twilio.default(
-            process.env.TWILIO_ACCOUNT_SID,
-            process.env.TWILIO_AUTH_TOKEN
-          );
-          await client.messages.create({
-            body: message,
-            to: customerPhone,
-            from: process.env.TWILIO_PHONE_NUMBER || "",
-          });
-          sent = true;
-        } catch (smsError) {
-          console.error("[UQB] SMS send failed:", smsError);
+      try {
+        const smsResult = await twilioConnector.sendSMS(customerPhone, message);
+        sent = smsResult.success;
+        if (!sent) {
+          console.log("[UQB] SMS send returned failure:", smsResult);
         }
+      } catch (smsError) {
+        console.error("[UQB] SMS send failed:", smsError);
       }
 
       // Update draft status if provided
