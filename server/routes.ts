@@ -15,6 +15,13 @@ import { PolicyService } from "./policy";
 import { growthAdvisor } from "./growth-advisor";
 import { registerAuthRoutes } from "./auth-routes";
 import { z } from "zod";
+import { 
+  getEligibleCrews, 
+  filterEligibleCrewsWithThresholds, 
+  DEFAULT_THRESHOLDS,
+  type EligibleCrew,
+  type EligibilityThresholds 
+} from "./agents/crewIntelligence";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -4576,7 +4583,13 @@ Return JSON format:
   // --- Optimizer API: Simulate ---
   app.post("/api/optimizer/simulate", async (req, res) => {
     try {
-      const { jobRequestId } = req.body;
+      const { 
+        jobRequestId, 
+        dateRangeDays = 7,
+        skillMatchMinPct = 100,
+        equipmentMatchMinPct = 100 
+      } = req.body;
+      
       if (!jobRequestId) {
         return res.status(400).json({ error: "jobRequestId required" });
       }
@@ -4594,95 +4607,91 @@ Return JSON format:
       // Delete any existing simulations for this job
       await storage.deleteSimulationsForJobRequest(jobRequestId);
 
-      // Get all active crews for this business
-      const crewList = await storage.getCrews(profile.id);
-      const activeCrews = crewList.filter(c => c.isActive);
-
-      if (activeCrews.length === 0) {
-        return res.json({ simulations: [], message: "No active crews available" });
+      // Use Crew Intelligence Agent to get eligible crews with analysis
+      const eligibleCrews = await getEligibleCrews(profile.id, jobRequestId, dateRangeDays);
+      
+      if (eligibleCrews.length === 0) {
+        return res.json({ 
+          simulations: [], 
+          eligibleCrews: [],
+          message: "No crews available" 
+        });
       }
 
-      // Generate simulations for each crew
+      // Build thresholds from request or defaults
+      const thresholds: EligibilityThresholds = {
+        skillMatchMinPct: Math.max(0, Math.min(100, skillMatchMinPct)),
+        equipmentMatchMinPct: Math.max(0, Math.min(100, equipmentMatchMinPct)),
+      };
+
+      // Filter to eligible crews that meet thresholds
+      const fullyEligible = filterEligibleCrewsWithThresholds(eligibleCrews, thresholds);
+
+      if (fullyEligible.length === 0) {
+        return res.json({ 
+          simulations: [], 
+          eligibleCrews,
+          message: "No fully eligible crews - check flags for requirements" 
+        });
+      }
+
+      // Generate simulations for each fully eligible crew
       const simulations = [];
-      const today = new Date();
+      const laborMinutes = jobRequest.laborHighMinutes || jobRequest.laborLowMinutes || 60;
       
-      for (const crew of activeCrews) {
-        // Check skill match
-        const requiredSkills = (jobRequest.requiredSkillsJson as string[]) || [];
-        const crewSkills = (crew.skillsJson as string[]) || [];
-        const hasSkills = requiredSkills.every(s => crewSkills.includes(s));
-        
-        if (!hasSkills && requiredSkills.length > 0) {
-          continue; // Skip crews without required skills
-        }
+      for (const eligibleCrew of fullyEligible) {
+        // Get the actual crew data
+        const crew = await storage.getCrew(eligibleCrew.crewId);
+        if (!crew) continue;
 
-        // Check equipment match
-        const requiredEquip = (jobRequest.requiredEquipmentJson as string[]) || [];
-        const crewEquip = (crew.equipmentJson as string[]) || [];
-        const hasEquip = requiredEquip.every(e => crewEquip.includes(e));
-        
-        if (!hasEquip && requiredEquip.length > 0) {
-          continue; // Skip crews without required equipment
-        }
-
-        // Calculate distance if we have coordinates
+        // Calculate travel time from distance estimate
         let travelMinutes = 15; // Default estimate
-        if (jobRequest.lat && jobRequest.lng && crew.homeBaseLat && crew.homeBaseLng) {
-          // Haversine distance estimate
-          const R = 3959; // Earth radius in miles
-          const dLat = (jobRequest.lat - crew.homeBaseLat) * Math.PI / 180;
-          const dLng = (jobRequest.lng - crew.homeBaseLng) * Math.PI / 180;
-          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                    Math.cos(crew.homeBaseLat * Math.PI / 180) * Math.cos(jobRequest.lat * Math.PI / 180) *
-                    Math.sin(dLng/2) * Math.sin(dLng/2);
-          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-          const distanceMiles = R * c;
-          
-          // Skip if outside service radius
-          if (distanceMiles > crew.serviceRadiusMiles) {
-            continue;
-          }
-          
-          // Estimate travel time at 30 mph average
-          travelMinutes = Math.round(distanceMiles * 2);
+        if (eligibleCrew.distanceFromHomeEstimate !== null) {
+          travelMinutes = Math.round(eligibleCrew.distanceFromHomeEstimate * 2); // ~30 mph average
         }
 
         // Calculate load impact
-        const laborMinutes = jobRequest.laborHighMinutes || jobRequest.laborLowMinutes || 60;
         const loadDelta = laborMinutes + travelMinutes * 2; // Round trip travel
 
         // Score calculation
         const marginScore = Math.max(0, 100 - Math.round(loadDelta / crew.dailyCapacityMinutes * 100));
         const riskScore = Math.round(travelMinutes * 2); // Higher travel = higher risk
-        const totalScore = marginScore * 0.7 + (100 - riskScore) * 0.3;
 
-        // Propose a date (next 5 business days)
-        for (let i = 1; i <= 5; i++) {
-          const proposedDate = new Date(today);
-          proposedDate.setDate(today.getDate() + i);
-          
-          // Skip weekends
-          if (proposedDate.getDay() === 0 || proposedDate.getDay() === 6) {
-            continue;
+        // Create simulations for each day with available capacity
+        for (const dayCapacity of eligibleCrew.capacityRemainingByDay) {
+          if (dayCapacity.minutes < laborMinutes) {
+            continue; // Skip days without enough capacity
           }
+
+          // Calculate day offset from today for date preference scoring
+          const today = new Date();
+          const proposedDate = new Date(dayCapacity.date);
+          const dayOffset = Math.round((proposedDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+          // Adjust total score based on date preference (earlier = better)
+          const dateBonus = Math.max(0, 10 - dayOffset);
+          const capacityBonus = Math.round((dayCapacity.minutes / crew.dailyCapacityMinutes) * 10);
+          const totalScore = marginScore * 0.6 + (100 - riskScore) * 0.2 + dateBonus * 1 + capacityBonus * 1;
 
           const sim = await storage.createSimulation({
             businessId: profile.id,
             jobRequestId,
             crewId: crew.id,
-            proposedDate: proposedDate.toISOString().split('T')[0],
+            proposedDate: dayCapacity.date,
             insertionType: "anytime",
             travelMinutesDelta: travelMinutes,
             loadMinutesDelta: loadDelta,
             marginScore: Math.round(marginScore),
             riskScore: Math.round(riskScore),
-            totalScore: Math.round(totalScore - i * 5), // Prefer earlier dates
+            totalScore: Math.round(totalScore),
             explanationJson: {
               crewName: crew.name,
               travelEstimate: `${travelMinutes} min`,
               laborEstimate: `${laborMinutes} min`,
-              skillMatch: hasSkills,
-              equipMatch: hasEquip,
+              skillMatch: eligibleCrew.skillsMatchPct === 100,
+              equipMatch: eligibleCrew.equipmentMatchPct === 100,
+              capacityRemaining: dayCapacity.minutes,
+              distanceFromHome: eligibleCrew.distanceFromHomeEstimate,
             },
           });
           simulations.push(sim);
@@ -4692,9 +4701,13 @@ Return JSON format:
       // Update job request status
       await storage.updateJobRequest(jobRequestId, { status: "simulated" });
 
-      // Return top simulations sorted by score
+      // Return top simulations sorted by score, plus eligible crews analysis
       const sortedSims = simulations.sort((a, b) => b.totalScore - a.totalScore);
-      res.json({ simulations: sortedSims.slice(0, 10) });
+      res.json({ 
+        simulations: sortedSims.slice(0, 15),
+        eligibleCrews,
+        thresholdsUsed: thresholds,
+      });
     } catch (error: any) {
       console.error("[Optimizer] Error simulating:", error);
       res.status(500).json({ error: error.message });
