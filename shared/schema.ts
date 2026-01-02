@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, serial, integer, timestamp, boolean, jsonb, doublePrecision, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, serial, integer, timestamp, boolean, jsonb, doublePrecision, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -1148,3 +1148,99 @@ export type InsertJobBillingState = z.infer<typeof insertJobBillingStateSchema>;
 
 export type BillingInvoice = typeof billingInvoices.$inferSelect;
 export type InsertBillingInvoice = z.infer<typeof insertBillingInvoiceSchema>;
+
+// ============================================================================
+// Reconciliation & Dead Letter Queue Tables
+// ============================================================================
+
+// Reconciliation alerts for invoice/payment mismatches
+export const reconciliationAlerts = pgTable("reconciliation_alerts", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  jobberAccountId: text("jobber_account_id").notNull(),
+  
+  // Reference to the problematic entity
+  entityType: text("entity_type").notNull(), // invoice, payment, job
+  entityId: text("entity_id").notNull(),
+  jobberInvoiceId: text("jobber_invoice_id"),
+  jobberJobId: text("jobber_job_id"),
+  
+  // Alert details
+  alertType: text("alert_type").notNull(), // payment_mismatch, deposit_inconsistency, missing_payment, overpayment
+  severity: text("severity").notNull().default("warning"), // info, warning, critical
+  
+  // Mismatch data for debugging
+  expectedValue: integer("expected_value"), // cents
+  actualValue: integer("actual_value"), // cents
+  variance: integer("variance"), // cents (actualValue - expectedValue)
+  
+  description: text("description"),
+  
+  // Resolution tracking
+  status: text("status").notNull().default("open"), // open, acknowledged, resolved, ignored
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: text("resolved_by"),
+  resolutionNotes: text("resolution_notes"),
+  
+  // Jobber sync status
+  jobberFieldUpdated: boolean("jobber_field_updated").default(false),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  entityIdx: index("recon_alerts_entity_idx").on(table.jobberAccountId, table.entityType, table.entityId),
+  statusIdx: index("recon_alerts_status_idx").on(table.businessId, table.status),
+}));
+
+// Dead letter queue for failed webhook events
+export const deadLetterQueue = pgTable("dead_letter_queue", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  jobberAccountId: text("jobber_account_id").notNull(),
+  
+  // Original webhook event data
+  webhookEventId: text("webhook_event_id").notNull(),
+  topic: text("topic").notNull(),
+  objectId: text("object_id").notNull(),
+  occurredAt: timestamp("occurred_at"),
+  payload: text("payload"), // JSON stringified webhook payload
+  
+  // Failure tracking
+  failureReason: text("failure_reason").notNull(),
+  failureDetails: text("failure_details"), // Stack trace or additional context
+  failedAt: timestamp("failed_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  
+  // Retry management
+  retryCount: integer("retry_count").default(0).notNull(),
+  maxRetries: integer("max_retries").default(3).notNull(),
+  lastRetryAt: timestamp("last_retry_at"),
+  nextRetryAt: timestamp("next_retry_at"),
+  
+  // Status
+  status: text("status").notNull().default("pending"), // pending, retrying, exhausted, resolved, discarded
+  resolvedAt: timestamp("resolved_at"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  webhookEventIdx: uniqueIndex("dlq_webhook_event_idx").on(table.webhookEventId),
+  statusIdx: index("dlq_status_idx").on(table.status, table.nextRetryAt),
+}));
+
+// Insert schemas
+export const insertReconciliationAlertSchema = createInsertSchema(reconciliationAlerts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertDeadLetterQueueSchema = createInsertSchema(deadLetterQueue).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types
+export type ReconciliationAlert = typeof reconciliationAlerts.$inferSelect;
+export type InsertReconciliationAlert = z.infer<typeof insertReconciliationAlertSchema>;
+
+export type DeadLetterQueueItem = typeof deadLetterQueue.$inferSelect;
+export type InsertDeadLetterQueueItem = z.infer<typeof insertDeadLetterQueueSchema>;

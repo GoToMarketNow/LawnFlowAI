@@ -2578,5 +2578,113 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/reconciliation/summary", async (req, res) => {
+    try {
+      const { getReconciliationSummary } = await import("./workers/reconciliation/reconciliationWorker");
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const summary = await getReconciliationSummary(profile.id);
+      res.json(summary);
+    } catch (error: any) {
+      console.error("[Reconciliation] Error fetching summary:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/reconciliation/alerts", async (req, res) => {
+    try {
+      const { getReconciliationAlerts } = await import("./workers/reconciliation/reconciliationWorker");
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const status = req.query.status as string;
+      const alerts = await getReconciliationAlerts(profile.id, status);
+      res.json(alerts);
+    } catch (error: any) {
+      console.error("[Reconciliation] Error fetching alerts:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/reconciliation/alerts/:id/acknowledge", async (req, res) => {
+    try {
+      const { acknowledgeAlert } = await import("./workers/reconciliation/reconciliationWorker");
+      const alertId = parseInt(req.params.id);
+      
+      await acknowledgeAlert(alertId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Reconciliation] Error acknowledging alert:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/reconciliation/alerts/:id/resolve", async (req, res) => {
+    try {
+      const { resolveAlert } = await import("./workers/reconciliation/reconciliationWorker");
+      const alertId = parseInt(req.params.id);
+      const { resolvedBy, notes } = req.body;
+      
+      await resolveAlert(alertId, resolvedBy || "admin", notes);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Reconciliation] Error resolving alert:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/dlq/summary", async (req, res) => {
+    try {
+      const { getDLQSummary } = await import("./workers/reconciliation/dlqPipeline");
+      const profile = await storage.getBusinessProfile();
+      
+      const summary = await getDLQSummary(profile?.id);
+      res.json(summary);
+    } catch (error: any) {
+      console.error("[DLQ] Error fetching summary:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/dlq/items", async (req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { deadLetterQueue } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const profile = await storage.getBusinessProfile();
+      
+      const items = await db
+        .select()
+        .from(deadLetterQueue)
+        .where(profile ? eq(deadLetterQueue.businessId, profile.id) : undefined)
+        .orderBy(desc(deadLetterQueue.createdAt))
+        .limit(100);
+      
+      res.json(items);
+    } catch (error: any) {
+      console.error("[DLQ] Error fetching items:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/dlq/items/:id/discard", async (req, res) => {
+    try {
+      const { discardItem } = await import("./workers/reconciliation/dlqPipeline");
+      const itemId = parseInt(req.params.id);
+      const { reason } = req.body;
+      
+      await discardItem(itemId, reason);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[DLQ] Error discarding item:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }

@@ -418,13 +418,51 @@ export class JobberClient {
           paymentStatus
           dueDate
           issuedDate
-          amounts { total outstanding subtotal }
+          amounts { total outstanding subtotal paid }
           job { id title }
           client { id name }
         }
       }
     `;
     return this.query<{ invoice: any }>(query, { id: invoiceId });
+  }
+
+  async getInvoicePayments(invoiceId: string) {
+    const query = `
+      query GetInvoicePayments($id: EncodedId!) {
+        invoice(id: $id) {
+          id
+          payments {
+            nodes {
+              id
+              amount
+              paymentMethod
+              paymentDate
+              note
+              createdAt
+            }
+          }
+        }
+      }
+    `;
+    return this.query<{ invoice: { payments: { nodes: any[] } } }>(query, { id: invoiceId });
+  }
+
+  async getPayment(paymentId: string) {
+    const query = `
+      query GetPayment($id: EncodedId!) {
+        payment(id: $id) {
+          id
+          amount
+          paymentMethod
+          paymentDate
+          note
+          invoice { id invoiceNumber }
+          createdAt
+        }
+      }
+    `;
+    return this.query<{ payment: any }>(query, { id: paymentId });
   }
 
   async getJobInvoices(jobId: string) {

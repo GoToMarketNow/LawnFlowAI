@@ -36,6 +36,8 @@ const SUPPORTED_TOPICS = [
   "VISIT_APPROVED",
   "INVOICE_CREATED",
   "INVOICE_PAID",
+  "PAYMENT_CREATED",
+  "PAYMENT_UPDATED",
 ];
 
 const MAX_RETRY_ATTEMPTS = 3;
@@ -171,6 +173,8 @@ class JobberWebhookProcessor {
         await this.handleVisitEvent(accountId, objectId, topic, data, webhookEventId);
       } else if (topic.startsWith("INVOICE_")) {
         await this.handleInvoiceEvent(accountId, objectId, topic, data, webhookEventId);
+      } else if (topic.startsWith("PAYMENT_")) {
+        await this.handlePaymentEvent(accountId, objectId, topic, data, webhookEventId);
       }
 
       await db
@@ -434,6 +438,7 @@ class JobberWebhookProcessor {
     console.log(`[Jobber Webhook] Processing invoice event: ${topic} for invoice ${objectId}`);
     
     const { processBillingEvent } = await import("../workers/billing/billingWorker");
+    const { processReconciliationEvent } = await import("../workers/reconciliation/reconciliationWorker");
     
     const [account] = await db
       .select()
@@ -460,6 +465,61 @@ class JobberWebhookProcessor {
       }
     } catch (error) {
       console.error(`[Jobber Webhook] Billing processing error for invoice:`, error);
+    }
+
+    // Process reconciliation for all INVOICE_* events
+    try {
+      const reconResult = await processReconciliationEvent(accountId, {
+        accountId,
+        objectId,
+        topic,
+        occurredAt: new Date().toISOString(),
+        data,
+      });
+      if (reconResult.alertCreated) {
+        console.log(`[Jobber Webhook] Reconciliation alert ${reconResult.alertId} created for invoice ${objectId}`);
+      }
+    } catch (error) {
+      console.error(`[Jobber Webhook] Reconciliation error for invoice:`, error);
+    }
+  }
+
+  private async handlePaymentEvent(
+    accountId: string,
+    objectId: string,
+    topic: string,
+    data: any,
+    webhookEventId: string
+  ): Promise<void> {
+    console.log(`[Jobber Webhook] Processing payment event: ${topic} for payment ${objectId}`);
+    
+    const { processReconciliationEvent } = await import("../workers/reconciliation/reconciliationWorker");
+    
+    const [account] = await db
+      .select()
+      .from(jobberAccounts)
+      .where(eq(jobberAccounts.jobberAccountId, accountId))
+      .limit(1);
+    
+    if (!account?.businessId) {
+      console.log(`[Jobber Webhook] No business linked to account ${accountId}, skipping payment`);
+      return;
+    }
+
+    // Process reconciliation for PAYMENT_* events
+    try {
+      const reconResult = await processReconciliationEvent(accountId, {
+        accountId,
+        objectId,
+        topic,
+        occurredAt: new Date().toISOString(),
+        data,
+      });
+      if (reconResult.alertCreated) {
+        console.log(`[Jobber Webhook] Reconciliation alert ${reconResult.alertId} created from payment ${objectId}`);
+      }
+    } catch (error) {
+      console.error(`[Jobber Webhook] Reconciliation error for payment:`, error);
     }
   }
 
