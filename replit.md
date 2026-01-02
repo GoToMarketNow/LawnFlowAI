@@ -33,6 +33,12 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
   - Decision workflow with draft → approved → written_back states
   - Distance caching for travel time optimization
   - API endpoints: /api/ops/crews, /api/ops/jobs, /api/ops/simulations, /api/optimizer/simulate, /api/optimizer/decide, /api/optimizer/approve
+- **Optimizer Orchestrator Agent:** Manages end-to-end decision workflow for job assignments:
+  - createDecision: Creates draft decisions from selected simulations with rich reasoningJson (scoring breakdown, selection rationale, alternatives considered)
+  - approveDecision: RBAC-enforced approval with configurable allowCrewLeadApprove flag
+  - writebackDecision: Placeholder stub for Jobber integration (logs only, updates status to written_back)
+  - RBAC enforcement: OWNER/ADMIN can create and approve; CREW_LEAD can create but not approve unless flag enabled; STAFF denied
+  - Status transitions visible in API responses: draft → approved → written_back with timestamps and user attribution
 - **Reconciliation Worker:** Validates invoice/payment integrity by comparing paid_total against sum of payments. Creates alerts for mismatches >$0.01 variance and handles deposit consistency checks. Updates Jobber RECON_STATUS custom field (NEEDS_REVIEW/OK) and includes a Dead Letter Queue (DLQ) pipeline for failed webhooks with exponential backoff retry.
 - **Customer Comms Worker:** Produces customer-facing messages with strict tone and compliance rules. Uses templates by service category (lawn_maintenance, hardscape, general). Compliance rules: never promise exact arrival unless GPS-driven ETA, always include reschedule options. Writes Jobber-visible log pointer via LAWNFLOW_COMM_LOG custom field. Handles JOB_SCHEDULE_UPDATE (rescheduled) and JOB_COMPLETED events.
 - **Renewal & Upsell Worker:** Weekly scan for clients with completed jobs, computes next-best-offer by service + season + lot size using deterministic rules engine. Creates draft quotes in Jobber. Gated by UPSELL_OPT_IN custom field. Tracks offered packages via LAWNFLOW_LAST_OFFER custom field to prevent duplicates. Includes offer catalog JSON with 15+ seasonal service offers.
