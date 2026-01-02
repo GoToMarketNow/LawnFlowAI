@@ -1,0 +1,499 @@
+You are a senior front-end engineer working in the existing LawnFlow MVP repo in Replit.
+
+CONTEXT
+We have deployed LawnFlow “AI Workers” (agents) that run asynchronously based on Jobber webhooks and scheduled runs.
+We now need to update the front-end (dashboard + navigation) to reflect:
+1) Agent catalog + agent management (activate/deactivate/pause, force run)
+2) KPI monitoring per agent and per role
+3) Views feature: pre-built role dashboards for:
+   - Owner / Operator
+   - Crew Leader
+   - Operations
+   - Finance & Accounting
+4) NEW: Agent Health Score + Value Attribution to continually reinforce value realized from automation.
+
+GOALS
+- Make the product feel like a control center for autonomous operations.
+- Allow users to understand value drivers, current health, and workload.
+- Allow operational control of agents (toggle, pause, force run).
+- Provide role-based dashboards with relevant KPIs and actionable alerts.
+- Make value visible: show quantified outcomes, trendlines, and “automation dividend” over time.
+
+STACK ASSUMPTIONS (adjust to repo)
+- Front-end framework already in repo (React + TypeScript preferred).
+- UI library (use what exists; if none, use a minimal component approach).
+- Back-end already exposes agent status and metrics OR we will add simple endpoints.
+
+DELIVERABLES
+1) A new front-end information architecture (IA) and routes
+2) Components for:
+   - Agent Catalog + Agent Detail
+   - Agent Controls (toggle/pause/force run)
+   - Agent Runs table + logs viewer
+   - Role-based Views dashboards
+   - Metrics cards and time-range filters
+   - Alerts/Exceptions panel
+   - NEW: Health Score and Value Attribution panels + drilldowns
+3) State management + data fetching strategy
+4) Minimal backend contract (API endpoints + JSON shapes) needed to power the UI
+5) Implementation plan + TODOs, with code changes applied in repo
+
+========================================================
+PART A — INFORMATION ARCHITECTURE (IA)
+Implement a left-nav structure:
+
+1) Dashboard
+   - default: Role View selection (Owner / Crew Leader / Ops / Finance)
+   - persistent top controls: Account selector (Jobber account), Date range, Environment (prod/sandbox if applicable)
+   - NEW: A “Value this period” summary strip + “Health overview” strip
+
+2) Agents
+   - Agent Catalog (list of all workers)
+   - Agent Detail (for each agent)
+     - Overview: purpose, trigger types, last run result, status
+     - Controls: Activate/Deactivate, Pause (with reason + duration), Force Run
+     - KPIs: agent-specific metrics
+     - NEW: Health Score breakdown + Value Attribution breakdown
+     - Recent Runs: run history table with filters + rerun
+     - Errors: error list + retry + “suppress alert” option
+
+3) Views (Role Dashboards)
+   - Owner / Operator
+   - Crew Leader
+   - Operations
+   - Finance & Accounting
+   - (Optional) Custom Views (later): saved dashboard configs
+
+4) Activity
+   - Unified run stream (all agents)
+   - Webhook events received (ingest health)
+   - System notifications
+
+5) Settings
+   - Integrations: Jobber connection status, webhook status
+   - Agent defaults: global run windows, guardrails, rate limits
+   - Roles & access (MVP: local role switcher)
+
+========================================================
+PART B — AGENT CATALOG MODEL (FRONT-END)
+Define an agent registry used by UI to render consistent cards and KPIs.
+
+Agents (IDs must match backend):
+A) intake_enrichment
+B) quote_job_orchestrator
+C) dispatch_routing
+D) margin_variance
+E) billing_orchestrator
+F) reconciliation
+G) customer_comms
+H) renewal_upsell
+
+For each agent include:
+- id
+- name
+- one-liner value (business outcome)
+- category: (Intelligence, Lifecycle, Dispatch, Margin, Billing, Finance, CX, Growth)
+- triggers: [webhook, schedule, manual]
+- controls supported: toggle, pause, force_run
+- risk level badge: low/med/high (based on writeback capability)
+- primary value drivers (2–4) such as:
+  - time_saved_minutes
+  - revenue_protected_usd
+  - cash_accelerated_usd
+  - churn_reduced_proxy
+  - route_efficiency_gain_proxy
+- default KPIs and health inputs (see Parts D & H)
+
+========================================================
+PART C — AGENT MANAGEMENT UI REQUIREMENTS
+1) Agent Catalog Page
+- Grid/list view of agents with:
+  - Status pill: Active / Paused / Disabled
+  - Health: Healthy / Degraded / Failing (based on Health Score)
+  - Last run timestamp + outcome
+  - Key KPI snapshot (2–3 quick numbers)
+  - NEW: “Value this period” chip (e.g., “+$1,240 protected” or “3.2 hrs saved”)
+  - “Force run” button (if allowed)
+  - “View details” link
+
+2) Agent Detail Page
+- Header: Name, status, last run, next scheduled run (if schedule-based)
+- Controls:
+  - Activate/Deactivate toggle
+  - Pause control:
+    - pause duration presets: 1h, 4h, 24h, 7d, custom
+    - require a reason text field
+  - Force Run:
+    - choose mode: dry-run vs apply (if supported)
+    - optional scope: account + date window + job IDs (MVP can be just “run now”)
+- Tabs:
+  - Overview (value, triggers, what it writes back)
+  - Metrics (KPIs with time range)
+  - NEW: Health (score + factors + trend)
+  - NEW: Value (attribution model + outcomes + trend + drilldown)
+  - Runs (table of runs)
+  - Errors (exceptions, retries, DLQ items)
+  - Config (view-only in MVP, editable later)
+
+3) Runs & Logs
+- Runs table columns:
+  - started_at, duration, trigger_type, scope, outcome, records_processed, writes_attempted, writes_succeeded, error_count
+  - NEW: value_delta (if computed per run)
+- Run detail drawer:
+  - summary
+  - event IDs processed
+  - error stack traces (redacted)
+  - links to impacted Jobber entities (if available)
+  - NEW: “Value produced” section (e.g., “Invoice sent 2 days sooner: $X cash accelerated (proxy)”)
+
+========================================================
+PART D — ROLE-BASED VIEWS (DASHBOARDS)
+Create four pre-built dashboards. Each dashboard has:
+- KPI Cards (top)
+- NEW: Value Attribution summary (this period + trend)
+- NEW: Health overview (agent health distribution + top issues)
+- Exceptions & Alerts panel
+- “What changed recently” activity feed
+- Action shortcuts
+
+1) Owner / Operator View (Value & Revenue)
+KPI cards:
+- Jobs scheduled (next 7 days)
+- Revenue pipeline (approved quotes + sent invoices)
+- Cash collected (payments last 7/30)
+- Route efficiency proxy (jobs per crew-day, or miles per job if available)
+- Automation impact (events processed + actions taken)
+Value summary:
+- Time saved (hrs)
+- Revenue protected (USD proxy)
+- Cash accelerated (USD proxy)
+- Churn risk prevented (proxy count)
+Health overview:
+- Healthy / Degraded / Failing agents count + top 3 failing factors
+Alerts:
+- High margin risk jobs
+- Overdue invoices
+- Sync failures
+- Customer churn risk flags
+Shortcuts:
+- Force run Dispatch & Routing
+- Review Margin Risk queue
+- Force run Billing / Reconciliation
+
+2) Crew Leader View (Today Execution)
+KPI cards:
+- Today’s stops per crew
+- On-time start %
+- Jobs at risk today (late, missing info, access issues)
+- Customer comms sent today
+Value summary:
+- Route changes avoided (proxy)
+- Time saved on comms (mins)
+Health overview:
+- Dispatch agent health + webhook ingest health
+Alerts:
+- Route changes since morning
+- Properties missing access notes
+- Weather delay updates
+Shortcuts:
+- View today’s route plan
+- Mark “Issue encountered” (creates exception)
+
+3) Operations View (Dispatch + Lifecycle Health)
+KPI cards:
+- Schedule changes today
+- Jobs rescheduled due to constraints
+- Quote → job drift count (detected vs resolved)
+- Agent health score (weighted overall)
+- Webhook ingest health (events/min + errors)
+Value summary:
+- Manual dispatch actions avoided (proxy)
+- Quote→job drift auto-resolved count
+Health overview:
+- Agent health distribution + DLQ backlog
+Alerts:
+- Dispatch conflicts
+- Quote/job mismatch needing approval
+- Worker failures / DLQ backlog
+Shortcuts:
+- Pause Dispatch agent
+- Force run Lifecycle Cleanup
+- Open exceptions queue
+
+4) Finance & Accounting View (Reconciliation + Billing)
+KPI cards:
+- Invoices sent vs paid (7/30)
+- Average days to pay (if available)
+- Deposit/progress billing coverage (hardscape)
+- Reconciliation exceptions count
+- Sync health score
+Value summary:
+- Cash accelerated (USD proxy)
+- Reconciliation time saved (mins)
+- Exceptions prevented (count)
+Health overview:
+- Billing + reconciliation health factors
+Alerts:
+- Payment mismatches
+- Over/under paid invoices
+- Deposit unapplied
+- Failed payment attempts
+Shortcuts:
+- Force run Reconciliation worker
+- Review exception queue
+
+========================================================
+PART E — DATA CONTRACT (MINIMUM BACKEND ENDPOINTS)
+If not already present, implement these endpoints in the API layer and consume them in UI:
+
+1) GET /api/agents
+Response:
+[
+  {
+    "id": "dispatch_routing",
+    "status": "active|paused|disabled",
+    "health": {
+      "state": "healthy|degraded|failing",
+      "score": 0-100,
+      "trend": { "direction": "up|down|flat", "delta": number },
+      "topFactors": [
+        { "key": "success_rate", "weight": 0.25, "value": 0.97, "status": "ok|warn|bad" },
+        { "key": "dlq_backlog", "weight": 0.15, "value": 12, "status": "warn" }
+      ]
+    },
+    "lastRunAt": "ISO",
+    "nextRunAt": "ISO|null",
+    "kpiSnapshot": { ... },
+    "valueSnapshot": {
+      "timeSavedMinutes": number,
+      "revenueProtectedUsd": number,
+      "cashAcceleratedUsd": number,
+      "exceptionsPrevented": number
+    },
+    "controls": { "canForceRun": true, "canPause": true }
+  }
+]
+
+2) GET /api/agents/:id
+Response:
+{
+  "id": "...",
+  "status": "...",
+  "config": { ... },
+  "kpis": { ...timeseries or aggregates... },
+  "health": { ...score + breakdown + timeseries... },
+  "value": { ...attribution breakdown + timeseries... },
+  "lastRuns": [ ... ],
+  "recentErrors": [ ... ]
+}
+
+3) POST /api/agents/:id/activate
+4) POST /api/agents/:id/deactivate
+5) POST /api/agents/:id/pause
+Body: { "durationMinutes": 240, "reason": "..." }
+6) POST /api/agents/:id/resume
+
+7) POST /api/agents/:id/force-run
+Body: { "mode": "dry_run|apply", "scope": { "accountId": "...", "dateFrom": "...", "dateTo": "..."} }
+
+8) GET /api/views/:role (owner|crew_leader|ops|finance)
+Response:
+{
+  "role": "ops",
+  "kpis": { ... },
+  "healthOverview": {
+     "overallScore": 0-100,
+     "agents": { "healthy": n, "degraded": n, "failing": n },
+     "topIssues": [ { "issue": "webhook_errors", "count": 12 }, ... ]
+  },
+  "valueOverview": {
+     "timeSavedMinutes": n,
+     "revenueProtectedUsd": n,
+     "cashAcceleratedUsd": n,
+     "exceptionsPrevented": n,
+     "byAgent": [ { "agentId": "...", "timeSavedMinutes": n, ... } ]
+  },
+  "alerts": [ ... ],
+  "activity": [ ... ]
+}
+
+9) GET /api/activity?range=7d
+10) GET /api/alerts?role=ops&status=open
+
+NEW: recommended data tables in backend if missing
+- AgentRunLog:
+  run_id, agent_id, account_id, started_at, finished_at, outcome, trigger_type, records_processed,
+  writes_attempted, writes_succeeded, error_count, metadata_json, created_by ("system|manual")
+- AgentValueEvent (optional):
+  id, agent_id, run_id, account_id, timestamp, value_type, value_amount, value_unit, confidence, metadata_json
+- AgentHealthSnapshot (optional):
+  id, agent_id, account_id, timestamp, score, factors_json
+
+========================================================
+PART F — HEALTH SCORE MODEL (DISPLAY + COMPUTE CONTRACT)
+Implement a consistent Health Score model and visualize it everywhere.
+
+Health Score = 0..100 composite with weighted factors.
+Start with these factors (can be tuned in backend config):
+1) success_rate (last N runs): weight 0.30
+2) recent_failure_streak: weight 0.15
+3) dlq_backlog_count: weight 0.15
+4) api_rate_limit_events (429s): weight 0.10
+5) webhook_ingest_error_rate: weight 0.10
+6) writeback_failure_rate: weight 0.10
+7) avg_latency_ms (p95): weight 0.10
+
+Normalize each factor to 0..1 and compute:
+score = 100 * (1 - Σ(weight_i * penalty_i))
+
+Health state mapping:
+- healthy: score >= 85
+- degraded: 60 <= score < 85
+- failing: score < 60
+
+UI requirements:
+- Health pill + numeric score
+- “Top factors” list (largest contributors to penalty)
+- Trend: compare to prior period (7d vs previous 7d)
+- Drilldown: click factor -> filtered runs/errors
+
+========================================================
+PART G — VALUE ATTRIBUTION MODEL (DISPLAY + COMPUTE CONTRACT)
+We need a “Value Attribution” layer to reinforce realized gains.
+
+MVP approach:
+- Use proxy measures with transparent labeling:
+  - “Estimated time saved”
+  - “Estimated cash accelerated”
+  - “Estimated revenue protected”
+  - “Exceptions prevented”
+- Each value metric should include:
+  - value amount
+  - confidence (low/med/high)
+  - method label (“proxy”)
+  - drilldown to events/runs
+
+Define baseline value formulas (simple, configurable):
+1) time_saved_minutes
+- For each automated action type, assign a time value:
+  - auto_route_plan_published = 20 min saved
+  - auto_customer_update_sent = 3 min saved each
+  - quote_job_drift_auto_resolved = 12 min saved
+  - reconciliation_exception_auto_resolved = 15 min saved
+  - billing_invoice_auto_created = 8 min saved
+Total time saved = Σ(actions_count * time_per_action)
+
+2) cash_accelerated_usd
+- Proxy: invoice created/sent earlier than typical cycle.
+- For billing orchestrator runs:
+  cash_accelerated_usd += invoice_amount * (days_accelerated / 30) * cash_flow_weight
+  (cash_flow_weight default 0.25 to keep conservative)
+
+3) revenue_protected_usd
+- Proxy from margin variance sentinel alerts:
+  revenue_protected_usd += estimated_margin_at_risk * mitigation_probability
+  Where mitigation_probability defaults to 0.2 unless user marks “resolved”.
+
+4) exceptions_prevented
+- Count of:
+  - duplicate prevention events
+  - reconciled mismatches auto-resolved
+  - dispatch conflicts auto-resolved
+  - comms prevented inbound “where are you” calls (proxy from comms sent)
+
+UI requirements:
+- “Value this period” strip on Dashboard + Views
+- Value by agent stacked list (with agent chips)
+- Trend chart by week (optional)
+- Drilldown table:
+  timestamp, agent, value_type, value_amount, confidence, linked run
+
+Labeling:
+- Always label these as “estimates/proxies” in MVP.
+- Provide a “How it’s calculated” tooltip per metric.
+- Provide settings later to adjust time-per-action assumptions.
+
+========================================================
+PART H — FRONT-END IMPLEMENTATION DETAILS
+1) Layout
+- Left nav + top bar (account selector + role selector + date range)
+- Add two global strips on Dashboard:
+  - Health Overview (overall + distribution + top issues)
+  - Value Overview (time saved + cash accelerated + protected + exceptions)
+
+2) State and fetching
+- Use react-query (or existing data layer) with caching and refetch intervals:
+  - agents list: refetch 30s
+  - agent detail: refetch 15s when active
+  - alerts: refetch 30s
+  - view dashboards: refetch 30s
+- Optimistic UI for toggles; rollback on error
+
+3) RBAC / Roles (MVP)
+- Implement role selector in UI (stored in local storage) to switch Views
+- Future: replace with real auth + role claims
+
+4) UX conventions
+- Status colors and icons:
+  - Active: green
+  - Paused: yellow
+  - Disabled: gray
+  - Failing: red
+- Dangerous operations (deactivate): confirmation modal
+- Force run: always show “may write back to Jobber” warning
+- Health: show score + factor chips; clicking chips filters runs
+
+5) KPI conventions
+- Each KPI card supports:
+  - value, delta vs prior period, sparkline (optional)
+  - click-through to detail (alerts or agent page)
+
+========================================================
+PART I — BUILD STEPS (DO THIS IN REPO)
+1) Add new routes/pages:
+- /dashboard
+- /agents
+- /agents/:id
+- /views/:role
+- /activity
+- /settings
+
+2) Create shared components:
+- AgentCard, AgentStatusPill, HealthBadge, HealthBreakdownPanel
+- KPIStatCard
+- ValueAttributionStrip, ValueByAgentList, ValueMethodTooltip
+- AlertsPanel
+- RunsTable + RunDetailDrawer
+- ForceRunModal
+- PauseAgentModal
+- RoleViewSwitcher
+- DateRangePicker
+- AccountSelector
+
+3) Implement role dashboards using a “DashboardLayout” that accepts a config object:
+- cards[], panels[], shortcuts[]
+- include HealthOverviewPanel + ValueOverviewPanel
+
+4) Wire API calls and build types for responses.
+
+5) Add empty-state UX:
+- No Jobber connected
+- No events received
+- Agents disabled
+- Value attribution unavailable (show “Enable value tracking”)
+
+6) Add a “Demo mode” (mock API responses) if backend endpoints not ready.
+
+========================================================
+OUTPUT FORMAT
+- First, brief summary of changes
+- Then list files created/modified
+- Then implement changes in the repository (actual code edits), including:
+  - new pages
+  - new components
+  - data fetching
+  - basic styling consistent with existing system
+- Do not break existing flows.
+- Add TODO comments where backend endpoints are missing.
+
+Begin now.
