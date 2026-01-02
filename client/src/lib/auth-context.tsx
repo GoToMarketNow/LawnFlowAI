@@ -7,6 +7,7 @@ interface User {
   id: number;
   email: string;
   phoneVerified: boolean;
+  role: string;
 }
 
 interface AuthContextType {

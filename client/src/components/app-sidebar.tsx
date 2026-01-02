@@ -49,6 +49,12 @@ const primaryNavItems = [
 
 const operationsItems = [
   {
+    title: "Ops Dashboard",
+    url: "/ops",
+    icon: LayoutGrid,
+    requiresOnboarding: true,
+  },
+  {
     title: "Communications",
     url: "/events",
     icon: Radio,

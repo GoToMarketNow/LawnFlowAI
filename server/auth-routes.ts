@@ -365,6 +365,7 @@ export function registerAuthRoutes(app: Express): void {
           id: user.id,
           email: user.email,
           phoneVerified: !!user.phoneVerifiedAt,
+          role: user.role || "owner",
         },
       });
     } catch (error) {
