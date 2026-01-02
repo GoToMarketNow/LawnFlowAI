@@ -34,6 +34,8 @@ const SUPPORTED_TOPICS = [
   "VISIT_UPDATE",
   "VISIT_COMPLETED",
   "VISIT_APPROVED",
+  "INVOICE_CREATED",
+  "INVOICE_PAID",
 ];
 
 const MAX_RETRY_ATTEMPTS = 3;
@@ -167,6 +169,8 @@ class JobberWebhookProcessor {
         await this.handleJobEvent(accountId, objectId, topic, data, webhookEventId);
       } else if (topic.startsWith("VISIT_")) {
         await this.handleVisitEvent(accountId, objectId, topic, data, webhookEventId);
+      } else if (topic.startsWith("INVOICE_")) {
+        await this.handleInvoiceEvent(accountId, objectId, topic, data, webhookEventId);
       }
 
       await db
@@ -300,6 +304,7 @@ class JobberWebhookProcessor {
     
     const { enqueueDispatch } = await import("../workers/dispatch/dispatcher");
     const { processMarginEvent } = await import("../workers/margin/marginWorker");
+    const { processBillingEvent } = await import("../workers/billing/billingWorker");
     
     const [account] = await db
       .select()
@@ -326,6 +331,22 @@ class JobberWebhookProcessor {
       }
     } catch (error) {
       console.error(`[Jobber Webhook] Margin processing error:`, error);
+    }
+
+    // Process billing for milestone events
+    try {
+      const billingResult = await processBillingEvent(accountId, {
+        accountId,
+        objectId,
+        topic,
+        occurredAt: new Date().toISOString(),
+        data,
+      });
+      if (billingResult.invoiceCreated) {
+        console.log(`[Jobber Webhook] Invoice ${billingResult.invoiceId} created for job ${objectId}`);
+      }
+    } catch (error) {
+      console.error(`[Jobber Webhook] Billing processing error:`, error);
     }
 
     // Trigger dispatch recompute for schedule-affecting events
@@ -383,6 +404,45 @@ class JobberWebhookProcessor {
       }
     } catch (error) {
       console.error(`[Jobber Webhook] Margin processing error for visit:`, error);
+    }
+  }
+
+  private async handleInvoiceEvent(
+    accountId: string,
+    objectId: string,
+    topic: string,
+    data: any,
+    webhookEventId: string
+  ): Promise<void> {
+    console.log(`[Jobber Webhook] Processing invoice event: ${topic} for invoice ${objectId}`);
+    
+    const { processBillingEvent } = await import("../workers/billing/billingWorker");
+    
+    const [account] = await db
+      .select()
+      .from(jobberAccounts)
+      .where(eq(jobberAccounts.jobberAccountId, accountId))
+      .limit(1);
+    
+    if (!account?.businessId) {
+      console.log(`[Jobber Webhook] No business linked to account ${accountId}, skipping invoice`);
+      return;
+    }
+
+    // Process billing stage updates for INVOICE_PAID events
+    try {
+      const billingResult = await processBillingEvent(accountId, {
+        accountId,
+        objectId,
+        topic,
+        occurredAt: new Date().toISOString(),
+        data,
+      });
+      if (billingResult.billingStageUpdated) {
+        console.log(`[Jobber Webhook] Billing stage updated after invoice ${objectId} paid`);
+      }
+    } catch (error) {
+      console.error(`[Jobber Webhook] Billing processing error for invoice:`, error);
     }
   }
 
