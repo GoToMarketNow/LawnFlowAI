@@ -26,6 +26,7 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
 - **Lot Size Resolver:** FREE-FIRST lot size resolution with multi-tier caching (geocode, parcel) and ArcGIS integration to provide accurate property data for quoting.
 - **Jobber Integration:** Asynchronous webhook processing for Jobber events, GraphQL API integration for data enrichment, OAuth token management, and idempotent webhook handling. Includes a Quote-to-Job Orchestrator for syncing approved quote changes to jobs based on a configurable rules engine.
 - **Dispatch & Routing Worker:** Intelligent route planning and crew dispatch with event-driven and nightly modes. Employs a greedy route optimization algorithm using Haversine distance. Manages crew rosters, equipment capabilities, and applies plans to Jobber.
+- **Reconciliation Worker:** Validates invoice/payment integrity by comparing paid_total against sum of payments. Creates alerts for mismatches >$0.01 variance and handles deposit consistency checks. Updates Jobber RECON_STATUS custom field (NEEDS_REVIEW/OK) and includes a Dead Letter Queue (DLQ) pipeline for failed webhooks with exponential backoff retry.
 - **Key Features:** Dashboard with ROI metrics, conversation overview, pending actions for human approval, business profile configuration, event simulator, job tracking, and audit logging.
 
 **System Design Choices:**
