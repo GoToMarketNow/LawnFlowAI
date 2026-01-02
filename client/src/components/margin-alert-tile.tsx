@@ -160,7 +160,7 @@ export function MarginAlertTile() {
   });
 
   const { data: alerts, isLoading: loadingAlerts } = useQuery<MarginAlert[]>({
-    queryKey: ["/api/margin/alerts", { status: "open" }],
+    queryKey: ["/api/margin/alerts?status=open"],
     refetchInterval: 30000,
   });
 
@@ -171,7 +171,7 @@ export function MarginAlertTile() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/margin/alerts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/margin/alerts?status=open"] });
       queryClient.invalidateQueries({ queryKey: ["/api/margin/summary"] });
       toast({ title: "Alert acknowledged" });
     },
@@ -185,7 +185,7 @@ export function MarginAlertTile() {
       await apiRequest("POST", `/api/margin/alerts/${alertId}/dismiss`, {});
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/margin/alerts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/margin/alerts?status=open"] });
       queryClient.invalidateQueries({ queryKey: ["/api/margin/summary"] });
       toast({ title: "Alert dismissed" });
     },
