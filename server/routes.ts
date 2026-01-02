@@ -23,6 +23,7 @@ import {
   type EligibilityThresholds 
 } from "./agents/crewIntelligence";
 import { evaluateFeasibility, type FeasibilityResult } from "./agents/jobFeasibility";
+import { getCrewToJobTravelMinutes, type TravelEstimate } from "./agents/routeCost";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -4645,10 +4646,23 @@ Return JSON format:
         const crew = await storage.getCrew(eligibleCrew.crewId);
         if (!crew) continue;
 
-        // Calculate travel time from distance estimate
+        // Calculate travel time using Route Cost Agent (with caching)
         let travelMinutes = 15; // Default estimate
-        if (eligibleCrew.distanceFromHomeEstimate !== null) {
-          travelMinutes = Math.round(eligibleCrew.distanceFromHomeEstimate * 2); // ~30 mph average
+        let travelSource: "api" | "cache" | "haversine" | "estimate" = "estimate";
+        
+        const travelEstimate = await getCrewToJobTravelMinutes(
+          profile.id,
+          { lat: crew.homeBaseLat, lng: crew.homeBaseLng },
+          { lat: jobRequest.lat, lng: jobRequest.lng }
+        );
+        
+        if (travelEstimate) {
+          travelMinutes = travelEstimate.minutes;
+          travelSource = travelEstimate.source;
+        } else if (eligibleCrew.distanceFromHomeEstimate !== null) {
+          // Fallback to Haversine distance estimate from crew intelligence
+          travelMinutes = Math.round(eligibleCrew.distanceFromHomeEstimate * 2);
+          travelSource = "haversine";
         }
 
         // Calculate load impact
@@ -4704,6 +4718,7 @@ Return JSON format:
             explanationJson: {
               crewName: crew.name,
               travelEstimate: `${travelMinutes} min`,
+              travelSource,
               laborEstimate: `${laborMinutes} min`,
               skillMatch: eligibleCrew.skillsMatchPct === 100,
               equipMatch: eligibleCrew.equipmentMatchPct === 100,
