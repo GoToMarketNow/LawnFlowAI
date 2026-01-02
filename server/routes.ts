@@ -22,6 +22,7 @@ import {
   type EligibleCrew,
   type EligibilityThresholds 
 } from "./agents/crewIntelligence";
+import { evaluateFeasibility, type FeasibilityResult } from "./agents/jobFeasibility";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -4663,6 +4664,19 @@ Return JSON format:
             continue; // Skip days without enough capacity
           }
 
+          // Evaluate feasibility using Job Feasibility Agent
+          const feasibility = await evaluateFeasibility({
+            job: jobRequest,
+            crew,
+            date: dayCapacity.date,
+            crewMemberCount: eligibleCrew.memberCount,
+          });
+
+          // Skip infeasible crew/date combinations - hard failures are gated
+          if (!feasibility.feasible) {
+            continue;
+          }
+
           // Calculate day offset from today for date preference scoring
           const today = new Date();
           const proposedDate = new Date(dayCapacity.date);
@@ -4671,7 +4685,10 @@ Return JSON format:
           // Adjust total score based on date preference (earlier = better)
           const dateBonus = Math.max(0, 10 - dayOffset);
           const capacityBonus = Math.round((dayCapacity.minutes / crew.dailyCapacityMinutes) * 10);
-          const totalScore = marginScore * 0.6 + (100 - riskScore) * 0.2 + dateBonus * 1 + capacityBonus * 1;
+          
+          // Use feasibility riskScore instead of travel-based risk
+          const adjustedRiskScore = feasibility.riskScore;
+          const totalScore = marginScore * 0.6 + (100 - adjustedRiskScore) * 0.2 + dateBonus * 1 + capacityBonus * 1;
 
           const sim = await storage.createSimulation({
             businessId: profile.id,
@@ -4682,7 +4699,7 @@ Return JSON format:
             travelMinutesDelta: travelMinutes,
             loadMinutesDelta: loadDelta,
             marginScore: Math.round(marginScore),
-            riskScore: Math.round(riskScore),
+            riskScore: Math.round(adjustedRiskScore),
             totalScore: Math.round(totalScore),
             explanationJson: {
               crewName: crew.name,
@@ -4692,6 +4709,11 @@ Return JSON format:
               equipMatch: eligibleCrew.equipmentMatchPct === 100,
               capacityRemaining: dayCapacity.minutes,
               distanceFromHome: eligibleCrew.distanceFromHomeEstimate,
+              feasibility: {
+                feasible: feasibility.feasible,
+                needsReview: feasibility.needsReview,
+                reasons: feasibility.reasons,
+              },
             },
           });
           simulations.push(sim);
