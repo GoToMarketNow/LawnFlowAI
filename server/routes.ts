@@ -2215,24 +2215,17 @@ export async function registerRoutes(
       
       const status = req.query.status as string | undefined;
       
-      let query = db
-        .select()
-        .from(marginAlerts)
-        .where(eq(marginAlerts.businessId, profile.id))
-        .orderBy(desc(marginAlerts.createdAt));
-      
+      const conditions = [eq(marginAlerts.businessId, profile.id)];
       if (status) {
-        query = db
-          .select()
-          .from(marginAlerts)
-          .where(and(
-            eq(marginAlerts.businessId, profile.id),
-            eq(marginAlerts.status, status)
-          ))
-          .orderBy(desc(marginAlerts.createdAt));
+        conditions.push(eq(marginAlerts.status, status));
       }
       
-      const alerts = await query;
+      const alerts = await db
+        .select()
+        .from(marginAlerts)
+        .where(and(...conditions))
+        .orderBy(desc(marginAlerts.createdAt));
+      
       res.json(alerts);
     } catch (error: any) {
       console.error("[Margin] Error fetching alerts:", error);
@@ -2270,9 +2263,25 @@ export async function registerRoutes(
 
   app.post("/api/margin/alerts/:id/acknowledge", async (req, res) => {
     try {
+      const { marginAlerts } = await import("@shared/schema");
       const { acknowledgeAlert } = await import("./workers/margin/marginWorker");
       const id = parseInt(req.params.id);
       const { acknowledgedBy } = req.body;
+      
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const [alert] = await db
+        .select()
+        .from(marginAlerts)
+        .where(and(eq(marginAlerts.id, id), eq(marginAlerts.businessId, profile.id)))
+        .limit(1);
+      
+      if (!alert) {
+        return res.status(404).json({ error: "Alert not found" });
+      }
       
       await acknowledgeAlert(id, acknowledgedBy || "user");
       res.json({ success: true });
@@ -2284,9 +2293,25 @@ export async function registerRoutes(
 
   app.post("/api/margin/alerts/:id/resolve", async (req, res) => {
     try {
+      const { marginAlerts } = await import("@shared/schema");
       const { resolveAlert } = await import("./workers/margin/marginWorker");
       const id = parseInt(req.params.id);
       const { resolvedBy, resolution } = req.body;
+      
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const [alert] = await db
+        .select()
+        .from(marginAlerts)
+        .where(and(eq(marginAlerts.id, id), eq(marginAlerts.businessId, profile.id)))
+        .limit(1);
+      
+      if (!alert) {
+        return res.status(404).json({ error: "Alert not found" });
+      }
       
       await resolveAlert(id, resolvedBy || "user", resolution || "");
       res.json({ success: true });
@@ -2298,8 +2323,24 @@ export async function registerRoutes(
 
   app.post("/api/margin/alerts/:id/dismiss", async (req, res) => {
     try {
+      const { marginAlerts } = await import("@shared/schema");
       const { dismissAlert } = await import("./workers/margin/marginWorker");
       const id = parseInt(req.params.id);
+      
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const [alert] = await db
+        .select()
+        .from(marginAlerts)
+        .where(and(eq(marginAlerts.id, id), eq(marginAlerts.businessId, profile.id)))
+        .limit(1);
+      
+      if (!alert) {
+        return res.status(404).json({ error: "Alert not found" });
+      }
       
       await dismissAlert(id);
       res.json({ success: true });
