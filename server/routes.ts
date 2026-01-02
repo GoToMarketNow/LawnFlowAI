@@ -24,6 +24,7 @@ import {
 } from "./agents/crewIntelligence";
 import { evaluateFeasibility, type FeasibilityResult } from "./agents/jobFeasibility";
 import { getCrewToJobTravelMinutes, type TravelEstimate } from "./agents/routeCost";
+import { computeMarginScore, type MarginBurnResult } from "./agents/marginBurn";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -4668,8 +4669,22 @@ Return JSON format:
         // Calculate load impact
         const loadDelta = laborMinutes + travelMinutes * 2; // Round trip travel
 
-        // Score calculation
-        const marginScore = Math.max(0, 100 - Math.round(loadDelta / crew.dailyCapacityMinutes * 100));
+        // Get required equipment from job request
+        const requiredEquipment = Array.isArray(jobRequest.requiredEquipmentJson) 
+          ? (jobRequest.requiredEquipmentJson as string[])
+          : [];
+
+        // Compute margin score using Margin & Burn Agent
+        const marginResult = computeMarginScore({
+          laborLowMinutes: jobRequest.laborLowMinutes,
+          laborHighMinutes: jobRequest.laborHighMinutes,
+          travelMinutesDelta: travelMinutes,
+          crewSizeMin: jobRequest.crewSizeMin,
+          lotAreaSqft: jobRequest.lotAreaSqft,
+          requiredEquipment,
+        });
+
+        const marginScore = marginResult.marginScore;
         const riskScore = Math.round(travelMinutes * 2); // Higher travel = higher risk
 
         // Create simulations for each day with available capacity
@@ -4728,6 +4743,14 @@ Return JSON format:
                 feasible: feasibility.feasible,
                 needsReview: feasibility.needsReview,
                 reasons: feasibility.reasons,
+              },
+              marginBurn: {
+                burnMinutes: marginResult.burnMinutes,
+                estLaborCost: marginResult.estLaborCost,
+                estEquipmentCost: marginResult.estEquipmentCost,
+                estTotalCost: marginResult.estTotalCost,
+                revenueEstimate: marginResult.revenueEstimate,
+                notes: marginResult.notes,
               },
             },
           });
