@@ -18,6 +18,11 @@ import {
   parcelCoverageRegistry,
   propertyQuoteContext,
   countySources,
+  smsSessions,
+  smsEvents,
+  handoffTickets,
+  clickToCallTokens,
+  callEvents,
   type BusinessProfile,
   type InsertBusinessProfile,
   type Conversation,
@@ -56,6 +61,16 @@ import {
   type InsertPropertyQuoteContext,
   type CountySource,
   type InsertCountySource,
+  type SmsSession,
+  type InsertSmsSession,
+  type SmsEvent,
+  type InsertSmsEvent,
+  type HandoffTicket,
+  type InsertHandoffTicket,
+  type ClickToCallToken,
+  type InsertClickToCallToken,
+  type CallEvent,
+  type InsertCallEvent,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, inArray, sql, and, gte, lte } from "drizzle-orm";
@@ -157,6 +172,30 @@ export interface IStorage {
   createCountySource(source: InsertCountySource): Promise<CountySource>;
   updateCountySource(countyFips: string, updates: Partial<InsertCountySource>): Promise<CountySource | undefined>;
   deleteCountySource(countyFips: string): Promise<boolean>;
+
+  // SMS Sessions
+  getSmsSessions(): Promise<SmsSession[]>;
+  getSmsSessionById(sessionId: string): Promise<SmsSession | undefined>;
+  getSmsSessionByPhone(fromPhone: string): Promise<SmsSession | undefined>;
+  upsertSmsSession(session: Partial<InsertSmsSession> & { sessionId: string }): Promise<SmsSession>;
+  
+  // SMS Events
+  getSmsEventsBySession(sessionId: string): Promise<SmsEvent[]>;
+  createSmsEvent(event: Partial<InsertSmsEvent> & { eventId: string; sessionId: string; direction: string; text: string }): Promise<SmsEvent>;
+  
+  // Handoff Tickets
+  getHandoffTickets(): Promise<HandoffTicket[]>;
+  getHandoffTicket(ticketId: string): Promise<HandoffTicket | undefined>;
+  createHandoffTicket(ticket: Partial<InsertHandoffTicket> & { ticketId: string; sessionId: string; accountId: string }): Promise<HandoffTicket>;
+  updateHandoffTicket(ticketId: string, updates: Partial<HandoffTicket>): Promise<HandoffTicket | undefined>;
+  
+  // Click-to-Call Tokens
+  getClickToCallToken(token: string): Promise<ClickToCallToken | undefined>;
+  createClickToCallToken(token: Partial<InsertClickToCallToken> & { tokenId: string; sessionId: string; token: string; expiresAt: Date }): Promise<ClickToCallToken>;
+  markClickToCallTokenUsed(token: string): Promise<void>;
+  
+  // Call Events
+  createCallEvent(event: Partial<InsertCallEvent> & { callEventId: string; sessionId: string; type: string }): Promise<CallEvent>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -806,6 +845,166 @@ export class DatabaseStorage implements IStorage {
       .where(eq(countySources.countyFips, countyFips))
       .returning();
     return result.length > 0;
+  }
+
+  // SMS Sessions
+  async getSmsSessions(): Promise<SmsSession[]> {
+    return db.select().from(smsSessions).orderBy(desc(smsSessions.updatedAt));
+  }
+
+  async getSmsSessionById(sessionId: string): Promise<SmsSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(smsSessions)
+      .where(eq(smsSessions.sessionId, sessionId))
+      .limit(1);
+    return session;
+  }
+
+  async getSmsSessionByPhone(fromPhone: string): Promise<SmsSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(smsSessions)
+      .where(eq(smsSessions.fromPhone, fromPhone))
+      .orderBy(desc(smsSessions.updatedAt))
+      .limit(1);
+    return session;
+  }
+
+  async upsertSmsSession(session: Partial<InsertSmsSession> & { sessionId: string }): Promise<SmsSession> {
+    const existing = await this.getSmsSessionById(session.sessionId);
+    if (existing) {
+      const [updated] = await db
+        .update(smsSessions)
+        .set({
+          ...session,
+          updatedAt: new Date(),
+          stateEnteredAt: new Date(),
+        })
+        .where(eq(smsSessions.sessionId, session.sessionId))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(smsSessions).values({
+      sessionId: session.sessionId,
+      accountId: session.accountId || "",
+      fromPhone: session.fromPhone || "",
+      toPhone: session.toPhone || "",
+      status: session.status || "active",
+      serviceTemplateId: session.serviceTemplateId || "lawncare_v1",
+      state: session.state || "INTENT",
+      businessId: session.businessId,
+      attemptCounters: session.attemptCounters || {},
+      confidence: session.confidence || {},
+      collected: session.collected || {},
+      derived: session.derived || {},
+      quote: session.quote || {},
+      scheduling: session.scheduling || {},
+      handoff: session.handoff || {},
+      audit: session.audit || {},
+    }).returning();
+    return created;
+  }
+
+  // SMS Events
+  async getSmsEventsBySession(sessionId: string): Promise<SmsEvent[]> {
+    return db
+      .select()
+      .from(smsEvents)
+      .where(eq(smsEvents.sessionId, sessionId))
+      .orderBy(smsEvents.ts);
+  }
+
+  async createSmsEvent(event: Partial<InsertSmsEvent> & { eventId: string; sessionId: string; direction: string; text: string }): Promise<SmsEvent> {
+    const [created] = await db.insert(smsEvents).values({
+      eventId: event.eventId,
+      sessionId: event.sessionId,
+      direction: event.direction,
+      text: event.text,
+      providerMessageId: event.providerMessageId,
+      type: event.type || "sms",
+      payloadJson: event.payloadJson,
+      nlpJson: event.nlpJson,
+      stateBefore: event.stateBefore,
+      stateAfter: event.stateAfter,
+    }).returning();
+    return created;
+  }
+
+  // Handoff Tickets
+  async getHandoffTickets(): Promise<HandoffTicket[]> {
+    return db.select().from(handoffTickets).orderBy(desc(handoffTickets.createdAt));
+  }
+
+  async getHandoffTicket(ticketId: string): Promise<HandoffTicket | undefined> {
+    const [ticket] = await db
+      .select()
+      .from(handoffTickets)
+      .where(eq(handoffTickets.ticketId, ticketId))
+      .limit(1);
+    return ticket;
+  }
+
+  async createHandoffTicket(ticket: Partial<InsertHandoffTicket> & { ticketId: string; sessionId: string; accountId: string }): Promise<HandoffTicket> {
+    const [created] = await db.insert(handoffTickets).values({
+      ticketId: ticket.ticketId,
+      sessionId: ticket.sessionId,
+      accountId: ticket.accountId,
+      businessId: ticket.businessId,
+      status: ticket.status || "open",
+      priority: ticket.priority || "normal",
+      reasonCodes: ticket.reasonCodes || [],
+      summary: ticket.summary,
+      assignedTo: ticket.assignedTo,
+    }).returning();
+    return created;
+  }
+
+  async updateHandoffTicket(ticketId: string, updates: Partial<HandoffTicket>): Promise<HandoffTicket | undefined> {
+    const [updated] = await db
+      .update(handoffTickets)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(handoffTickets.ticketId, ticketId))
+      .returning();
+    return updated;
+  }
+
+  // Click-to-Call Tokens
+  async getClickToCallToken(token: string): Promise<ClickToCallToken | undefined> {
+    const [tokenRecord] = await db
+      .select()
+      .from(clickToCallTokens)
+      .where(eq(clickToCallTokens.token, token))
+      .limit(1);
+    return tokenRecord;
+  }
+
+  async createClickToCallToken(token: Partial<InsertClickToCallToken> & { tokenId: string; sessionId: string; token: string; expiresAt: Date }): Promise<ClickToCallToken> {
+    const [created] = await db.insert(clickToCallTokens).values({
+      tokenId: token.tokenId,
+      sessionId: token.sessionId,
+      token: token.token,
+      expiresAt: token.expiresAt,
+    }).returning();
+    return created;
+  }
+
+  async markClickToCallTokenUsed(token: string): Promise<void> {
+    await db
+      .update(clickToCallTokens)
+      .set({ usedAt: new Date() })
+      .where(eq(clickToCallTokens.token, token));
+  }
+
+  // Call Events
+  async createCallEvent(event: Partial<InsertCallEvent> & { callEventId: string; sessionId: string; type: string }): Promise<CallEvent> {
+    const [created] = await db.insert(callEvents).values({
+      callEventId: event.callEventId,
+      sessionId: event.sessionId,
+      type: event.type,
+      metadataJson: event.metadataJson,
+    }).returning();
+    return created;
   }
 }
 

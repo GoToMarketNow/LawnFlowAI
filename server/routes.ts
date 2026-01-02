@@ -3300,5 +3300,335 @@ export async function registerRoutes(
     }
   });
 
+  // ============================================
+  // SMS Intelligence Layer Routes
+  // ============================================
+
+  const smsModule = await import("./sms");
+
+  app.post("/sms/inbound", async (req, res) => {
+    try {
+      const { From, To, Body, MessageSid, AccountSid, NumMedia } = req.body;
+      
+      if (!From || !Body) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      console.log(`[SMS] Inbound from ${From}: ${Body.substring(0, 50)}...`);
+
+      const businessId = 1;
+      const accountId = AccountSid || "test_account";
+      const profile = await storage.getBusinessProfile(businessId);
+      const businessName = profile?.name || "LawnFlow";
+
+      const existingSession = await storage.getSmsSessionByPhone(From);
+      
+      let sessionData: any = null;
+      if (existingSession) {
+        sessionData = {
+          sessionId: existingSession.sessionId,
+          accountId: existingSession.accountId,
+          businessId: existingSession.businessId || businessId,
+          fromPhone: existingSession.fromPhone,
+          toPhone: existingSession.toPhone,
+          status: existingSession.status,
+          serviceTemplateId: existingSession.serviceTemplateId,
+          state: existingSession.state,
+          attemptCounters: (existingSession.attemptCounters as Record<string, number>) || {},
+          confidence: (existingSession.confidence as Record<string, number>) || {},
+          collected: (existingSession.collected as Record<string, any>) || {},
+          derived: (existingSession.derived as Record<string, any>) || {},
+          quote: (existingSession.quote as Record<string, any>) || {},
+          scheduling: (existingSession.scheduling as Record<string, any>) || {},
+          handoff: (existingSession.handoff as Record<string, any>) || {},
+          audit: (existingSession.audit as Record<string, any>) || {},
+        };
+      }
+
+      const result = await smsModule.handleInboundSms(
+        {
+          accountId,
+          businessId,
+          fromPhone: From,
+          toPhone: To || "",
+          text: Body,
+          providerMessageId: MessageSid,
+          providerPayload: req.body,
+        },
+        sessionData,
+        businessName
+      );
+
+      await storage.upsertSmsSession({
+        sessionId: result.session.sessionId || "",
+        accountId: result.session.accountId || accountId,
+        businessId: result.session.businessId || businessId,
+        fromPhone: result.session.fromPhone || From,
+        toPhone: result.session.toPhone || To || "",
+        status: result.session.status || "active",
+        serviceTemplateId: result.session.serviceTemplateId || "lawncare_v1",
+        state: result.session.state || "INTENT",
+        attemptCounters: result.session.attemptCounters || {},
+        confidence: result.session.confidence || {},
+        collected: result.session.collected || {},
+        derived: result.session.derived || {},
+        quote: result.session.quote || {},
+        scheduling: result.session.scheduling || {},
+        handoff: result.session.handoff || {},
+        audit: result.session.audit || {},
+      });
+
+      await storage.createSmsEvent({
+        eventId: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        sessionId: result.session.sessionId || "",
+        direction: "inbound",
+        providerMessageId: MessageSid,
+        text: Body,
+        payloadJson: req.body,
+        stateBefore: result.stateTransition?.from,
+        stateAfter: result.stateTransition?.to || result.session.state,
+      });
+
+      for (const action of result.actions) {
+        if (action.type === "create_handoff_ticket") {
+          const reasons = smsModule.determineHandoffReasons({
+            derived: (result.session.derived || {}) as Record<string, any>,
+            state: result.session.state || "",
+            attemptCounters: (result.session.attemptCounters || {}) as Record<string, number>,
+          });
+          const priority = smsModule.determinePriority(reasons, { derived: result.session.derived || {} });
+          const summary = smsModule.generateHandoffSummary({
+            fromPhone: From,
+            collected: result.session.collected || {},
+            derived: result.session.derived || {},
+            state: result.session.state || "",
+          }, reasons);
+          
+          await storage.createHandoffTicket({
+            ticketId: `tkt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            sessionId: result.session.sessionId || "",
+            accountId,
+            businessId,
+            status: "open",
+            priority,
+            reasonCodes: reasons,
+            summary,
+          });
+        }
+
+        if (action.type === "generate_click_to_call_token") {
+          const tokenData = smsModule.generateClickToCallToken(result.session.sessionId || "");
+          await storage.createClickToCallToken({
+            tokenId: tokenData.tokenId,
+            sessionId: result.session.sessionId || "",
+            token: tokenData.token,
+            expiresAt: tokenData.expiresAt,
+          });
+        }
+      }
+
+      for (const outbound of result.outboundMessages) {
+        await twilioConnector.sendSMS(outbound.to, outbound.text);
+        
+        await storage.createSmsEvent({
+          eventId: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          sessionId: result.session.sessionId || "",
+          direction: "outbound",
+          text: outbound.text,
+          stateAfter: result.session.state,
+        });
+      }
+
+      res.setHeader("Content-Type", "text/xml");
+      res.send("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>");
+    } catch (error: any) {
+      console.error("[SMS] Error processing inbound:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/sms/status", async (req, res) => {
+    try {
+      const { MessageSid, MessageStatus, ErrorCode, ErrorMessage } = req.body;
+      console.log(`[SMS] Status update for ${MessageSid}: ${MessageStatus}`);
+      
+      res.status(200).send("OK");
+    } catch (error: any) {
+      console.error("[SMS] Error processing status:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/sms/click-to-call/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+      const tokenData = await storage.getClickToCallToken(token);
+      
+      if (!tokenData) {
+        return res.status(404).json({ error: "Token not found or expired" });
+      }
+
+      if (new Date() > new Date(tokenData.expiresAt)) {
+        return res.status(410).json({ error: "Token expired" });
+      }
+
+      if (tokenData.usedAt) {
+        return res.status(410).json({ error: "Token already used" });
+      }
+
+      await storage.markClickToCallTokenUsed(token);
+
+      const session = await storage.getSmsSessionById(tokenData.sessionId);
+      const businessProfile = session?.businessId 
+        ? await storage.getBusinessProfile(session.businessId) 
+        : null;
+
+      const businessPhone = businessProfile?.phone || "+15551234567";
+
+      await storage.createCallEvent({
+        callEventId: `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        sessionId: tokenData.sessionId,
+        type: "click",
+        metadataJson: { token, userAgent: req.headers["user-agent"] },
+      });
+
+      res.redirect(`tel:${businessPhone}`);
+    } catch (error: any) {
+      console.error("[SMS] Error processing click-to-call:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/sms/sessions", async (req, res) => {
+    try {
+      const sessions = await storage.getSmsSessions();
+      res.json(sessions);
+    } catch (error: any) {
+      console.error("[SMS] Error fetching sessions:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/sms/sessions/:sessionId", async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const session = await storage.getSmsSessionById(sessionId);
+      
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      
+      const events = await storage.getSmsEventsBySession(sessionId);
+      
+      res.json({ session, events });
+    } catch (error: any) {
+      console.error("[SMS] Error fetching session:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/sms/handoff-tickets", async (req, res) => {
+    try {
+      const tickets = await storage.getHandoffTickets();
+      res.json(tickets);
+    } catch (error: any) {
+      console.error("[SMS] Error fetching tickets:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/sms/handoff-tickets/:ticketId", async (req, res) => {
+    try {
+      const { ticketId } = req.params;
+      const { status, assignedTo } = req.body;
+      
+      const ticket = await storage.updateHandoffTicket(ticketId, { status, assignedTo });
+      
+      if (!ticket) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+      
+      res.json(ticket);
+    } catch (error: any) {
+      console.error("[SMS] Error updating ticket:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/sms/test-session", async (req, res) => {
+    try {
+      const { fromPhone, text, businessName } = req.body;
+      
+      if (!fromPhone || !text) {
+        return res.status(400).json({ error: "fromPhone and text are required" });
+      }
+
+      const existingSession = await storage.getSmsSessionByPhone(fromPhone);
+      
+      let sessionData: any = null;
+      if (existingSession) {
+        sessionData = {
+          sessionId: existingSession.sessionId,
+          accountId: existingSession.accountId,
+          businessId: existingSession.businessId || 1,
+          fromPhone: existingSession.fromPhone,
+          toPhone: existingSession.toPhone,
+          status: existingSession.status,
+          serviceTemplateId: existingSession.serviceTemplateId,
+          state: existingSession.state,
+          attemptCounters: (existingSession.attemptCounters as Record<string, number>) || {},
+          confidence: (existingSession.confidence as Record<string, number>) || {},
+          collected: (existingSession.collected as Record<string, any>) || {},
+          derived: (existingSession.derived as Record<string, any>) || {},
+          quote: (existingSession.quote as Record<string, any>) || {},
+          scheduling: (existingSession.scheduling as Record<string, any>) || {},
+          handoff: (existingSession.handoff as Record<string, any>) || {},
+          audit: (existingSession.audit as Record<string, any>) || {},
+        };
+      }
+
+      const result = await smsModule.handleInboundSms(
+        {
+          accountId: "test_account",
+          businessId: 1,
+          fromPhone,
+          toPhone: "+15559999999",
+          text,
+        },
+        sessionData,
+        businessName || "Test Lawn Co"
+      );
+
+      await storage.upsertSmsSession({
+        sessionId: result.session.sessionId || "",
+        accountId: result.session.accountId || "test_account",
+        businessId: result.session.businessId || 1,
+        fromPhone: result.session.fromPhone || fromPhone,
+        toPhone: result.session.toPhone || "+15559999999",
+        status: result.session.status || "active",
+        serviceTemplateId: result.session.serviceTemplateId || "lawncare_v1",
+        state: result.session.state || "INTENT",
+        attemptCounters: result.session.attemptCounters || {},
+        confidence: result.session.confidence || {},
+        collected: result.session.collected || {},
+        derived: result.session.derived || {},
+        quote: result.session.quote || {},
+        scheduling: result.session.scheduling || {},
+        handoff: result.session.handoff || {},
+        audit: result.session.audit || {},
+      });
+
+      res.json({
+        session: result.session,
+        outboundMessages: result.outboundMessages,
+        stateTransition: result.stateTransition,
+        actions: result.actions.map(a => a.type),
+      });
+    } catch (error: any) {
+      console.error("[SMS] Test session error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }
