@@ -2874,6 +2874,13 @@ export async function registerRoutes(
       category: "core",
       schedule: "event-driven",
     },
+    {
+      agentKey: "sms_orchestrator",
+      displayName: "SMS Intelligence Layer",
+      description: "Deterministic state machine for SMS lead qualification with template-driven flows, range-first pricing, and human handoff",
+      category: "core",
+      schedule: "event-driven",
+    },
     // Operations agents - Dispatch & Routing
     {
       agentKey: "dispatch_worker",
