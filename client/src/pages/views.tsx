@@ -161,7 +161,7 @@ function AgentCard({ agent }: { agent: AgentRegistryEntry }) {
   const healthScore = agent.healthScore || 100;
 
   return (
-    <Link href={`/agents/${agent.id}`}>
+    <Link href={`/agents/${agent.id}`} data-testid={`link-agent-${agent.id}`}>
       <Card className="hover-elevate cursor-pointer" data-testid={`card-agent-${agent.id}`}>
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-4">
