@@ -26,6 +26,13 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
 - **Lot Size Resolver:** FREE-FIRST lot size resolution with multi-tier caching (geocode, parcel) and ArcGIS integration to provide accurate property data for quoting.
 - **Jobber Integration:** Asynchronous webhook processing for Jobber events, GraphQL API integration for data enrichment, OAuth token management, and idempotent webhook handling. Includes a Quote-to-Job Orchestrator for syncing approved quote changes to jobs based on a configurable rules engine.
 - **Dispatch & Routing Worker:** Intelligent route planning and crew dispatch with event-driven and nightly modes. Employs a greedy route optimization algorithm using Haversine distance. Manages crew rosters, equipment capabilities, and applies plans to Jobber.
+- **Route Optimizer:** Multi-agent job assignment system with crew management, job request tracking, and intelligent simulation-based scheduling. Features:
+  - Crew management with home base location, service radius, daily capacity, skills, and equipment
+  - Job request workflow: new → triaged → simulated → recommended → assigned
+  - Simulation engine with skill/equipment matching, Haversine distance scoring, and composite margin/risk scoring
+  - Decision workflow with draft → approved → written_back states
+  - Distance caching for travel time optimization
+  - API endpoints: /api/ops/crews, /api/ops/jobs, /api/ops/simulations, /api/optimizer/simulate, /api/optimizer/decide, /api/optimizer/approve
 - **Reconciliation Worker:** Validates invoice/payment integrity by comparing paid_total against sum of payments. Creates alerts for mismatches >$0.01 variance and handles deposit consistency checks. Updates Jobber RECON_STATUS custom field (NEEDS_REVIEW/OK) and includes a Dead Letter Queue (DLQ) pipeline for failed webhooks with exponential backoff retry.
 - **Customer Comms Worker:** Produces customer-facing messages with strict tone and compliance rules. Uses templates by service category (lawn_maintenance, hardscape, general). Compliance rules: never promise exact arrival unless GPS-driven ETA, always include reschedule options. Writes Jobber-visible log pointer via LAWNFLOW_COMM_LOG custom field. Handles JOB_SCHEDULE_UPDATE (rescheduled) and JOB_COMPLETED events.
 - **Renewal & Upsell Worker:** Weekly scan for clients with completed jobs, computes next-best-offer by service + season + lot size using deterministic rules engine. Creates draft quotes in Jobber. Gated by UPSELL_OPT_IN custom field. Tracks offered packages via LAWNFLOW_LAST_OFFER custom field to prevent duplicates. Includes offer catalog JSON with 15+ seasonal service offers.

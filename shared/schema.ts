@@ -1880,3 +1880,318 @@ export interface VoiceParseResult {
   missing_fields: string[];
   questions: string[];
 }
+
+// ============================================
+// Route Optimizer
+// ============================================
+
+// Crew - team unit for job assignments
+export const crews = pgTable("crews", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  name: text("name").notNull(),
+  
+  // Home base location
+  homeBaseLat: doublePrecision("home_base_lat"),
+  homeBaseLng: doublePrecision("home_base_lng"),
+  
+  // Capacity constraints
+  serviceRadiusMiles: integer("service_radius_miles").notNull().default(20),
+  dailyCapacityMinutes: integer("daily_capacity_minutes").notNull().default(420), // 7 hours
+  
+  // Skills and equipment (JSON arrays)
+  skillsJson: jsonb("skills_json").notNull().default([]), // e.g. ["mowing", "hardscape", "irrigation"]
+  equipmentJson: jsonb("equipment_json").notNull().default([]), // e.g. ["zero_turn", "dump_trailer", "skid_steer"]
+  
+  isActive: boolean("is_active").notNull().default(true),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("crew_business_idx").on(table.businessId),
+}));
+
+// Crew Members - individuals within a crew
+export const crewMembers = pgTable("crew_members", {
+  id: serial("id").primaryKey(),
+  crewId: integer("crew_id").references(() => crews.id).notNull(),
+  userId: integer("user_id").references(() => users.id), // Optional link to system user
+  displayName: text("display_name").notNull(),
+  role: text("role").notNull().default("member"), // lead, member
+  
+  isActive: boolean("is_active").notNull().default(true),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  crewIdx: index("crew_member_crew_idx").on(table.crewId),
+  userIdx: index("crew_member_user_idx").on(table.userId),
+}));
+
+// Job Request Statuses
+export const JobRequestStatuses = ["new", "triaged", "simulated", "recommended", "assigned", "needs_review"] as const;
+export type JobRequestStatus = typeof JobRequestStatuses[number];
+
+// Job Request Frequencies
+export const JobRequestFrequencies = ["one_time", "weekly", "biweekly", "monthly", "unknown"] as const;
+export type JobRequestFrequency = typeof JobRequestFrequencies[number];
+
+// Job Requests - new leads/jobs needing assignment
+export const jobRequests = pgTable("job_requests", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  
+  // Customer info
+  customerName: text("customer_name").notNull(),
+  customerPhone: text("customer_phone"),
+  address: text("address").notNull(),
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  zip: text("zip"),
+  
+  // Job details
+  servicesJson: jsonb("services_json").notNull().default([]), // ["mowing", "mulch"]
+  frequency: text("frequency").notNull().default("unknown"), // one_time, weekly, biweekly, monthly, unknown
+  
+  // Property/lot info
+  lotAreaSqft: integer("lot_area_sqft"),
+  lotConfidence: text("lot_confidence"), // high, medium, low
+  
+  // Requirements for matching
+  requiredSkillsJson: jsonb("required_skills_json").notNull().default([]),
+  requiredEquipmentJson: jsonb("required_equipment_json").notNull().default([]),
+  crewSizeMin: integer("crew_size_min").notNull().default(1),
+  
+  // Labor estimates (minutes)
+  laborLowMinutes: integer("labor_low_minutes"),
+  laborHighMinutes: integer("labor_high_minutes"),
+  
+  // Status workflow
+  status: text("status").notNull().default("new"), // new, triaged, simulated, recommended, assigned, needs_review
+  
+  // Link to conversation if from SMS flow
+  conversationId: integer("conversation_id").references(() => conversations.id),
+  
+  // Link to assigned crew
+  assignedCrewId: integer("assigned_crew_id").references(() => crews.id),
+  assignedDate: timestamp("assigned_date"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("job_request_business_idx").on(table.businessId),
+  statusIdx: index("job_request_status_idx").on(table.status),
+}));
+
+// Schedule Item Statuses
+export const ScheduleItemStatuses = ["scheduled", "complete", "canceled"] as const;
+export type ScheduleItemStatus = typeof ScheduleItemStatuses[number];
+
+// Schedule Items - cached schedule from Jobber or internal
+export const scheduleItems = pgTable("schedule_items", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  
+  // External provider sync
+  externalProvider: text("external_provider"), // jobber, internal
+  externalId: text("external_id"),
+  
+  // Assignment
+  crewId: integer("crew_id").references(() => crews.id),
+  userId: integer("user_id").references(() => users.id),
+  
+  // Time slot
+  startAt: timestamp("start_at").notNull(),
+  endAt: timestamp("end_at").notNull(),
+  
+  // Location
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  address: text("address"),
+  
+  // Job details
+  description: text("description"),
+  jobRequestId: integer("job_request_id").references(() => jobRequests.id),
+  
+  status: text("status").notNull().default("scheduled"), // scheduled, complete, canceled
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("schedule_item_business_idx").on(table.businessId),
+  crewIdx: index("schedule_item_crew_idx").on(table.crewId),
+  dateIdx: index("schedule_item_date_idx").on(table.startAt),
+}));
+
+// Assignment Simulation - scored placement options
+export const assignmentSimulations = pgTable("assignment_simulations", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  jobRequestId: integer("job_request_id").references(() => jobRequests.id).notNull(),
+  crewId: integer("crew_id").references(() => crews.id).notNull(),
+  
+  // Proposed slot
+  proposedDate: text("proposed_date").notNull(), // YYYY-MM-DD
+  proposedStartAt: timestamp("proposed_start_at"),
+  insertionType: text("insertion_type").notNull(), // before, between, after, anytime
+  
+  // Scoring metrics
+  travelMinutesDelta: integer("travel_minutes_delta").notNull().default(0),
+  loadMinutesDelta: integer("load_minutes_delta").notNull().default(0),
+  marginScore: integer("margin_score").notNull().default(0), // 0-100
+  riskScore: integer("risk_score").notNull().default(0), // 0-100 (lower is better)
+  totalScore: integer("total_score").notNull().default(0), // Combined score for ranking
+  
+  // Explanation for transparency
+  explanationJson: jsonb("explanation_json").notNull().default({}),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  jobRequestIdx: index("simulation_job_request_idx").on(table.jobRequestId),
+  crewIdx: index("simulation_crew_idx").on(table.crewId),
+}));
+
+// Assignment Decision Statuses
+export const AssignmentDecisionStatuses = ["draft", "approved", "written_back", "failed"] as const;
+export type AssignmentDecisionStatus = typeof AssignmentDecisionStatuses[number];
+
+// Assignment Decision - selected simulation and approval state
+export const assignmentDecisions = pgTable("assignment_decisions", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  jobRequestId: integer("job_request_id").references(() => jobRequests.id).notNull(),
+  selectedSimulationId: integer("selected_simulation_id").references(() => assignmentSimulations.id).notNull(),
+  
+  // Mode
+  mode: text("mode").notNull().default("recommend_only"), // recommend_only, auto_assign
+  
+  // Approval
+  approvedByUserId: integer("approved_by_user_id").references(() => users.id),
+  status: text("status").notNull().default("draft"), // draft, approved, written_back, failed
+  
+  // Reasoning/notes
+  reasoningJson: jsonb("reasoning_json").notNull().default({}),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  jobRequestIdx: index("decision_job_request_idx").on(table.jobRequestId),
+  statusIdx: index("decision_status_idx").on(table.status),
+}));
+
+// Distance Cache - precomputed travel times
+export const distanceCache = pgTable("distance_cache", {
+  id: serial("id").primaryKey(),
+  originKey: text("origin_key").notNull(), // "lat,lng" rounded to ~100m
+  destKey: text("dest_key").notNull(),
+  
+  travelMinutes: integer("travel_minutes").notNull(),
+  distanceMeters: integer("distance_meters").notNull(),
+  
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  routeIdx: uniqueIndex("distance_cache_route_idx").on(table.originKey, table.destKey),
+}));
+
+// Insert schemas for Route Optimizer
+export const insertCrewSchema = createInsertSchema(crews).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCrewMemberSchema = createInsertSchema(crewMembers).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertJobRequestSchema = createInsertSchema(jobRequests).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertScheduleItemSchema = createInsertSchema(scheduleItems).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertAssignmentSimulationSchema = createInsertSchema(assignmentSimulations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertAssignmentDecisionSchema = createInsertSchema(assignmentDecisions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertDistanceCacheSchema = createInsertSchema(distanceCache).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types for Route Optimizer
+export type Crew = typeof crews.$inferSelect;
+export type InsertCrew = z.infer<typeof insertCrewSchema>;
+
+export type CrewMember = typeof crewMembers.$inferSelect;
+export type InsertCrewMember = z.infer<typeof insertCrewMemberSchema>;
+
+export type JobRequest = typeof jobRequests.$inferSelect;
+export type InsertJobRequest = z.infer<typeof insertJobRequestSchema>;
+
+export type ScheduleItem = typeof scheduleItems.$inferSelect;
+export type InsertScheduleItem = z.infer<typeof insertScheduleItemSchema>;
+
+export type AssignmentSimulation = typeof assignmentSimulations.$inferSelect;
+export type InsertAssignmentSimulation = z.infer<typeof insertAssignmentSimulationSchema>;
+
+export type AssignmentDecision = typeof assignmentDecisions.$inferSelect;
+export type InsertAssignmentDecision = z.infer<typeof insertAssignmentDecisionSchema>;
+
+export type DistanceCache = typeof distanceCache.$inferSelect;
+export type InsertDistanceCache = z.infer<typeof insertDistanceCacheSchema>;
+
+// Zod validation schemas for API input
+export const crewInputSchema = z.object({
+  businessId: z.number(),
+  name: z.string().min(1),
+  homeBaseLat: z.number().optional(),
+  homeBaseLng: z.number().optional(),
+  serviceRadiusMiles: z.number().default(20),
+  dailyCapacityMinutes: z.number().default(420),
+  skillsJson: z.array(z.string()).default([]),
+  equipmentJson: z.array(z.string()).default([]),
+  isActive: z.boolean().default(true),
+});
+
+export const jobRequestInputSchema = z.object({
+  businessId: z.number(),
+  customerName: z.string().min(1),
+  customerPhone: z.string().optional(),
+  address: z.string().min(1),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+  zip: z.string().optional(),
+  servicesJson: z.array(z.string()).default([]),
+  frequency: z.enum(["one_time", "weekly", "biweekly", "monthly", "unknown"]).default("unknown"),
+  lotAreaSqft: z.number().optional(),
+  lotConfidence: z.enum(["high", "medium", "low"]).optional(),
+  requiredSkillsJson: z.array(z.string()).default([]),
+  requiredEquipmentJson: z.array(z.string()).default([]),
+  crewSizeMin: z.number().default(1),
+  laborLowMinutes: z.number().optional(),
+  laborHighMinutes: z.number().optional(),
+});
+
+export const simulateInputSchema = z.object({
+  jobRequestId: z.number(),
+});
+
+export const decideInputSchema = z.object({
+  jobRequestId: z.number(),
+  simulationId: z.number(),
+});
+
+export const approveInputSchema = z.object({
+  decisionId: z.number(),
+});

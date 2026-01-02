@@ -86,6 +86,27 @@ import {
   type InsertBusinessRbacPolicy,
   type QuoteDraft,
   type InsertQuoteDraft,
+  crews,
+  crewMembers,
+  jobRequests,
+  scheduleItems,
+  assignmentSimulations,
+  assignmentDecisions,
+  distanceCache,
+  type Crew,
+  type InsertCrew,
+  type CrewMember,
+  type InsertCrewMember,
+  type JobRequest,
+  type InsertJobRequest,
+  type ScheduleItem,
+  type InsertScheduleItem,
+  type AssignmentSimulation,
+  type InsertAssignmentSimulation,
+  type AssignmentDecision,
+  type InsertAssignmentDecision,
+  type DistanceCache,
+  type InsertDistanceCache,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, inArray, sql, and, gte, lte } from "drizzle-orm";
@@ -239,6 +260,45 @@ export interface IStorage {
   getQuoteDraft(id: number): Promise<QuoteDraft | undefined>;
   createQuoteDraft(draft: InsertQuoteDraft): Promise<QuoteDraft>;
   updateQuoteDraft(id: number, updates: Partial<QuoteDraft>): Promise<QuoteDraft>;
+
+  // Route Optimizer - Crews
+  getCrews(businessId: number): Promise<Crew[]>;
+  getCrew(id: number): Promise<Crew | undefined>;
+  createCrew(crew: InsertCrew): Promise<Crew>;
+  updateCrew(id: number, updates: Partial<InsertCrew>): Promise<Crew>;
+  
+  // Route Optimizer - Crew Members
+  getCrewMembers(crewId: number): Promise<CrewMember[]>;
+  createCrewMember(member: InsertCrewMember): Promise<CrewMember>;
+  
+  // Route Optimizer - Job Requests
+  getJobRequests(businessId: number): Promise<JobRequest[]>;
+  getJobRequest(id: number): Promise<JobRequest | undefined>;
+  getJobRequestsByStatus(businessId: number, status: string): Promise<JobRequest[]>;
+  createJobRequest(request: InsertJobRequest): Promise<JobRequest>;
+  updateJobRequest(id: number, updates: Partial<JobRequest>): Promise<JobRequest>;
+  
+  // Route Optimizer - Schedule Items
+  getScheduleItems(businessId: number, crewId?: number): Promise<ScheduleItem[]>;
+  getScheduleItemsByDate(businessId: number, date: Date): Promise<ScheduleItem[]>;
+  createScheduleItem(item: InsertScheduleItem): Promise<ScheduleItem>;
+  updateScheduleItem(id: number, updates: Partial<ScheduleItem>): Promise<ScheduleItem>;
+  
+  // Route Optimizer - Assignment Simulations
+  getSimulationsForJobRequest(jobRequestId: number): Promise<AssignmentSimulation[]>;
+  getSimulation(id: number): Promise<AssignmentSimulation | undefined>;
+  createSimulation(sim: InsertAssignmentSimulation): Promise<AssignmentSimulation>;
+  deleteSimulationsForJobRequest(jobRequestId: number): Promise<void>;
+  
+  // Route Optimizer - Assignment Decisions
+  getDecision(id: number): Promise<AssignmentDecision | undefined>;
+  getDecisionForJobRequest(jobRequestId: number): Promise<AssignmentDecision | undefined>;
+  createDecision(decision: InsertAssignmentDecision): Promise<AssignmentDecision>;
+  updateDecision(id: number, updates: Partial<AssignmentDecision>): Promise<AssignmentDecision>;
+  
+  // Route Optimizer - Distance Cache
+  getDistanceCache(originKey: string, destKey: string): Promise<DistanceCache | undefined>;
+  upsertDistanceCache(entry: InsertDistanceCache): Promise<DistanceCache>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1209,6 +1269,240 @@ export class DatabaseStorage implements IStorage {
       .where(eq(quoteDrafts.id, id))
       .returning();
     return updated;
+  }
+
+  // Route Optimizer - Crews
+  async getCrews(businessId: number): Promise<Crew[]> {
+    return db
+      .select()
+      .from(crews)
+      .where(eq(crews.businessId, businessId))
+      .orderBy(crews.name);
+  }
+
+  async getCrew(id: number): Promise<Crew | undefined> {
+    const [crew] = await db
+      .select()
+      .from(crews)
+      .where(eq(crews.id, id))
+      .limit(1);
+    return crew;
+  }
+
+  async createCrew(crew: InsertCrew): Promise<Crew> {
+    const [created] = await db.insert(crews).values(crew).returning();
+    return created;
+  }
+
+  async updateCrew(id: number, updates: Partial<InsertCrew>): Promise<Crew> {
+    const [updated] = await db
+      .update(crews)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(crews.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Route Optimizer - Crew Members
+  async getCrewMembers(crewId: number): Promise<CrewMember[]> {
+    return db
+      .select()
+      .from(crewMembers)
+      .where(eq(crewMembers.crewId, crewId));
+  }
+
+  async createCrewMember(member: InsertCrewMember): Promise<CrewMember> {
+    const [created] = await db.insert(crewMembers).values(member).returning();
+    return created;
+  }
+
+  // Route Optimizer - Job Requests
+  async getJobRequests(businessId: number): Promise<JobRequest[]> {
+    return db
+      .select()
+      .from(jobRequests)
+      .where(eq(jobRequests.businessId, businessId))
+      .orderBy(desc(jobRequests.createdAt));
+  }
+
+  async getJobRequest(id: number): Promise<JobRequest | undefined> {
+    const [request] = await db
+      .select()
+      .from(jobRequests)
+      .where(eq(jobRequests.id, id))
+      .limit(1);
+    return request;
+  }
+
+  async getJobRequestsByStatus(businessId: number, status: string): Promise<JobRequest[]> {
+    return db
+      .select()
+      .from(jobRequests)
+      .where(and(
+        eq(jobRequests.businessId, businessId),
+        eq(jobRequests.status, status)
+      ))
+      .orderBy(desc(jobRequests.createdAt));
+  }
+
+  async createJobRequest(request: InsertJobRequest): Promise<JobRequest> {
+    const [created] = await db.insert(jobRequests).values(request).returning();
+    return created;
+  }
+
+  async updateJobRequest(id: number, updates: Partial<JobRequest>): Promise<JobRequest> {
+    const [updated] = await db
+      .update(jobRequests)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(jobRequests.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Route Optimizer - Schedule Items
+  async getScheduleItems(businessId: number, crewId?: number): Promise<ScheduleItem[]> {
+    if (crewId) {
+      return db
+        .select()
+        .from(scheduleItems)
+        .where(and(
+          eq(scheduleItems.businessId, businessId),
+          eq(scheduleItems.crewId, crewId)
+        ))
+        .orderBy(scheduleItems.startAt);
+    }
+    return db
+      .select()
+      .from(scheduleItems)
+      .where(eq(scheduleItems.businessId, businessId))
+      .orderBy(scheduleItems.startAt);
+  }
+
+  async getScheduleItemsByDate(businessId: number, date: Date): Promise<ScheduleItem[]> {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    return db
+      .select()
+      .from(scheduleItems)
+      .where(and(
+        eq(scheduleItems.businessId, businessId),
+        gte(scheduleItems.startAt, startOfDay),
+        lte(scheduleItems.startAt, endOfDay)
+      ))
+      .orderBy(scheduleItems.startAt);
+  }
+
+  async createScheduleItem(item: InsertScheduleItem): Promise<ScheduleItem> {
+    const [created] = await db.insert(scheduleItems).values(item).returning();
+    return created;
+  }
+
+  async updateScheduleItem(id: number, updates: Partial<ScheduleItem>): Promise<ScheduleItem> {
+    const [updated] = await db
+      .update(scheduleItems)
+      .set(updates)
+      .where(eq(scheduleItems.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Route Optimizer - Assignment Simulations
+  async getSimulationsForJobRequest(jobRequestId: number): Promise<AssignmentSimulation[]> {
+    return db
+      .select()
+      .from(assignmentSimulations)
+      .where(eq(assignmentSimulations.jobRequestId, jobRequestId))
+      .orderBy(desc(assignmentSimulations.totalScore));
+  }
+
+  async getSimulation(id: number): Promise<AssignmentSimulation | undefined> {
+    const [sim] = await db
+      .select()
+      .from(assignmentSimulations)
+      .where(eq(assignmentSimulations.id, id))
+      .limit(1);
+    return sim;
+  }
+
+  async createSimulation(sim: InsertAssignmentSimulation): Promise<AssignmentSimulation> {
+    const [created] = await db.insert(assignmentSimulations).values(sim).returning();
+    return created;
+  }
+
+  async deleteSimulationsForJobRequest(jobRequestId: number): Promise<void> {
+    await db
+      .delete(assignmentSimulations)
+      .where(eq(assignmentSimulations.jobRequestId, jobRequestId));
+  }
+
+  // Route Optimizer - Assignment Decisions
+  async getDecision(id: number): Promise<AssignmentDecision | undefined> {
+    const [decision] = await db
+      .select()
+      .from(assignmentDecisions)
+      .where(eq(assignmentDecisions.id, id))
+      .limit(1);
+    return decision;
+  }
+
+  async getDecisionForJobRequest(jobRequestId: number): Promise<AssignmentDecision | undefined> {
+    const [decision] = await db
+      .select()
+      .from(assignmentDecisions)
+      .where(eq(assignmentDecisions.jobRequestId, jobRequestId))
+      .orderBy(desc(assignmentDecisions.createdAt))
+      .limit(1);
+    return decision;
+  }
+
+  async createDecision(decision: InsertAssignmentDecision): Promise<AssignmentDecision> {
+    const [created] = await db.insert(assignmentDecisions).values(decision).returning();
+    return created;
+  }
+
+  async updateDecision(id: number, updates: Partial<AssignmentDecision>): Promise<AssignmentDecision> {
+    const [updated] = await db
+      .update(assignmentDecisions)
+      .set(updates)
+      .where(eq(assignmentDecisions.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Route Optimizer - Distance Cache
+  async getDistanceCache(originKey: string, destKey: string): Promise<DistanceCache | undefined> {
+    const [cached] = await db
+      .select()
+      .from(distanceCache)
+      .where(and(
+        eq(distanceCache.originKey, originKey),
+        eq(distanceCache.destKey, destKey)
+      ))
+      .limit(1);
+    
+    if (cached && cached.expiresAt > new Date()) {
+      return cached;
+    }
+    return undefined;
+  }
+
+  async upsertDistanceCache(entry: InsertDistanceCache): Promise<DistanceCache> {
+    const [upserted] = await db
+      .insert(distanceCache)
+      .values(entry)
+      .onConflictDoUpdate({
+        target: [distanceCache.originKey, distanceCache.destKey],
+        set: {
+          travelMinutes: entry.travelMinutes,
+          distanceMeters: entry.distanceMeters,
+          expiresAt: entry.expiresAt,
+        },
+      })
+      .returning();
+    return upserted;
   }
 }
 

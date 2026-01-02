@@ -4416,5 +4416,386 @@ Return JSON format:
     }
   });
 
+  // ============================================
+  // Route Optimizer API
+  // ============================================
+
+  // --- Ops API: Crews ---
+  app.get("/api/ops/crews", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const crewList = await storage.getCrews(profile.id);
+      res.json(crewList);
+    } catch (error: any) {
+      console.error("[Optimizer] Error fetching crews:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/ops/crews/:id", async (req, res) => {
+    try {
+      const crew = await storage.getCrew(parseInt(req.params.id));
+      if (!crew) {
+        return res.status(404).json({ error: "Crew not found" });
+      }
+      const members = await storage.getCrewMembers(crew.id);
+      res.json({ ...crew, members });
+    } catch (error: any) {
+      console.error("[Optimizer] Error fetching crew:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ops/crews", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const { name, homeBaseLat, homeBaseLng, serviceRadiusMiles, dailyCapacityMinutes, skillsJson, equipmentJson } = req.body;
+      const crew = await storage.createCrew({
+        businessId: profile.id,
+        name,
+        homeBaseLat,
+        homeBaseLng,
+        serviceRadiusMiles: serviceRadiusMiles || 20,
+        dailyCapacityMinutes: dailyCapacityMinutes || 420,
+        skillsJson: skillsJson || [],
+        equipmentJson: equipmentJson || [],
+      });
+      res.json(crew);
+    } catch (error: any) {
+      console.error("[Optimizer] Error creating crew:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/ops/crews/:id", async (req, res) => {
+    try {
+      const crewId = parseInt(req.params.id);
+      const updates = req.body;
+      const crew = await storage.updateCrew(crewId, updates);
+      res.json(crew);
+    } catch (error: any) {
+      console.error("[Optimizer] Error updating crew:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Ops API: Job Requests ---
+  app.get("/api/ops/jobs", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const status = req.query.status as string | undefined;
+      let jobList;
+      if (status) {
+        jobList = await storage.getJobRequestsByStatus(profile.id, status);
+      } else {
+        jobList = await storage.getJobRequests(profile.id);
+      }
+      res.json(jobList);
+    } catch (error: any) {
+      console.error("[Optimizer] Error fetching job requests:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/ops/jobs/:id", async (req, res) => {
+    try {
+      const jobRequest = await storage.getJobRequest(parseInt(req.params.id));
+      if (!jobRequest) {
+        return res.status(404).json({ error: "Job request not found" });
+      }
+      res.json(jobRequest);
+    } catch (error: any) {
+      console.error("[Optimizer] Error fetching job request:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ops/jobs", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const { 
+        customerName, customerPhone, address, lat, lng, zip,
+        servicesJson, frequency, lotAreaSqft, lotConfidence,
+        requiredSkillsJson, requiredEquipmentJson, crewSizeMin,
+        laborLowMinutes, laborHighMinutes 
+      } = req.body;
+      
+      const jobRequest = await storage.createJobRequest({
+        businessId: profile.id,
+        customerName,
+        customerPhone,
+        address,
+        lat,
+        lng,
+        zip,
+        servicesJson: servicesJson || [],
+        frequency: frequency || "unknown",
+        lotAreaSqft,
+        lotConfidence,
+        requiredSkillsJson: requiredSkillsJson || [],
+        requiredEquipmentJson: requiredEquipmentJson || [],
+        crewSizeMin: crewSizeMin || 1,
+        laborLowMinutes,
+        laborHighMinutes,
+        status: "new",
+      });
+      res.json(jobRequest);
+    } catch (error: any) {
+      console.error("[Optimizer] Error creating job request:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Ops API: Simulations ---
+  app.get("/api/ops/simulations", async (req, res) => {
+    try {
+      const jobRequestId = parseInt(req.query.jobRequestId as string);
+      if (!jobRequestId) {
+        return res.status(400).json({ error: "jobRequestId required" });
+      }
+      const simulations = await storage.getSimulationsForJobRequest(jobRequestId);
+      res.json(simulations);
+    } catch (error: any) {
+      console.error("[Optimizer] Error fetching simulations:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Optimizer API: Simulate ---
+  app.post("/api/optimizer/simulate", async (req, res) => {
+    try {
+      const { jobRequestId } = req.body;
+      if (!jobRequestId) {
+        return res.status(400).json({ error: "jobRequestId required" });
+      }
+
+      const jobRequest = await storage.getJobRequest(jobRequestId);
+      if (!jobRequest) {
+        return res.status(404).json({ error: "Job request not found" });
+      }
+
+      const profile = await storage.getBusinessProfile(jobRequest.businessId);
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+
+      // Delete any existing simulations for this job
+      await storage.deleteSimulationsForJobRequest(jobRequestId);
+
+      // Get all active crews for this business
+      const crewList = await storage.getCrews(profile.id);
+      const activeCrews = crewList.filter(c => c.isActive);
+
+      if (activeCrews.length === 0) {
+        return res.json({ simulations: [], message: "No active crews available" });
+      }
+
+      // Generate simulations for each crew
+      const simulations = [];
+      const today = new Date();
+      
+      for (const crew of activeCrews) {
+        // Check skill match
+        const requiredSkills = (jobRequest.requiredSkillsJson as string[]) || [];
+        const crewSkills = (crew.skillsJson as string[]) || [];
+        const hasSkills = requiredSkills.every(s => crewSkills.includes(s));
+        
+        if (!hasSkills && requiredSkills.length > 0) {
+          continue; // Skip crews without required skills
+        }
+
+        // Check equipment match
+        const requiredEquip = (jobRequest.requiredEquipmentJson as string[]) || [];
+        const crewEquip = (crew.equipmentJson as string[]) || [];
+        const hasEquip = requiredEquip.every(e => crewEquip.includes(e));
+        
+        if (!hasEquip && requiredEquip.length > 0) {
+          continue; // Skip crews without required equipment
+        }
+
+        // Calculate distance if we have coordinates
+        let travelMinutes = 15; // Default estimate
+        if (jobRequest.lat && jobRequest.lng && crew.homeBaseLat && crew.homeBaseLng) {
+          // Haversine distance estimate
+          const R = 3959; // Earth radius in miles
+          const dLat = (jobRequest.lat - crew.homeBaseLat) * Math.PI / 180;
+          const dLng = (jobRequest.lng - crew.homeBaseLng) * Math.PI / 180;
+          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(crew.homeBaseLat * Math.PI / 180) * Math.cos(jobRequest.lat * Math.PI / 180) *
+                    Math.sin(dLng/2) * Math.sin(dLng/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          const distanceMiles = R * c;
+          
+          // Skip if outside service radius
+          if (distanceMiles > crew.serviceRadiusMiles) {
+            continue;
+          }
+          
+          // Estimate travel time at 30 mph average
+          travelMinutes = Math.round(distanceMiles * 2);
+        }
+
+        // Calculate load impact
+        const laborMinutes = jobRequest.laborHighMinutes || jobRequest.laborLowMinutes || 60;
+        const loadDelta = laborMinutes + travelMinutes * 2; // Round trip travel
+
+        // Score calculation
+        const marginScore = Math.max(0, 100 - Math.round(loadDelta / crew.dailyCapacityMinutes * 100));
+        const riskScore = Math.round(travelMinutes * 2); // Higher travel = higher risk
+        const totalScore = marginScore * 0.7 + (100 - riskScore) * 0.3;
+
+        // Propose a date (next 5 business days)
+        for (let i = 1; i <= 5; i++) {
+          const proposedDate = new Date(today);
+          proposedDate.setDate(today.getDate() + i);
+          
+          // Skip weekends
+          if (proposedDate.getDay() === 0 || proposedDate.getDay() === 6) {
+            continue;
+          }
+
+          const sim = await storage.createSimulation({
+            businessId: profile.id,
+            jobRequestId,
+            crewId: crew.id,
+            proposedDate: proposedDate.toISOString().split('T')[0],
+            insertionType: "anytime",
+            travelMinutesDelta: travelMinutes,
+            loadMinutesDelta: loadDelta,
+            marginScore: Math.round(marginScore),
+            riskScore: Math.round(riskScore),
+            totalScore: Math.round(totalScore - i * 5), // Prefer earlier dates
+            explanationJson: {
+              crewName: crew.name,
+              travelEstimate: `${travelMinutes} min`,
+              laborEstimate: `${laborMinutes} min`,
+              skillMatch: hasSkills,
+              equipMatch: hasEquip,
+            },
+          });
+          simulations.push(sim);
+        }
+      }
+
+      // Update job request status
+      await storage.updateJobRequest(jobRequestId, { status: "simulated" });
+
+      // Return top simulations sorted by score
+      const sortedSims = simulations.sort((a, b) => b.totalScore - a.totalScore);
+      res.json({ simulations: sortedSims.slice(0, 10) });
+    } catch (error: any) {
+      console.error("[Optimizer] Error simulating:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Optimizer API: Decide ---
+  app.post("/api/optimizer/decide", async (req, res) => {
+    try {
+      const { jobRequestId, simulationId } = req.body;
+      if (!jobRequestId || !simulationId) {
+        return res.status(400).json({ error: "jobRequestId and simulationId required" });
+      }
+
+      const jobRequest = await storage.getJobRequest(jobRequestId);
+      if (!jobRequest) {
+        return res.status(404).json({ error: "Job request not found" });
+      }
+
+      const simulation = await storage.getSimulation(simulationId);
+      if (!simulation) {
+        return res.status(404).json({ error: "Simulation not found" });
+      }
+
+      // Create decision draft
+      const decision = await storage.createDecision({
+        businessId: jobRequest.businessId,
+        jobRequestId,
+        selectedSimulationId: simulationId,
+        mode: "recommend_only",
+        status: "draft",
+        reasoningJson: {
+          selectedCrew: simulation.crewId,
+          proposedDate: simulation.proposedDate,
+          totalScore: simulation.totalScore,
+        },
+      });
+
+      // Update job request status
+      await storage.updateJobRequest(jobRequestId, { status: "recommended" });
+
+      res.json(decision);
+    } catch (error: any) {
+      console.error("[Optimizer] Error creating decision:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Optimizer API: Approve ---
+  app.post("/api/optimizer/approve", async (req, res) => {
+    try {
+      const { decisionId } = req.body;
+      if (!decisionId) {
+        return res.status(400).json({ error: "decisionId required" });
+      }
+
+      const decision = await storage.getDecision(decisionId);
+      if (!decision) {
+        return res.status(404).json({ error: "Decision not found" });
+      }
+
+      const simulation = await storage.getSimulation(decision.selectedSimulationId);
+      if (!simulation) {
+        return res.status(404).json({ error: "Simulation not found" });
+      }
+
+      // Update decision to approved
+      const updatedDecision = await storage.updateDecision(decisionId, {
+        status: "approved",
+        approvedByUserId: req.session?.userId,
+      });
+
+      // Update job request with assignment
+      await storage.updateJobRequest(decision.jobRequestId, {
+        status: "assigned",
+        assignedCrewId: simulation.crewId,
+        assignedDate: new Date(simulation.proposedDate),
+      });
+
+      res.json({ decision: updatedDecision, message: "Assignment approved" });
+    } catch (error: any) {
+      console.error("[Optimizer] Error approving decision:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Ops API: Schedule Items ---
+  app.get("/api/ops/schedule", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const crewId = req.query.crewId ? parseInt(req.query.crewId as string) : undefined;
+      const scheduleList = await storage.getScheduleItems(profile.id, crewId);
+      res.json(scheduleList);
+    } catch (error: any) {
+      console.error("[Optimizer] Error fetching schedule:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }
