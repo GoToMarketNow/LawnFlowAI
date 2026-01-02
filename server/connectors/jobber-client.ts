@@ -233,13 +233,56 @@ export class JobberClient {
           jobStatus
           createdAt
           client { id name }
-          property { id street city province postalCode }
+          property { 
+            id 
+            street 
+            city 
+            province 
+            postalCode
+            customFields { nodes { label value } }
+          }
+          jobType { name }
+          quote { id }
+          assignedUsers { nodes { id name } }
           lineItems { nodes { id name description quantity unitPrice total } }
           amounts { total depositAmount discountAmount subtotal outstanding }
+          customFields { nodes { label value } }
         }
       }
     `;
     return this.query<{ job: any }>(query, { id: jobId });
+  }
+
+  async getVisit(visitId: string) {
+    const query = `
+      query GetVisit($id: EncodedId!) {
+        visit(id: $id) {
+          id
+          title
+          status
+          startAt
+          endAt
+          duration
+          completedAt
+          job { 
+            id 
+            title 
+            jobType { name }
+          }
+          assignedUsers { nodes { id name } }
+          timeEntries {
+            nodes {
+              id
+              duration
+              startAt
+              endAt
+              user { id name }
+            }
+          }
+        }
+      }
+    `;
+    return this.query<{ visit: any }>(query, { id: visitId });
   }
 
   async getClientJobs(clientId: string, first: number = 10) {

@@ -2201,5 +2201,207 @@ export async function registerRoutes(
     }
   });
 
+  // ============================================
+  // Margin & Variance API Endpoints
+  // ============================================
+
+  app.get("/api/margin/alerts", async (req, res) => {
+    try {
+      const { marginAlerts } = await import("@shared/schema");
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const status = req.query.status as string | undefined;
+      
+      let query = db
+        .select()
+        .from(marginAlerts)
+        .where(eq(marginAlerts.businessId, profile.id))
+        .orderBy(desc(marginAlerts.createdAt));
+      
+      if (status) {
+        query = db
+          .select()
+          .from(marginAlerts)
+          .where(and(
+            eq(marginAlerts.businessId, profile.id),
+            eq(marginAlerts.status, status)
+          ))
+          .orderBy(desc(marginAlerts.createdAt));
+      }
+      
+      const alerts = await query;
+      res.json(alerts);
+    } catch (error: any) {
+      console.error("[Margin] Error fetching alerts:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/margin/alerts/:id", async (req, res) => {
+    try {
+      const { marginAlerts, jobSnapshots } = await import("@shared/schema");
+      const id = parseInt(req.params.id);
+      
+      const [alert] = await db
+        .select()
+        .from(marginAlerts)
+        .where(eq(marginAlerts.id, id))
+        .limit(1);
+      
+      if (!alert) {
+        return res.status(404).json({ error: "Alert not found" });
+      }
+      
+      const [snapshot] = await db
+        .select()
+        .from(jobSnapshots)
+        .where(eq(jobSnapshots.id, alert.snapshotId))
+        .limit(1);
+      
+      res.json({ alert, snapshot });
+    } catch (error: any) {
+      console.error("[Margin] Error fetching alert:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/margin/alerts/:id/acknowledge", async (req, res) => {
+    try {
+      const { acknowledgeAlert } = await import("./workers/margin/marginWorker");
+      const id = parseInt(req.params.id);
+      const { acknowledgedBy } = req.body;
+      
+      await acknowledgeAlert(id, acknowledgedBy || "user");
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Margin] Error acknowledging alert:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/margin/alerts/:id/resolve", async (req, res) => {
+    try {
+      const { resolveAlert } = await import("./workers/margin/marginWorker");
+      const id = parseInt(req.params.id);
+      const { resolvedBy, resolution } = req.body;
+      
+      await resolveAlert(id, resolvedBy || "user", resolution || "");
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Margin] Error resolving alert:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/margin/alerts/:id/dismiss", async (req, res) => {
+    try {
+      const { dismissAlert } = await import("./workers/margin/marginWorker");
+      const id = parseInt(req.params.id);
+      
+      await dismissAlert(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Margin] Error dismissing alert:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/margin/snapshots", async (req, res) => {
+    try {
+      const { jobSnapshots } = await import("@shared/schema");
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const snapshots = await db
+        .select()
+        .from(jobSnapshots)
+        .where(eq(jobSnapshots.businessId, profile.id))
+        .orderBy(desc(jobSnapshots.updatedAt))
+        .limit(50);
+      
+      res.json(snapshots);
+    } catch (error: any) {
+      console.error("[Margin] Error fetching snapshots:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/margin/snapshots/:jobId", async (req, res) => {
+    try {
+      const { jobSnapshots } = await import("@shared/schema");
+      const { jobId } = req.params;
+      
+      const [snapshot] = await db
+        .select()
+        .from(jobSnapshots)
+        .where(eq(jobSnapshots.jobberJobId, jobId))
+        .limit(1);
+      
+      if (!snapshot) {
+        return res.status(404).json({ error: "Snapshot not found" });
+      }
+      
+      const { computeVariance } = await import("./workers/margin/varianceEngine");
+      const variance = computeVariance(snapshot);
+      
+      res.json({ snapshot, variance });
+    } catch (error: any) {
+      console.error("[Margin] Error fetching snapshot:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/margin/summary", async (req, res) => {
+    try {
+      const { marginAlerts, jobSnapshots } = await import("@shared/schema");
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const openAlerts = await db
+        .select()
+        .from(marginAlerts)
+        .where(and(
+          eq(marginAlerts.businessId, profile.id),
+          eq(marginAlerts.status, "open")
+        ));
+      
+      const highRiskJobs = await db
+        .select()
+        .from(jobSnapshots)
+        .where(and(
+          eq(jobSnapshots.businessId, profile.id),
+          eq(jobSnapshots.marginRisk, "high")
+        ));
+      
+      const recentSnapshots = await db
+        .select()
+        .from(jobSnapshots)
+        .where(eq(jobSnapshots.businessId, profile.id))
+        .orderBy(desc(jobSnapshots.updatedAt))
+        .limit(10);
+      
+      res.json({
+        openAlertCount: openAlerts.length,
+        highRiskJobCount: highRiskJobs.length,
+        alertsBySeverity: {
+          high: openAlerts.filter(a => a.severity === "high").length,
+          medium: openAlerts.filter(a => a.severity === "medium").length,
+          low: openAlerts.filter(a => a.severity === "low").length,
+        },
+        recentSnapshots,
+      });
+    } catch (error: any) {
+      console.error("[Margin] Error fetching summary:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }

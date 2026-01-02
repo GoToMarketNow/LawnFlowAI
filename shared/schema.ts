@@ -961,3 +961,107 @@ export interface DispatchPlanResult {
   overallUtilization: number;
   warnings: string[];
 }
+
+// ============================================
+// Margin & Variance Tracking Tables
+// ============================================
+
+// Job Snapshots - baseline data captured when job starts
+export const jobSnapshots = pgTable("job_snapshots", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  jobberAccountId: text("jobber_account_id"),
+  jobberJobId: text("jobber_job_id").notNull(),
+  jobberQuoteId: text("jobber_quote_id"), // Source quote if applicable
+  
+  // Baseline metrics (captured at job creation/start)
+  baselineRevenue: integer("baseline_revenue"), // cents
+  baselineCost: integer("baseline_cost"), // cents (labor + materials estimate)
+  baselineMarginPercent: integer("baseline_margin_percent"), // 0-100
+  
+  // Expected duration model inputs
+  serviceType: text("service_type").notNull(),
+  lotSizeSqft: integer("lot_size_sqft"),
+  crewSize: integer("crew_size").default(1),
+  expectedDurationMins: integer("expected_duration_mins").notNull(),
+  expectedVisits: integer("expected_visits").default(1),
+  
+  // Current progress (updated on VISIT_* events)
+  actualDurationMins: integer("actual_duration_mins").default(0),
+  visitsCompleted: integer("visits_completed").default(0),
+  timeLoggedMins: integer("time_logged_mins").default(0),
+  
+  // Variance tracking
+  durationVariancePercent: integer("duration_variance_percent").default(0), // negative = under, positive = over
+  marginRisk: text("margin_risk").default("normal"), // normal, medium, high
+  lastVarianceCheck: timestamp("last_variance_check"),
+  
+  // Sync status
+  jobberSynced: boolean("jobber_synced").default(false),
+  jobberSyncedAt: timestamp("jobber_synced_at"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  jobberJobIdx: uniqueIndex("job_snapshots_jobber_job_idx").on(table.jobberAccountId, table.jobberJobId),
+}));
+
+// Margin Alerts - internal alerts for variance threshold breaches
+export const marginAlerts = pgTable("margin_alerts", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  snapshotId: integer("snapshot_id").references(() => jobSnapshots.id).notNull(),
+  jobberJobId: text("jobber_job_id").notNull(),
+  
+  // Alert details
+  alertType: text("alert_type").notNull(), // duration_overrun, margin_risk, visit_overrun
+  severity: text("severity").notNull().default("medium"), // low, medium, high
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  
+  // Variance data
+  expectedValue: integer("expected_value"),
+  actualValue: integer("actual_value"),
+  variancePercent: integer("variance_percent"),
+  
+  // Recommended actions (JSON array)
+  recommendedActions: jsonb("recommended_actions"), // [{ action, description, priority }]
+  
+  // Status tracking
+  status: text("status").notNull().default("open"), // open, acknowledged, resolved, dismissed
+  acknowledgedBy: text("acknowledged_by"),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  resolvedBy: text("resolved_by"),
+  resolvedAt: timestamp("resolved_at"),
+  resolution: text("resolution"), // notes on how it was resolved
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Insert schemas for margin tables
+export const insertJobSnapshotSchema = createInsertSchema(jobSnapshots).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertMarginAlertSchema = createInsertSchema(marginAlerts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types for margin tracking
+export type JobSnapshot = typeof jobSnapshots.$inferSelect;
+export type InsertJobSnapshot = z.infer<typeof insertJobSnapshotSchema>;
+
+export type MarginAlert = typeof marginAlerts.$inferSelect;
+export type InsertMarginAlert = z.infer<typeof insertMarginAlertSchema>;
+
+// Margin alert recommended action type
+export interface MarginAlertAction {
+  action: string;
+  description: string;
+  priority: "low" | "medium" | "high";
+}
