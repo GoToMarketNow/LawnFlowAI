@@ -2940,6 +2940,49 @@ export async function registerRoutes(
     }
   });
 
+  // Get agent summary metrics (MUST be before :id route)
+  app.get("/api/agents/summary", async (req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+      const { agentRegistry } = await import("@shared/schema");
+      const profile = await storage.getBusinessProfile();
+      
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+
+      const agents = await db
+        .select()
+        .from(agentRegistry)
+        .where(eq(agentRegistry.businessId, profile.id));
+
+      const summary = {
+        totalAgents: agents.length,
+        activeAgents: agents.filter(a => a.status === "active").length,
+        pausedAgents: agents.filter(a => a.status === "paused").length,
+        disabledAgents: agents.filter(a => a.status === "disabled").length,
+        avgHealthScore: agents.length > 0 
+          ? Math.round(agents.reduce((sum, a) => sum + (a.healthScore || 100), 0) / agents.length)
+          : 100,
+        totalTimeSavedMinutes: agents.reduce((sum, a) => sum + (a.timeSavedMinutes || 0), 0),
+        totalCashAcceleratedCents: agents.reduce((sum, a) => sum + (a.cashAcceleratedCents || 0), 0),
+        totalRevenueProtectedCents: agents.reduce((sum, a) => sum + (a.revenueProtectedCents || 0), 0),
+        byCategory: {
+          core: agents.filter(a => a.category === "core").length,
+          ops: agents.filter(a => a.category === "ops").length,
+          finance: agents.filter(a => a.category === "finance").length,
+          comms: agents.filter(a => a.category === "comms").length,
+        },
+      };
+
+      res.json(summary);
+    } catch (error: any) {
+      console.error("[Agents] Error fetching summary:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get agent details with recent runs
   app.get("/api/agents/:id", async (req, res) => {
     try {
@@ -3069,49 +3112,6 @@ export async function registerRoutes(
       res.json(runs);
     } catch (error: any) {
       console.error("[Agents] Error fetching runs:", error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Get agent summary metrics
-  app.get("/api/agents/summary", async (req, res) => {
-    try {
-      const { db } = await import("./db");
-      const { eq } = await import("drizzle-orm");
-      const { agentRegistry } = await import("@shared/schema");
-      const profile = await storage.getBusinessProfile();
-      
-      if (!profile) {
-        return res.status(404).json({ error: "Business profile not found" });
-      }
-
-      const agents = await db
-        .select()
-        .from(agentRegistry)
-        .where(eq(agentRegistry.businessId, profile.id));
-
-      const summary = {
-        totalAgents: agents.length,
-        activeAgents: agents.filter(a => a.status === "active").length,
-        pausedAgents: agents.filter(a => a.status === "paused").length,
-        disabledAgents: agents.filter(a => a.status === "disabled").length,
-        avgHealthScore: agents.length > 0 
-          ? Math.round(agents.reduce((sum, a) => sum + (a.healthScore || 100), 0) / agents.length)
-          : 100,
-        totalTimeSavedMinutes: agents.reduce((sum, a) => sum + (a.timeSavedMinutes || 0), 0),
-        totalCashAcceleratedCents: agents.reduce((sum, a) => sum + (a.cashAcceleratedCents || 0), 0),
-        totalRevenueProtectedCents: agents.reduce((sum, a) => sum + (a.revenueProtectedCents || 0), 0),
-        byCategory: {
-          core: agents.filter(a => a.category === "core").length,
-          ops: agents.filter(a => a.category === "ops").length,
-          finance: agents.filter(a => a.category === "finance").length,
-          comms: agents.filter(a => a.category === "comms").length,
-        },
-      };
-
-      res.json(summary);
-    } catch (error: any) {
-      console.error("[Agents] Error fetching summary:", error);
       res.status(500).json({ error: error.message });
     }
   });
