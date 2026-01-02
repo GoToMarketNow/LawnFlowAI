@@ -362,6 +362,91 @@ export class JobberClient {
       },
     });
   }
+
+  async createInvoice(jobId: string, lineItems: Array<{ name: string; description?: string; quantity: number; unitCost: number }>) {
+    const mutation = `
+      mutation CreateInvoice($input: InvoiceCreateInput!) {
+        invoiceCreate(input: $input) {
+          invoice { 
+            id 
+            invoiceNumber
+            amounts { total outstanding }
+          }
+          userErrors { message path }
+        }
+      }
+    `;
+    return this.query<{ invoiceCreate: { invoice: any; userErrors: any[] } }>(mutation, {
+      input: {
+        jobId,
+        lineItems: lineItems.map(li => ({
+          name: li.name,
+          description: li.description || "",
+          quantity: li.quantity.toString(),
+          unitCost: li.unitCost.toString(),
+        })),
+      },
+    });
+  }
+
+  async sendInvoice(invoiceId: string, deliveryMethod: "EMAIL" | "SMS" = "EMAIL") {
+    const mutation = `
+      mutation SendInvoice($invoiceId: EncodedId!, $deliveryMethod: InvoiceDeliveryMethod!) {
+        invoiceSend(invoiceId: $invoiceId, deliveryMethod: $deliveryMethod) {
+          invoice { 
+            id 
+            sentStatus 
+          }
+          userErrors { message path }
+        }
+      }
+    `;
+    return this.query<{ invoiceSend: { invoice: any; userErrors: any[] } }>(mutation, {
+      invoiceId,
+      deliveryMethod,
+    });
+  }
+
+  async getInvoice(invoiceId: string) {
+    const query = `
+      query GetInvoice($id: EncodedId!) {
+        invoice(id: $id) {
+          id
+          invoiceNumber
+          subject
+          sentStatus
+          paymentStatus
+          dueDate
+          issuedDate
+          amounts { total outstanding subtotal }
+          job { id title }
+          client { id name }
+        }
+      }
+    `;
+    return this.query<{ invoice: any }>(query, { id: invoiceId });
+  }
+
+  async getJobInvoices(jobId: string) {
+    const query = `
+      query GetJobInvoices($jobId: EncodedId!) {
+        job(id: $jobId) {
+          id
+          invoices {
+            nodes {
+              id
+              invoiceNumber
+              subject
+              sentStatus
+              paymentStatus
+              amounts { total outstanding }
+            }
+          }
+        }
+      }
+    `;
+    return this.query<{ job: { invoices: { nodes: any[] } } }>(query, { jobId });
+  }
 }
 
 export async function getJobberClient(accountId: string): Promise<JobberClient> {
