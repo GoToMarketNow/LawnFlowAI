@@ -10,6 +10,7 @@ import {
   Radio,
   Settings,
   CreditCard,
+  MapPin,
 } from "lucide-react";
 import {
   Sidebar,
@@ -82,6 +83,12 @@ const settingsItems = [
     url: "/audit",
     icon: FileText,
     requiresOnboarding: true,
+  },
+  {
+    title: "Coverage Admin",
+    url: "/admin/coverage",
+    icon: MapPin,
+    requiresOnboarding: false,
   },
 ];
 
