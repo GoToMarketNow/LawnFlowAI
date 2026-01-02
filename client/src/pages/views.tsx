@@ -27,8 +27,6 @@ interface ViewConfig {
   icon: React.ReactNode;
   description: string;
   categories: string[];
-  agentKeys?: string[];
-  excludeAgentKeys?: string[];
 }
 
 const VIEW_CONFIGS: ViewConfig[] = [
@@ -45,15 +43,13 @@ const VIEW_CONFIGS: ViewConfig[] = [
     icon: <Wallet className="h-5 w-5" />,
     description: "Billing, reconciliation, and margin tracking agents",
     categories: ["finance"],
-    excludeAgentKeys: ["upsell_worker"],
   },
   {
     key: "growth",
     label: "Growth",
     icon: <MessageSquare className="h-5 w-5" />,
-    description: "Customer communications and upsell agents",
+    description: "Customer communications, reviews, and upsell agents",
     categories: ["comms"],
-    agentKeys: ["upsell_worker"],
   },
 ];
 
@@ -216,11 +212,7 @@ function AgentCard({ agent }: { agent: AgentRegistryEntry }) {
 }
 
 function ViewPanel({ view, agents }: { view: ViewConfig; agents: AgentRegistryEntry[] }) {
-  const filteredAgents = agents.filter(a => {
-    if (view.excludeAgentKeys?.includes(a.agentKey)) return false;
-    return view.categories.includes(a.category) || 
-      (view.agentKeys && view.agentKeys.includes(a.agentKey));
-  });
+  const filteredAgents = agents.filter(a => view.categories.includes(a.category));
 
   if (filteredAgents.length === 0) {
     return (

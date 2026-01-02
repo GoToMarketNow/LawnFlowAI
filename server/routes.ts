@@ -2845,11 +2845,56 @@ export async function registerRoutes(
   // ============================================
 
   const DEFAULT_AGENTS = [
+    // Core agents - Orchestration & Lead Management
     {
       agentKey: "orchestration_engine",
       displayName: "Orchestration Engine",
       description: "AI-powered supervisor that generates and executes workflow plans for customer engagement",
       category: "core",
+      schedule: "event-driven",
+    },
+    {
+      agentKey: "intake_agent",
+      displayName: "Intake & Qualification Agent",
+      description: "Handles initial customer contact, lead qualification, and information extraction from inbound messages",
+      category: "core",
+      schedule: "event-driven",
+    },
+    {
+      agentKey: "quoting_agent",
+      displayName: "Quoting Agent",
+      description: "Generates price quotes based on service type, lot size, and business pricing rules",
+      category: "core",
+      schedule: "event-driven",
+    },
+    {
+      agentKey: "scheduling_agent",
+      displayName: "Scheduling Agent",
+      description: "Manages appointment booking, proposes available time slots, and handles rescheduling requests",
+      category: "core",
+      schedule: "event-driven",
+    },
+    // Operations agents - Dispatch & Routing
+    {
+      agentKey: "dispatch_worker",
+      displayName: "Dispatch & Routing Worker",
+      description: "Intelligent route planning and crew dispatch with optimal job assignment",
+      category: "ops",
+      schedule: "0 2 * * *", // Nightly at 2 AM
+    },
+    // Finance agents - Billing, Reconciliation & Margin
+    {
+      agentKey: "billing_agent",
+      displayName: "Billing Agent",
+      description: "Sends payment reminders, offers payment links, and handles collection escalation",
+      category: "finance",
+      schedule: "event-driven",
+    },
+    {
+      agentKey: "billing_worker",
+      displayName: "Billing Orchestrator",
+      description: "Automated milestone-based invoicing for multi-phase projects",
+      category: "finance",
       schedule: "event-driven",
     },
     {
@@ -2866,13 +2911,7 @@ export async function registerRoutes(
       category: "finance",
       schedule: "event-driven",
     },
-    {
-      agentKey: "dispatch_worker",
-      displayName: "Dispatch & Routing Worker",
-      description: "Intelligent route planning and crew dispatch with optimal job assignment",
-      category: "ops",
-      schedule: "0 2 * * *", // Nightly at 2 AM
-    },
+    // Growth agents - Customer Comms, Reviews & Upsell
     {
       agentKey: "comms_worker",
       displayName: "Customer Comms Worker",
@@ -2881,18 +2920,18 @@ export async function registerRoutes(
       schedule: "event-driven",
     },
     {
+      agentKey: "reviews_agent",
+      displayName: "Reviews Agent",
+      description: "Requests customer reviews after job completion with sentiment-aware timing",
+      category: "comms",
+      schedule: "event-driven",
+    },
+    {
       agentKey: "upsell_worker",
       displayName: "Renewal & Upsell Worker",
       description: "Generates next-best-offer recommendations and creates draft quotes in Jobber",
-      category: "finance",
+      category: "comms",
       schedule: "0 6 * * 1", // Weekly on Monday 6 AM
-    },
-    {
-      agentKey: "billing_worker",
-      displayName: "Billing Orchestrator",
-      description: "Automated milestone-based invoicing for multi-phase projects",
-      category: "finance",
-      schedule: "event-driven",
     },
   ];
 
