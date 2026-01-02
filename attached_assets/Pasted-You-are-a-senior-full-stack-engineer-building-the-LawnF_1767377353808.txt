@@ -1,0 +1,473 @@
+You are a senior full-stack engineer building the LawnFlow SMS Intelligence Layer inside the existing LawnFlow MVP repo in Replit.
+
+CONTEXT (EXISTING SYSTEM)
+- LawnFlow already has an Intake & Enrichment / Lead Intake & Qualification worker (agent) deployed.
+- That worker already performs:
+  - lead creation / qualification scaffolding
+  - address lookup + validation
+  - ArcGIS-based property/area lookup to estimate serviceable area / lot context
+- LawnFlow also already has:
+  - agent registry + agent control endpoints
+  - Jobber integration (OAuth + GraphQL + webhooks)
+  - basic lead lifecycle from “request quote” toward quoting/scheduling
+We are now adding an SMS-first interface that runs an end-to-end “Inbound lead → booked job” workflow by SMS.
+
+PRIMARY OBJECTIVE
+Build an SMS Intelligence Layer that:
+1) Handles inbound SMS from prospects/customers
+2) Runs a conversation state machine (“lead-to-book template”) that collects key fields
+3) Calls the existing Lead Intake & Qualification agent to enrich/validate (especially address + ArcGIS area)
+4) Produces quoting and scheduling outcomes by SMS
+5) Includes robust fallback to human with click-to-call live handoff
+6) Is template-driven so we can add future service verticals beyond lawn care without rewriting the engine
+
+DELIVERABLES
+A) Developer-ready spec (data model, state machine, endpoints, services, modules)
+B) Prompt-engineering build script(s) that a coding agent can execute in Replit to implement
+C) Service templates design for lawn care now, extensible for other services later
+
+NON-NEGOTIABLES
+- Deterministic state machine (no “LLM freeform” controlling state transitions)
+- Message rendering is template-driven (copy, buttons/choices, validation)
+- Idempotent inbound processing (Twilio retries, duplicate messages, etc.)
+- Safe escalation to human when the flow stalls or sentiment/confusion rises
+- Clear interfaces to existing Lead Intake agent, Jobber, and agent registry system
+
+========================================================
+SECTION 1 — ARCHITECTURE OVERVIEW
+
+SYSTEM COMPONENTS
+1) SMS Gateway Adapter
+   - Twilio (preferred) or pluggable SMS provider
+   - Webhook endpoint: POST /sms/inbound
+   - Optional status callbacks: /sms/status
+
+2) SMS Orchestrator (new)
+   - Receives inbound SMS events
+   - Loads session + state
+   - Runs State Machine
+   - Emits outbound SMS messages
+   - Schedules retries/nudges
+   - Logs every event
+
+3) Lead-to-Book State Machine Engine (new)
+   - Generic engine driven by templates
+   - Templates define:
+     - required fields
+     - prompt copy
+     - validation rules
+     - transition map
+     - service catalog & SKU mapping
+     - quoting strategy (range-first then exact)
+     - scheduling policy
+
+4) Lead Intake & Qualification Agent (existing, augment)
+   - Must expose a callable function or internal API:
+     - enrichLead({address, phone, ...}) -> normalized_address + arcgis_area + confidence + notes
+   - State machine uses this to validate address and derive lot/area context early.
+
+5) Human Handoff + Click-to-Call (new)
+   - Handoff tickets
+   - Click-to-call link generator (expiring token)
+   - Call routing (MVP: tracked tel: link; V2: call-bridge)
+   - Agent takeover mode for SMS (human replies; automation paused)
+
+========================================================
+SECTION 2 — DATA MODEL (DB SCHEMA)
+
+Create tables (Prisma preferred if already used; otherwise SQLite schema).
+
+1) sms_sessions
+- session_id (uuid, pk)
+- account_id (string)              // Jobber account or LawnFlow account
+- channel ("sms")
+- from_phone (string)
+- to_phone (string)                // your SMS number
+- status ("active"|"paused_for_human"|"dormant"|"closed")
+- service_template_id (string)     // e.g., "lawncare_v1"
+- state (string)                   // current state name
+- state_entered_at (datetime)
+- last_inbound_at (datetime)
+- last_outbound_at (datetime)
+- attempt_counters (json)
+- confidence (json)
+- collected (json)                 // normalized fields
+- derived (json)                   // arcgis outputs, lot estimates, etc
+- quote (json)
+- scheduling (json)
+- handoff (json)
+- audit (json)                     // Jobber ids, etc
+- created_at, updated_at
+
+2) sms_events (append-only)
+- event_id (uuid, pk)
+- session_id (uuid, fk)
+- ts (datetime)
+- direction ("inbound"|"outbound")
+- provider_message_id (string, nullable)
+- type ("sms")
+- text (text)
+- payload_json (json)
+- nlp_json (json, nullable)        // optional: intent/sentiment
+- state_before (string)
+- state_after (string)
+- created_at
+
+3) handoff_tickets
+- ticket_id (uuid, pk)
+- session_id (uuid, fk)
+- account_id (string)
+- status ("open"|"assigned"|"resolved"|"closed")
+- priority ("low"|"normal"|"high")
+- reason_codes (json array)
+- summary (text)
+- assigned_to (string, nullable)
+- created_at, updated_at
+
+4) click_to_call_tokens
+- token_id (uuid, pk)
+- session_id (uuid, fk)
+- token (string, unique)
+- expires_at (datetime)
+- used_at (datetime, nullable)
+- created_at
+
+5) call_events (MVP optional)
+- call_event_id (uuid, pk)
+- session_id (uuid, fk)
+- ts (datetime)
+- type ("click"|"dial"|"connected"|"missed"|"completed")
+- metadata_json (json)
+
+========================================================
+SECTION 3 — TEMPLATE-DRIVEN “LEAD-TO-BOOK” ENGINE
+
+A template is a JSON/YAML definition that can power multiple verticals.
+Store templates at: /templates/sms/{template_id}.json
+
+Template structure (minimum):
+{
+  "template_id": "lawncare_v1",
+  "vertical": "lawncare",
+  "entry": { "state": "INTENT" },
+  "fields": {
+    "address": { "required": true, "validator": "address" },
+    "services_requested": { "required": true, "validator": "service_list" },
+    "frequency": { "required": true, "validator": "frequency" },
+    "timeline": { "required": true, "validator": "timeline" },
+    "lot_size_bucket": { "required": false, "validator": "lot_size_bucket" }
+  },
+  "states": {
+    "INTENT": { ... },
+    "ADDRESS": { ... },
+    "ADDRESS_CONFIRM": { ... },
+    "SERVICES": { ... },
+    "FREQUENCY": { ... },
+    "TIMELINE": { ... },
+    "PRICE_RANGE": { ... },
+    "SCHEDULING": { ... },
+    "BOOKING_CONFIRM": { ... },
+    "HUMAN_HANDOFF": { ... }
+  },
+  "quote_policy": {
+    "mode": "range_first",
+    "range_rules": { ... },
+    "exact_rules": { ... },
+    "site_visit_required_rules": { ... }
+  },
+  "handoff_policy": {
+    "max_attempts": { "ADDRESS_CONFIRM": 2, "SCHEDULING": 3, "OBJECTION": 2 },
+    "no_response_minutes": [10, 120, 1440],
+    "confusion_threshold": 0.55,
+    "negative_sentiment_threshold": 0.35
+  }
+}
+
+State definition requirements:
+Each state defines:
+- prompt: message template(s)
+- expected_input: "choice"|"free_text"|"yes_no"
+- choices: optional array {key,label}
+- on_input: parsing rules to map user response to fields
+- transition:
+  - next_state_on_success
+  - next_state_on_fail
+  - next_state_on_handoff
+
+Example state (SERVICES):
+{
+  "prompt": [
+    "What services do you need? Reply with numbers (ex: 1,3)",
+    "1) Lawn mowing  2) Edging & trimming  3) Fertilization/weed control",
+    "4) Aeration/overseeding  5) Mulch/cleanup  6) Other"
+  ],
+  "expected_input": "choice_multi",
+  "choices": [
+    {"key":"mowing","n":1},
+    {"key":"edging","n":2},
+    {"key":"fert","n":3},
+    {"key":"aeration","n":4},
+    {"key":"cleanup","n":5},
+    {"key":"other","n":6}
+  ],
+  "on_input": { "set_field": "services_requested", "parser": "numbers_to_keys" },
+  "transition": { "success": "FREQUENCY", "fail": "SERVICES" }
+}
+
+========================================================
+SECTION 4 — STATE MACHINE ENGINE (DETERMINISTIC)
+
+Implement in /server/sms/stateMachine.ts (or equivalent).
+Core function:
+handleInboundSms({accountId, fromPhone, toPhone, text, providerPayload}) => { session, outboundMessages[], actions[] }
+
+Actions include:
+- update_session(fields)
+- call_lead_intake_enrichment(address_raw, phone)
+- compute_quote_range(template, derived, collected)
+- offer_slots(template, derived, collected)
+- create_or_update_jobber_records(...)
+- create_handoff_ticket(...)
+- generate_click_to_call_token(...)
+- pause_automation_for_human(...)
+
+Important behaviors:
+- Ensure idempotency (provider_message_id dedupe)
+- Ensure safe transitions (never skip required fields)
+- Validate input; if invalid, re-prompt with clarity
+- Track attempt counters per state; if exceeded, trigger HUMAN_HANDOFF
+
+========================================================
+SECTION 5 — AUGMENT EXISTING LEAD INTAKE & QUALIFICATION AGENT
+
+Expose the existing agent as an internal callable module and/or API:
+Option A (preferred): import and call function directly within backend runtime
+- /packages/workers/intake_enrichment/enrichLead.ts
+  export async function enrichLead({ address_raw, phone, account_id }): Promise<EnrichmentResult>
+
+Option B: internal HTTP call
+- POST /internal/agents/intake_enrichment/enrich
+  body: { accountId, address_raw, phone }
+  returns: normalized address + arcgis area estimate + confidence
+
+EnrichmentResult must include:
+{
+  "address_normalized": {...},
+  "address_confidence": 0..1,
+  "arcgis": {
+     "geometry": {...},
+     "estimated_area_sqft": number,
+     "estimated_lot_acres": number,
+     "confidence": 0..1,
+     "source": "arcgis"
+  },
+  "notes": ["..."]
+}
+
+State machine usage:
+- After ADDRESS state input, call enrichLead()
+- If confidence >= threshold (e.g., 0.8): proceed to PROPERTY_CONTEXT or SERVICES
+- Else: go to ADDRESS_CONFIRM and ask clarifying question
+
+========================================================
+SECTION 6 — QUOTING LOGIC (RANGE-FIRST THEN EXACT)
+
+For lawncare_v1, implement conservative range model (configurable):
+- Inputs:
+  - lot_size_bucket (user-confirmed or derived)
+  - services_requested
+  - frequency
+  - urgency/timeline
+- Output:
+  - range_low, range_high, unit (per visit)
+  - assumptions list
+  - eligibility for exact quote vs site visit
+
+Implement as pure functions in /server/sms/quoteEngine.ts:
+- computeLotBucket(derived.arcgis_area, user_bucket)
+- computeRange(template, collected, derived)
+- shouldRequireSiteVisit(template, collected, derived)
+
+For future verticals:
+- quoteEngine must accept a template and service catalog (SKU rules).
+
+========================================================
+SECTION 7 — SCHEDULING FLOW (SMS-NATIVE)
+In /server/sms/scheduling.ts:
+- getAvailableSlots(accountId, dateWindow, serviceType, durationEstimate)
+  - MVP: if Jobber availability endpoint isn’t ready, use LawnFlow internal schedule rules
+- reserveSlot(sessionId, slotId)
+- confirmBooking(sessionId)
+
+Once booked:
+- Create/update Jobber:
+  - client + property + job + schedule (using existing Jobber integration path)
+- Persist Jobber ids in session.audit
+
+========================================================
+SECTION 8 — HUMAN HANDOFF + CLICK-TO-CALL
+
+Handoff triggers (must implement):
+- attempts exceed max_attempts for the state
+- objection_loops >= max_objection_loops
+- confusion score > threshold
+- user asks for a human (“call me”, “human”, “agent”, etc.)
+- negative sentiment threshold exceeded (optional in MVP; can be keyword-based)
+
+Handoff actions:
+1) Create handoff ticket with reason_codes + session summary
+2) Set sms_session.status = "paused_for_human"
+3) Generate click-to-call link:
+   - POST /sms/click-to-call/:token
+   - token expires in 10 minutes
+4) SMS to user:
+   - “Want to finish faster by phone? Tap to call: <link> Or reply TEXT to continue by SMS with a person.”
+
+Click-to-call MVP implementation:
+- /sms/click-to-call/:token renders a simple mobile page with:
+  - “Call Now” button (tel:+1YOURNUMBER?subject=sessionToken)
+  - logs click event
+- When inbound call is received (callerID), system matches phone -> session_id and shows context in a simple internal “Handoff Console” page.
+
+V2 (optional):
+- call bridging (rep first, then customer, bridge)
+
+========================================================
+SECTION 9 — OBJECTION HANDLING (TEMPLATED)
+Implement objection detection as deterministic patterns + light intent classification:
+- price objection keywords: "expensive", "cheaper", "price", "quote", "$"
+- urgency keywords: "today", "tomorrow", "asap"
+- trust keywords: "insured", "licensed", "reviews"
+- scheduling constraints: "weekend", "after 5", "morning only"
+- human request: "call", "phone", "someone", "person"
+
+Map each objection type to:
+- 1–2 SMS prompts designed to recover the flow
+- if objection repeats or combines with urgency → offer click-to-call immediately
+
+Store in template:
+"objections": {
+  "price": { "prompts": [...], "escalate_after": 2, "offer_call": true },
+  "urgency": { ... }
+}
+
+========================================================
+SECTION 10 — ENDPOINTS (API SURFACE)
+
+SMS provider webhooks:
+- POST /sms/inbound
+  - receives provider payload (Twilio Message webhook format)
+  - dedupe by provider_message_id
+  - calls handleInboundSms()
+  - responds 200 quickly (send outbound async if needed)
+
+- POST /sms/status (optional)
+  - delivery status updates
+
+Internal admin endpoints:
+- GET /api/sms/sessions?status=open
+- GET /api/sms/sessions/:id
+- POST /api/sms/sessions/:id/takeover (human takes control)
+- POST /api/sms/sessions/:id/release (resume automation)
+- GET /api/handoffs
+- POST /api/handoffs/:ticketId/assign
+
+Agent integration:
+- POST /api/agents/customer_comms/force-run (already exists)
+- plus internal call to intake_enrichment enrichLead()
+
+========================================================
+SECTION 11 — IMPLEMENTATION PLAN (BUILD ORDER)
+1) Add DB schema + migrations for sms_sessions, sms_events, handoff_tickets, click_to_call_tokens
+2) Implement template loader + lawncare_v1 template
+3) Implement state machine engine with deterministic validators
+4) Wire /sms/inbound to create session + progress flow
+5) Integrate existing intake_enrichment agent (ArcGIS)
+6) Implement quoteEngine (range-first) + scheduling stub
+7) Implement handoff + click-to-call token + landing page
+8) Add handoff console UI (basic page) for humans to see and take over
+9) Add tests:
+   - replay a transcript and assert state transitions
+   - idempotency test (duplicate inbound message)
+   - handoff trigger tests
+
+========================================================
+SECTION 12 — PROMPT ENGINEERING: BUILD SCRIPT (REPLIT AGENT)
+Execute the following steps in the repo and commit changes.
+
+STEP 1: DISCOVER CURRENT REPO STRUCTURE
+- Identify:
+  - API server location
+  - DB access method (Prisma or direct)
+  - existing intake_enrichment agent module path
+  - existing Jobber integration module path
+- Print a short map of directories and where you will add SMS modules.
+
+STEP 2: ADD DB MODELS
+- Add Prisma models (preferred) or SQL migrations.
+- Generate/update client.
+
+STEP 3: CREATE TEMPLATE FILES
+- Create /templates/sms/lawncare_v1.json
+- Include states: INTENT, ADDRESS, ADDRESS_CONFIRM, PROPERTY_CONTEXT, SERVICES, FREQUENCY, TIMELINE, PRICE_RANGE, QUALIFY_GATE, SCHEDULING, BOOKING_CONFIRM, OBJECTION, HUMAN_HANDOFF
+- Include objection prompts with escalation to click-to-call.
+
+STEP 4: IMPLEMENT SMS ENGINE MODULES
+Create:
+- /server/sms/templateLoader.ts
+- /server/sms/stateMachine.ts
+- /server/sms/validators.ts
+- /server/sms/quoteEngine.ts
+- /server/sms/scheduling.ts
+- /server/sms/handoff.ts
+- /server/sms/clickToCall.ts
+- /server/sms/nudgeScheduler.ts (MVP: simple cron/in-memory)
+
+STEP 5: INBOUND SMS ENDPOINT
+- Create POST /sms/inbound handler:
+  - parse Twilio payload
+  - dedupe
+  - call handleInboundSms()
+  - enqueue outbound messages to SMS provider (Twilio client)
+- Add environment variables:
+  - TWILIO_ACCOUNT_SID
+  - TWILIO_AUTH_TOKEN
+  - TWILIO_FROM_NUMBER
+
+STEP 6: AUGMENT EXISTING INTAKE ENRICHMENT AGENT
+- Create an internal function call wrapper:
+  - enrichLeadForSms({ accountId, fromPhone, address_raw })
+- Ensure result includes ArcGIS area estimate and confidence.
+- Persist derived.arcgis into sms_sessions.derived.
+
+STEP 7: HUMAN HANDOFF + CLICK-TO-CALL
+- Implement:
+  - createHandoffTicket(session)
+  - generateClickToCallToken(sessionId, expires=10m)
+  - GET /sms/click-to-call/:token page with “Call Now” (tel:) and tracking
+- Add internal API endpoints for handoff console.
+
+STEP 8: MINIMAL UI (OPTIONAL BUT RECOMMENDED)
+- Add an internal “Handoffs” page in admin UI listing open tickets and session summaries.
+
+STEP 9: TESTS
+- Add transcript-driven tests:
+  - A happy path (quote + schedule)
+  - Address mismatch path (confirm)
+  - Price objection path (recover)
+  - Stall path triggers handoff
+  - “call me” triggers click-to-call
+
+STEP 10: DOCUMENTATION
+- Update README with:
+  - how to set Twilio webhook URL
+  - how to run locally in Replit
+  - how to switch templates and add new verticals
+
+OUTPUT REQUIREMENTS
+- Show all new/modified files.
+- Ensure the feature runs end-to-end with a simulated transcript runner script:
+  - npm run sms:replay -- --template=lawncare_v1 --from=+1... --messages="..."
+- Provide example transcripts and expected state progression.
+
+BEGIN NOW.
