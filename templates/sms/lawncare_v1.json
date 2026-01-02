@@ -1,0 +1,450 @@
+{
+  "template_id": "lawncare_v1",
+  "version": "1.0.0",
+  "vertical": "lawncare",
+  "locale": "en-US",
+  "entry": { "state": "INTENT" },
+
+  "runtime": {
+    "timezone_default": "America/New_York",
+    "business_hours": {
+      "tz": "America/New_York",
+      "days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+      "start": "08:00",
+      "end": "18:00"
+    },
+    "safe_mode": {
+      "never_commit_without_confirmation": true,
+      "force_run_requires_apply_confirm": true
+    }
+  },
+
+  "field_schema": {
+    "intent": { "type": "enum", "values": ["recurring", "one_time", "other"], "required": true },
+    "address_raw": { "type": "string", "required": true },
+    "address_normalized": { "type": "object", "required": false },
+    "address_confirmed": { "type": "boolean", "required": false },
+    "property_type": { "type": "enum", "values": ["residential", "light_commercial", "unknown"], "required": false },
+    "lot_size_bucket": { "type": "enum", "values": ["small", "medium", "large", "unknown"], "required": false },
+    "services_requested": {
+      "type": "array",
+      "items": ["mowing", "edging", "fertilization", "aeration", "cleanup", "other"],
+      "required": true
+    },
+    "frequency": { "type": "enum", "values": ["weekly", "biweekly", "monthly", "one_time"], "required": true },
+    "timeline": { "type": "enum", "values": ["asap", "1_2_weeks", "flexible"], "required": true },
+    "urgency": { "type": "enum", "values": ["low", "medium", "high"], "required": false },
+    "fence": { "type": "enum", "values": ["yes", "no", "unknown"], "required": false },
+    "slope": { "type": "enum", "values": ["flat", "sloped", "unknown"], "required": false }
+  },
+
+  "integrations": {
+    "lead_intake_agent": {
+      "agent_id": "intake_enrichment",
+      "call": "enrichLeadForSms",
+      "address_confidence_threshold": 0.8
+    },
+    "scheduling": {
+      "mode": "jobber_or_internal",
+      "default_job_duration_minutes": 45,
+      "slot_window_days": 7,
+      "max_slots_offered": 3
+    },
+    "click_to_call": {
+      "token_ttl_minutes": 10,
+      "offer_on_handoff": true
+    }
+  },
+
+  "handoff_policy": {
+    "max_attempts_by_state": {
+      "ADDRESS_CONFIRM": 2,
+      "SERVICES": 2,
+      "FREQUENCY": 2,
+      "TIMELINE": 2,
+      "SCHEDULING": 3,
+      "OBJECTION": 2
+    },
+    "no_response_nudges_minutes": [10, 120, 1440],
+    "confusion_keywords": ["what", "huh", "confused", "idk", "dont understand", "stop asking"],
+    "human_request_keywords": ["call", "phone", "human", "person", "agent", "representative"],
+    "negative_keywords": ["scam", "ripoff", "angry", "terrible", "trash", "hate", "sucks"],
+    "auto_handoff_on_negative_keyword": true
+  },
+
+  "service_catalog": {
+    "choices": [
+      { "n": 1, "key": "mowing", "label": "Lawn mowing" },
+      { "n": 2, "key": "edging", "label": "Edging & trimming" },
+      { "n": 3, "key": "fertilization", "label": "Fertilization / weed control" },
+      { "n": 4, "key": "aeration", "label": "Aeration / overseeding" },
+      { "n": 5, "key": "cleanup", "label": "Mulch / cleanup" },
+      { "n": 6, "key": "other", "label": "Other" }
+    ],
+    "site_visit_required_services": ["aeration", "cleanup", "other"]
+  },
+
+  "quote_policy": {
+    "mode": "range_first",
+    "range_per_visit_usd": {
+      "weekly": { "small": [45, 60], "medium": [55, 75], "large": [75, 110], "unknown": [55, 95] },
+      "biweekly": { "small": [55, 75], "medium": [65, 90], "large": [90, 130], "unknown": [65, 110] },
+      "monthly": { "small": [85, 120], "medium": [110, 160], "large": [160, 240], "unknown": [110, 200] },
+      "one_time": { "small": [70, 110], "medium": [95, 150], "large": [150, 260], "unknown": [95, 220] }
+    },
+    "exact_pricing": {
+      "enabled": true,
+      "requires_validation_questions": true,
+      "adjustments": {
+        "fence_yes": 1.1,
+        "slope_sloped": 1.15
+      }
+    },
+    "site_visit_rules": {
+      "if_address_confidence_below": 0.8,
+      "if_services_include_any_of": ["aeration", "cleanup", "other"],
+      "if_property_type_is": ["light_commercial"]
+    }
+  },
+
+  "objections": {
+    "price": {
+      "keywords": ["expensive", "cheaper", "price", "cost", "quote", "$", "too much", "afford"],
+      "escalate_after": 2,
+      "prompt_sequence": [
+        "Totally fair - price mainly depends on lawn size + obstacles + frequency.\nWant me to optimize for the lowest monthly total?\nReply: 1) Weekly  2) Bi-weekly  3) One-time",
+        "If you want, I can lock an exact quote with 2 quick questions.\nReply: 1) Do that  2) Schedule a quick visit  3) Call me"
+      ],
+      "on_choice": {
+        "1": { "set_field": { "frequency": "weekly" }, "next": "PRICE_RANGE" },
+        "2": { "set_field": { "frequency": "biweekly" }, "next": "PRICE_RANGE" },
+        "3": { "next": "LIVE_CALL_OFFER" }
+      }
+    },
+    "urgency": {
+      "keywords": ["today", "tomorrow", "asap", "urgent", "emergency", "right now", "this week"],
+      "escalate_after": 1,
+      "prompt_sequence": [
+        "We can try. Is this 1) Standard mowing or 2) Cleanup/overgrowth?\n(Calling is fastest to confirm availability.) Reply 1 or 2"
+      ],
+      "on_choice": {
+        "1": { "next": "SCHEDULING" },
+        "2": { "next": "SITE_VISIT_SCHED" }
+      }
+    },
+    "trust": {
+      "keywords": ["insured", "licensed", "reviews", "legit", "trust", "reliable", "references"],
+      "escalate_after": 1,
+      "prompt_sequence": [
+        "Yes - we're insured and we text before arrival.\nWhat matters most: 1) Reliability  2) Price  3) Detail?"
+      ],
+      "on_choice": {
+        "1": { "next": "SCHEDULING" },
+        "2": { "next": "PRICE_RANGE" },
+        "3": { "next": "SERVICES" }
+      }
+    },
+    "schedule_constraints": {
+      "keywords": ["weekend", "after 5", "morning only", "evening", "saturday", "sunday"],
+      "escalate_after": 1,
+      "prompt_sequence": [
+        "No problem. What window works best?\n1) Weekdays AM  2) Weekdays PM  3) Weekends\n(If you have a tight window, calling is quickest.)"
+      ],
+      "on_choice": {
+        "1": { "next": "SCHEDULING" },
+        "2": { "next": "SCHEDULING" },
+        "3": { "next": "LIVE_CALL_OFFER" }
+      }
+    },
+    "human_request": {
+      "keywords": ["call", "phone", "human", "person", "agent", "representative", "someone"],
+      "escalate_after": 0,
+      "prompt_sequence": [
+        "Absolutely - want to finish faster by phone?\nTap to call: {{click_to_call_url}}\nOr reply TEXT to keep it over SMS with a person."
+      ]
+    }
+  },
+
+  "states": {
+    "INTENT": {
+      "prompt": [
+        "Hi! This is LawnFlow with {{business_name}}.",
+        "I can help you get a fast quote and schedule by text.",
+        "Are you looking for: 1) Ongoing service  2) One-time service  3) Something else?"
+      ],
+      "expected_input": "choice",
+      "parse": { "type": "map_choice", "map": { "1": "recurring", "2": "one_time", "3": "other" }, "field": "intent" },
+      "transition": { "success": "ADDRESS", "fail": "INTENT" }
+    },
+
+    "ADDRESS": {
+      "prompt": ["Great - what's the service address? (Street + City)"],
+      "expected_input": "free_text",
+      "parse": { "type": "set_field", "field": "address_raw" },
+      "actions": [{ "type": "call_lead_intake_enrichment" }],
+      "transition": { "success": "ADDRESS_VALIDATE", "fail": "ADDRESS" }
+    },
+
+    "ADDRESS_VALIDATE": {
+      "prompt": [],
+      "expected_input": "system",
+      "transition": {
+        "success_condition": "derived.address_confidence >= integrations.lead_intake_agent.address_confidence_threshold",
+        "success": "PROPERTY_CONTEXT",
+        "fail": "ADDRESS_CONFIRM"
+      }
+    },
+
+    "ADDRESS_CONFIRM": {
+      "prompt": [
+        "Thanks - I want to make sure I have the right place.",
+        "Is this correct?\n{{derived.address_one_line}}\nReply: 1) Yes  2) No"
+      ],
+      "expected_input": "choice",
+      "parse": { "type": "map_choice", "map": { "1": true, "2": false }, "field": "address_confirmed" },
+      "transition": {
+        "success_condition": "collected.address_confirmed == true",
+        "success": "PROPERTY_CONTEXT",
+        "fail": "ADDRESS_REASK"
+      }
+    },
+
+    "ADDRESS_REASK": {
+      "prompt": ["No worries - please reply with the full address (including city)."],
+      "expected_input": "free_text",
+      "parse": { "type": "set_field", "field": "address_raw" },
+      "actions": [{ "type": "call_lead_intake_enrichment" }],
+      "transition": { "success": "ADDRESS_VALIDATE", "fail": "ADDRESS_REASK" }
+    },
+
+    "PROPERTY_CONTEXT": {
+      "prompt": [
+        "Quick check - about how big is the lawn?",
+        "1) Small (under 1/4 acre)\n2) Medium (1/4-1/2 acre)\n3) Large (1/2-1 acre)\n4) Not sure"
+      ],
+      "expected_input": "choice",
+      "parse": { "type": "map_choice", "map": { "1": "small", "2": "medium", "3": "large", "4": "unknown" }, "field": "lot_size_bucket" },
+      "transition": { "success": "SERVICES", "fail": "PROPERTY_CONTEXT" }
+    },
+
+    "SERVICES": {
+      "prompt": [
+        "What services do you need? Reply with numbers (ex: 1,3)",
+        "1) Lawn mowing  2) Edging & trimming  3) Fertilization/weed control",
+        "4) Aeration/overseeding  5) Mulch/cleanup  6) Other"
+      ],
+      "expected_input": "choice_multi",
+      "parse": { "type": "numbers_to_keys", "field": "services_requested", "choices_path": "service_catalog.choices" },
+      "transition": { "success": "FREQUENCY", "fail": "SERVICES" }
+    },
+
+    "FREQUENCY": {
+      "prompt": [
+        "How often would you like service?",
+        "1) Weekly  2) Bi-weekly  3) Monthly  4) One-time"
+      ],
+      "expected_input": "choice",
+      "parse": { "type": "map_choice", "map": { "1": "weekly", "2": "biweekly", "3": "monthly", "4": "one_time" }, "field": "frequency" },
+      "transition": { "success": "TIMELINE", "fail": "FREQUENCY" }
+    },
+
+    "TIMELINE": {
+      "prompt": ["When are you hoping to start?\n1) ASAP  2) Within 1-2 weeks  3) Flexible"],
+      "expected_input": "choice",
+      "parse": { "type": "map_choice", "map": { "1": "asap", "2": "1_2_weeks", "3": "flexible" }, "field": "timeline" },
+      "actions": [{ "type": "derive_urgency_from_timeline" }],
+      "transition": { "success": "PRICE_RANGE", "fail": "TIMELINE" }
+    },
+
+    "PRICE_RANGE": {
+      "prompt": [
+        "Thanks - based on similar homes nearby, your estimated price range is:",
+        "${{quote.range_low}}-${{quote.range_high}} per visit ({{collected.frequency}})",
+        "Would you like to:\n1) Lock an exact quote\n2) Schedule a quick visit\n3) Ask a question"
+      ],
+      "expected_input": "choice",
+      "parse": { "type": "set_field_from_choice", "field": "next_action", "map": { "1": "exact_quote", "2": "site_visit", "3": "question" } },
+      "transition": {
+        "success_condition": "collected.next_action == 'exact_quote'",
+        "success": "EXACT_QUOTE_Q1",
+        "fail_condition_1": "collected.next_action == 'site_visit'",
+        "fail_1": "SITE_VISIT_SCHED",
+        "fail": "Q_AND_A"
+      }
+    },
+
+    "Q_AND_A": {
+      "prompt": [
+        "Sure - what question can I answer?",
+        "Common topics: price, timing, services, reliability.\n(You can also reply CALL to talk live.)"
+      ],
+      "expected_input": "free_text",
+      "parse": { "type": "classify_objection_or_continue" },
+      "transition": {
+        "success_condition": "derived.objection_type != null",
+        "success": "OBJECTION",
+        "fail": "PRICE_RANGE"
+      }
+    },
+
+    "EXACT_QUOTE_Q1": {
+      "prompt": ["Any fenced areas we need access to?\n1) Yes  2) No"],
+      "expected_input": "choice",
+      "parse": { "type": "map_choice", "map": { "1": "yes", "2": "no" }, "field": "fence" },
+      "transition": { "success": "EXACT_QUOTE_Q2", "fail": "EXACT_QUOTE_Q1" }
+    },
+
+    "EXACT_QUOTE_Q2": {
+      "prompt": ["Is the lawn mostly:\n1) Flat  2) Sloped"],
+      "expected_input": "choice",
+      "parse": { "type": "map_choice", "map": { "1": "flat", "2": "sloped" }, "field": "slope" },
+      "transition": { "success": "EXACT_QUOTE", "fail": "EXACT_QUOTE_Q2" }
+    },
+
+    "EXACT_QUOTE": {
+      "prompt": [
+        "Perfect - I can lock this in at ${{quote.exact_amount}} per visit.",
+        "Want to schedule your first service?",
+        "Reply: 1) Yes  2) Not yet  3) Call me"
+      ],
+      "expected_input": "choice",
+      "parse": { "type": "set_field_from_choice", "field": "exact_quote_response", "map": { "1": "yes", "2": "not_yet", "3": "call" } },
+      "transition": {
+        "success_condition": "collected.exact_quote_response == 'yes'",
+        "success": "SCHEDULING",
+        "fail_condition_1": "collected.exact_quote_response == 'call'",
+        "fail_1": "LIVE_CALL_OFFER",
+        "fail": "DORMANT_NUDGE"
+      }
+    },
+
+    "SITE_VISIT_SCHED": {
+      "prompt": [
+        "For that service, a quick look is usually best so we quote accurately.",
+        "I can schedule a free visit. What works better?",
+        "1) Tue afternoon  2) Thu morning  3) Call me"
+      ],
+      "expected_input": "choice",
+      "parse": { "type": "map_choice_to_slot_request_or_call" },
+      "transition": {
+        "success_condition": "derived.requested_slot != null",
+        "success": "SCHEDULING",
+        "fail": "LIVE_CALL_OFFER"
+      }
+    },
+
+    "SCHEDULING": {
+      "prompt": [
+        "Here are a few options:",
+        "1) {{scheduling.slots[0]}}",
+        "2) {{scheduling.slots[1]}}",
+        "3) {{scheduling.slots[2]}}",
+        "Reply 1-3 to pick a time (or reply CALL)."
+      ],
+      "expected_input": "choice",
+      "parse": { "type": "select_slot_by_choice" },
+      "transition": {
+        "success_condition": "scheduling.selected_slot != null",
+        "success": "BOOKING_CONFIRM",
+        "fail": "SCHEDULING"
+      }
+    },
+
+    "BOOKING_CONFIRM": {
+      "prompt": [
+        "You're all set!",
+        "Address: {{derived.address_one_line}}",
+        "Services: {{collected.services_requested}}",
+        "Price: {{quote.display}}",
+        "Time: {{scheduling.selected_slot}}",
+        "Reply YES to confirm or NO to adjust."
+      ],
+      "expected_input": "yes_no",
+      "parse": { "type": "yes_no" },
+      "actions": [{ "type": "create_or_update_jobber_records_if_yes" }],
+      "transition": {
+        "success_condition": "derived.yes_no == 'yes'",
+        "success": "POST_BOOKING",
+        "fail": "SCHEDULING"
+      }
+    },
+
+    "POST_BOOKING": {
+      "prompt": [
+        "Awesome - we're booked. We'll text before arrival.",
+        "Reply HELP anytime, or STOP to opt out."
+      ],
+      "expected_input": "system",
+      "transition": { "success": "END" }
+    },
+
+    "OBJECTION": {
+      "prompt": ["{{objection.prompt}}"],
+      "expected_input": "choice_or_free_text",
+      "parse": { "type": "handle_objection" },
+      "transition": {
+        "success_condition": "derived.objection_resolved == true",
+        "success": "PRICE_RANGE",
+        "fail_condition_1": "derived.escalate_to_handoff == true",
+        "fail_1": "HUMAN_HANDOFF",
+        "fail": "OBJECTION"
+      }
+    },
+
+    "HUMAN_HANDOFF": {
+      "prompt": [
+        "No problem - I'm going to loop in a person to help finish this.",
+        "Want to finish faster by phone?",
+        "Tap to call: {{click_to_call_url}}",
+        "Or reply TEXT to continue over SMS with a person."
+      ],
+      "expected_input": "free_text",
+      "parse": { "type": "handoff_choice" },
+      "actions": [{ "type": "create_handoff_ticket" }, { "type": "pause_for_human" }],
+      "transition": {
+        "success_condition": "derived.handoff_mode == 'call'",
+        "success": "LIVE_CALL_OFFER",
+        "fail": "ASYNC_HUMAN_QUEUE"
+      }
+    },
+
+    "LIVE_CALL_OFFER": {
+      "prompt": [
+        "Tap to call now: {{click_to_call_url}}",
+        "If you prefer text, reply TEXT."
+      ],
+      "expected_input": "free_text",
+      "parse": { "type": "handoff_choice" },
+      "transition": {
+        "success_condition": "derived.handoff_mode == 'text'",
+        "success": "ASYNC_HUMAN_QUEUE",
+        "fail": "LIVE_CALL_OFFER"
+      }
+    },
+
+    "ASYNC_HUMAN_QUEUE": {
+      "prompt": ["Got it - a person will jump in here shortly."],
+      "expected_input": "system",
+      "transition": { "success": "END" }
+    },
+
+    "DORMANT_NUDGE": {
+      "prompt": [
+        "No worries. If you'd like to continue later, reply START.",
+        "If you want a person now, reply CALL."
+      ],
+      "expected_input": "free_text",
+      "parse": { "type": "classify_objection_or_human_request" },
+      "transition": {
+        "success_condition": "derived.human_requested == true",
+        "success": "HUMAN_HANDOFF",
+        "fail": "END"
+      }
+    },
+
+    "END": {
+      "prompt": [],
+      "expected_input": "system"
+    }
+  }
+}

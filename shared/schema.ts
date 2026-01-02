@@ -1402,3 +1402,183 @@ export type InsertDeadLetterQueueItem = z.infer<typeof insertDeadLetterQueueSche
 
 export type CustomerCommLogEntry = typeof customerCommLog.$inferSelect;
 export type InsertCustomerCommLogEntry = z.infer<typeof insertCustomerCommLogSchema>;
+
+// ============================================
+// SMS Intelligence Layer - Session Management
+// ============================================
+
+// SMS Sessions - tracks SMS conversation state machine progress
+export const smsSessions = pgTable("sms_sessions", {
+  id: serial("id").primaryKey(),
+  sessionId: text("session_id").notNull().unique(), // UUID for external reference
+  accountId: text("account_id").notNull(), // Jobber account or LawnFlow account
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  
+  // Channel info
+  channel: text("channel").notNull().default("sms"),
+  fromPhone: text("from_phone").notNull(), // Customer phone
+  toPhone: text("to_phone").notNull(), // Business SMS number
+  
+  // Session state
+  status: text("status").notNull().default("active"), // active, paused_for_human, dormant, closed
+  serviceTemplateId: text("service_template_id").notNull().default("lawncare_v1"),
+  state: text("state").notNull().default("INTENT"), // Current state machine state
+  stateEnteredAt: timestamp("state_entered_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  
+  // Activity tracking
+  lastInboundAt: timestamp("last_inbound_at"),
+  lastOutboundAt: timestamp("last_outbound_at"),
+  
+  // State machine data (JSONB columns)
+  attemptCounters: jsonb("attempt_counters").default({}), // Per-state attempt counters
+  confidence: jsonb("confidence").default({}), // Confidence scores
+  collected: jsonb("collected").default({}), // User-provided field values
+  derived: jsonb("derived").default({}), // System-derived values (ArcGIS, enrichment)
+  quote: jsonb("quote").default({}), // Quote information
+  scheduling: jsonb("scheduling").default({}), // Scheduling data
+  handoff: jsonb("handoff").default({}), // Handoff metadata
+  audit: jsonb("audit").default({}), // Jobber IDs, external references
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  sessionIdIdx: uniqueIndex("sms_session_id_idx").on(table.sessionId),
+  phoneIdx: index("sms_session_phone_idx").on(table.fromPhone),
+  statusIdx: index("sms_session_status_idx").on(table.status),
+  businessIdx: index("sms_session_business_idx").on(table.businessId),
+}));
+
+// SMS Events - append-only log of all messages
+export const smsEvents = pgTable("sms_events", {
+  id: serial("id").primaryKey(),
+  eventId: text("event_id").notNull().unique(), // UUID for deduplication
+  sessionId: text("session_id").notNull(), // References sms_sessions.sessionId
+  
+  // Event details
+  ts: timestamp("ts").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  direction: text("direction").notNull(), // inbound, outbound
+  providerMessageId: text("provider_message_id"), // Twilio MessageSid for deduplication
+  type: text("type").notNull().default("sms"),
+  text: text("text").notNull(),
+  
+  // Payload and analysis
+  payloadJson: jsonb("payload_json"), // Raw provider payload
+  nlpJson: jsonb("nlp_json"), // Optional intent/sentiment analysis
+  
+  // State tracking
+  stateBefore: text("state_before"),
+  stateAfter: text("state_after"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  eventIdIdx: uniqueIndex("sms_event_id_idx").on(table.eventId),
+  sessionIdx: index("sms_event_session_idx").on(table.sessionId),
+  providerMsgIdx: index("sms_event_provider_msg_idx").on(table.providerMessageId),
+  tsIdx: index("sms_event_ts_idx").on(table.ts),
+}));
+
+// Handoff Tickets - tracks human escalations
+export const handoffTickets = pgTable("handoff_tickets", {
+  id: serial("id").primaryKey(),
+  ticketId: text("ticket_id").notNull().unique(), // UUID
+  sessionId: text("session_id").notNull(), // References sms_sessions.sessionId
+  accountId: text("account_id").notNull(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  
+  // Ticket details
+  status: text("status").notNull().default("open"), // open, assigned, resolved, closed
+  priority: text("priority").notNull().default("normal"), // low, normal, high
+  reasonCodes: jsonb("reason_codes").default([]), // Array of reason codes
+  summary: text("summary"),
+  
+  // Assignment
+  assignedTo: text("assigned_to"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  ticketIdIdx: uniqueIndex("handoff_ticket_id_idx").on(table.ticketId),
+  sessionIdx: index("handoff_session_idx").on(table.sessionId),
+  statusIdx: index("handoff_status_idx").on(table.status),
+  businessIdx: index("handoff_business_idx").on(table.businessId),
+}));
+
+// Click-to-Call Tokens - expiring tokens for phone handoff
+export const clickToCallTokens = pgTable("click_to_call_tokens", {
+  id: serial("id").primaryKey(),
+  tokenId: text("token_id").notNull().unique(), // UUID
+  sessionId: text("session_id").notNull(), // References sms_sessions.sessionId
+  
+  // Token data
+  token: text("token").notNull().unique(), // Short random token for URL
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  tokenIdx: uniqueIndex("ctc_token_idx").on(table.token),
+  sessionIdx: index("ctc_session_idx").on(table.sessionId),
+  expiresIdx: index("ctc_expires_idx").on(table.expiresAt),
+}));
+
+// Call Events - tracks click-to-call usage (MVP optional)
+export const callEvents = pgTable("call_events", {
+  id: serial("id").primaryKey(),
+  callEventId: text("call_event_id").notNull().unique(), // UUID
+  sessionId: text("session_id").notNull(), // References sms_sessions.sessionId
+  
+  // Event details
+  ts: timestamp("ts").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  type: text("type").notNull(), // click, dial, connected, missed, completed
+  metadataJson: jsonb("metadata_json"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  callEventIdIdx: uniqueIndex("call_event_id_idx").on(table.callEventId),
+  sessionIdx: index("call_event_session_idx").on(table.sessionId),
+  typeIdx: index("call_event_type_idx").on(table.type),
+}));
+
+// Insert schemas for SMS tables
+export const insertSmsSessionSchema = createInsertSchema(smsSessions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSmsEventSchema = createInsertSchema(smsEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertHandoffTicketSchema = createInsertSchema(handoffTickets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertClickToCallTokenSchema = createInsertSchema(clickToCallTokens).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertCallEventSchema = createInsertSchema(callEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types for SMS Intelligence Layer
+export type SmsSession = typeof smsSessions.$inferSelect;
+export type InsertSmsSession = z.infer<typeof insertSmsSessionSchema>;
+
+export type SmsEvent = typeof smsEvents.$inferSelect;
+export type InsertSmsEvent = z.infer<typeof insertSmsEventSchema>;
+
+export type HandoffTicket = typeof handoffTickets.$inferSelect;
+export type InsertHandoffTicket = z.infer<typeof insertHandoffTicketSchema>;
+
+export type ClickToCallToken = typeof clickToCallTokens.$inferSelect;
+export type InsertClickToCallToken = z.infer<typeof insertClickToCallTokenSchema>;
+
+export type CallEvent = typeof callEvents.$inferSelect;
+export type InsertCallEvent = z.infer<typeof insertCallEventSchema>;
