@@ -13,6 +13,7 @@ import {
   MapPin,
   Bot,
   LayoutGrid,
+  Smartphone,
 } from "lucide-react";
 import {
   Sidebar,
@@ -57,6 +58,12 @@ const operationsItems = [
     title: "Conversations",
     url: "/conversations",
     icon: MessageSquare,
+    requiresOnboarding: true,
+  },
+  {
+    title: "SMS Sessions",
+    url: "/sms",
+    icon: Smartphone,
     requiresOnboarding: true,
   },
   {
