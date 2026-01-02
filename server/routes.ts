@@ -1448,6 +1448,149 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/unified-feed", async (req, res) => {
+    try {
+      const { channel, customerType, status } = req.query;
+      
+      const [events, conversations, smsSessions] = await Promise.all([
+        storage.getEvents(),
+        storage.getConversations(),
+        storage.getSmsSessions(),
+      ]);
+
+      type UnifiedItem = {
+        id: string;
+        type: "event" | "conversation" | "sms_session";
+        channel: "phone" | "sms" | "web";
+        customerType: "prospect" | "customer";
+        status: string;
+        customerName: string | null;
+        customerPhone: string | null;
+        summary: string;
+        createdAt: Date | null;
+        updatedAt: Date | null;
+        metadata: Record<string, any>;
+      };
+
+      const unifiedItems: UnifiedItem[] = [];
+
+      for (const event of events) {
+        const payload = (event.payload || {}) as Record<string, any>;
+        let eventChannel: "phone" | "sms" | "web" = "phone";
+        if (event.type === "inbound_sms") eventChannel = "sms";
+        if (event.type === "web_lead") eventChannel = "web";
+        
+        unifiedItems.push({
+          id: `event_${event.id}`,
+          type: "event",
+          channel: eventChannel,
+          customerType: "prospect",
+          status: event.status,
+          customerName: payload.name || null,
+          customerPhone: payload.phone || payload.from || null,
+          summary: payload.body || `${event.type} event`,
+          createdAt: event.createdAt,
+          updatedAt: null,
+          metadata: { eventType: event.type, conversationId: event.conversationId, ...payload },
+        });
+      }
+
+      for (const conv of conversations) {
+        let convChannel: "phone" | "sms" | "web" = "phone";
+        if (conv.source === "inbound_sms") convChannel = "sms";
+        if (conv.source === "web_lead") convChannel = "web";
+        
+        const isCustomer = conv.status === "completed" || conv.status === "scheduled";
+        
+        unifiedItems.push({
+          id: `conv_${conv.id}`,
+          type: "conversation",
+          channel: convChannel,
+          customerType: isCustomer ? "customer" : "prospect",
+          status: conv.status,
+          customerName: conv.customerName,
+          customerPhone: conv.customerPhone,
+          summary: conv.agentType ? `${conv.agentType} conversation` : "Customer conversation",
+          createdAt: conv.createdAt,
+          updatedAt: conv.updatedAt,
+          metadata: { source: conv.source, agentType: conv.agentType },
+        });
+      }
+
+      for (const session of smsSessions) {
+        const collected = (session.collected || {}) as Record<string, any>;
+        const derived = (session.derived || {}) as Record<string, any>;
+        const isBooked = session.state === "BOOKED" || session.status === "completed";
+        
+        let summary = "SMS lead conversation";
+        if (collected.intent === "recurring") summary = "Recurring service inquiry";
+        if (collected.intent === "one_time") summary = "One-time service inquiry";
+        if (derived.address_one_line) summary = `${summary} - ${derived.address_one_line}`;
+        
+        unifiedItems.push({
+          id: `sms_${session.id}`,
+          type: "sms_session",
+          channel: "sms",
+          customerType: isBooked ? "customer" : "prospect",
+          status: session.status,
+          customerName: null,
+          customerPhone: session.fromPhone,
+          summary,
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+          metadata: { 
+            sessionId: session.sessionId, 
+            state: session.state, 
+            collected, 
+            derived,
+            serviceTemplateId: session.serviceTemplateId,
+          },
+        });
+      }
+
+      let filtered = unifiedItems;
+      
+      if (channel && channel !== "all") {
+        filtered = filtered.filter(item => item.channel === channel);
+      }
+      if (customerType && customerType !== "all") {
+        filtered = filtered.filter(item => item.customerType === customerType);
+      }
+      if (status && status !== "all") {
+        filtered = filtered.filter(item => item.status === status);
+      }
+
+      filtered.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      });
+
+      const stats = {
+        total: unifiedItems.length,
+        byChannel: {
+          phone: unifiedItems.filter(i => i.channel === "phone").length,
+          sms: unifiedItems.filter(i => i.channel === "sms").length,
+          web: unifiedItems.filter(i => i.channel === "web").length,
+        },
+        byCustomerType: {
+          prospect: unifiedItems.filter(i => i.customerType === "prospect").length,
+          customer: unifiedItems.filter(i => i.customerType === "customer").length,
+        },
+        byStatus: {
+          active: unifiedItems.filter(i => ["active", "pending", "processing"].includes(i.status)).length,
+          completed: unifiedItems.filter(i => i.status === "completed").length,
+          handoff: unifiedItems.filter(i => i.status === "handoff").length,
+        },
+      };
+
+      res.json({ items: filtered, stats });
+    } catch (error: any) {
+      console.error("Error fetching unified feed:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ============================================
   // Audit Log Routes
   // ============================================

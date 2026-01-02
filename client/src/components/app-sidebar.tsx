@@ -1,7 +1,6 @@
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
-  MessageSquare,
   CheckCircle,
   User,
   Zap,
@@ -13,7 +12,6 @@ import {
   MapPin,
   Bot,
   LayoutGrid,
-  Smartphone,
 } from "lucide-react";
 import {
   Sidebar,
@@ -49,21 +47,9 @@ const primaryNavItems = [
 
 const operationsItems = [
   {
-    title: "Events Feed",
+    title: "Communications",
     url: "/events",
     icon: Radio,
-    requiresOnboarding: true,
-  },
-  {
-    title: "Conversations",
-    url: "/conversations",
-    icon: MessageSquare,
-    requiresOnboarding: true,
-  },
-  {
-    title: "SMS Sessions",
-    url: "/sms",
-    icon: Smartphone,
     requiresOnboarding: true,
   },
   {
