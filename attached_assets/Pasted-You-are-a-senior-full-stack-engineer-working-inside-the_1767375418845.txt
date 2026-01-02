@@ -1,0 +1,175 @@
+You are a senior full-stack engineer working inside the LawnFlow MVP repo in Replit.
+
+OBJECTIVE
+Validate that the Agents UI shows a complete view of ALL agents that exist in the current platform MVP.
+We must cross-check:
+1) Backend Agent Registry (source of truth)
+2) Database runtime state (AgentState / RunLog tables)
+3) Worker code/modules that actually exist
+4) Front-end Agents grid rendering
+Then produce a PASS/FAIL report with the exact list of agents found in each layer and any mismatches.
+
+CONSTRAINTS
+- Do NOT assume the registry is correct.
+- Do NOT rely only on UI output.
+- We need a deterministic audit that queries the database + scans code + hits API endpoints.
+- Output must include a final “canonical agent list” and confirmation that UI renders all of them.
+
+DEFINITIONS
+Agent/Worker IDs are the authoritative join key. The canonical set should be ALL worker modules that exist in code.
+Expected MVP agents (baseline):
+- intake_enrichment
+- quote_job_orchestrator
+- dispatch_routing
+- margin_variance
+- billing_orchestrator
+- reconciliation
+- customer_comms
+- renewal_upsell
+
+If additional workers exist, include them; if any are missing from the UI, that’s a failure.
+
+========================================================
+PART A — DISCOVER ALL WORKERS IN CODE (CANONICAL SET)
+1) Find the worker directory (examples):
+- /packages/workers
+- /server/workers
+- /src/workers
+- /apps/api/workers
+2) Identify how workers are registered (examples):
+- workerRegistry.ts
+- index.ts exports
+- queue router that maps agentId -> handler
+3) Programmatically enumerate worker IDs (no manual list):
+- In Node/TS:
+  - use fs to read worker directory
+  - parse exports OR require the registry module if it exists
+- In Python:
+  - walk directory and extract filenames or exported ids
+
+Deliver a list:
+CODE_WORKERS = ["...", "..."]
+
+========================================================
+PART B — DISCOVER AGENTS FROM BACKEND REGISTRY
+1) Locate backend registry file (e.g., /server/agents/registry.ts).
+2) Load it and list IDs:
+REGISTRY_AGENTS = ["...", "..."]
+
+If the registry is hard-coded and may drift, treat it as secondary to CODE_WORKERS.
+
+========================================================
+PART C — QUERY DATABASE FOR AGENT STATE + RUN LOGS
+We need to ensure DB has state records for each agent, per account.
+
+1) Identify DB tool:
+- If Prisma:
+  - use Prisma Client inside a script
+- If SQLite/Postgres direct:
+  - run SQL queries via node pg/sqlite client
+
+2) Query these tables (or their equivalents):
+- AgentState (or agent_state)
+- AgentRunLog (or run_log)
+- AgentValueEvent / health snapshots (optional)
+
+SQL examples (adapt to actual table names):
+- SELECT DISTINCT agent_id FROM agent_state;
+- SELECT DISTINCT agent_id FROM agent_run_log;
+
+Deliver lists:
+DB_STATE_AGENTS = [...]
+DB_RUNLOG_AGENTS = [...]
+
+Also pull counts per agent:
+- SELECT agent_id, status, COUNT(*) FROM agent_state GROUP BY agent_id, status;
+- SELECT agent_id, COUNT(*) runs, SUM(error_count) errors FROM agent_run_log GROUP BY agent_id;
+
+========================================================
+PART D — HIT API ENDPOINT USED BY UI
+1) Determine which endpoint the UI calls:
+- likely GET /api/agents?accountId=...
+2) Execute an internal fetch (or curl) and capture:
+API_AGENTS = [ids...]
+and full payload count.
+
+Also test:
+- For each agentId in CODE_WORKERS, GET /api/agents/:id returns 200.
+
+========================================================
+PART E — FRONT-END RENDER VALIDATION
+We need to confirm UI renders N tiles where N == len(CODE_WORKERS).
+
+Approach:
+- If there is a component test setup (Playwright/Cypress/Jest):
+  - create a test that mocks API response with all agent IDs and asserts tile count.
+- If no test infra:
+  - add a temporary “Diagnostics” dev panel on Agents page showing:
+    - agents.length
+    - list of ids being rendered
+  - verify it equals CODE_WORKERS count.
+
+Deliver:
+UI_RENDER_COUNT
+UI_RENDER_IDS
+
+========================================================
+PART F — COMPARE & REPORT
+Compute set differences:
+- Missing in Registry: CODE_WORKERS - REGISTRY_AGENTS
+- Missing in API payload: CODE_WORKERS - API_AGENTS
+- Missing in UI render: CODE_WORKERS - UI_RENDER_IDS
+- Orphaned in DB state: DB_STATE_AGENTS - CODE_WORKERS
+- Orphaned in DB run logs: DB_RUNLOG_AGENTS - CODE_WORKERS
+
+Generate a report:
+
+1) Canonical agents (from code): [...]
+2) Registry agents: [...]
+3) API agents: [...]
+4) DB state agents: [...]
+5) DB runlog agents: [...]
+6) UI render agents: [...]
+
+Mismatches:
+- Missing tiles (FAIL if any)
+- Registry drift (WARN)
+- DB drift (WARN)
+- Agents without state rows (WARN; fix by seeding defaults)
+
+========================================================
+PART G — FIXES IF FAILING
+If any agent in CODE_WORKERS is missing from API/UI:
+- Update backend registry to include it OR (preferred) refactor API to use CODE_WORKERS as the single source of truth.
+- Add a startup “seedAgentState(accountId)” that ensures all CODE_WORKERS have state rows.
+- Re-run validation script.
+
+========================================================
+IMPLEMENTATION REQUIREMENT: CREATE AN AUDIT SCRIPT
+Create a script in repo: /scripts/auditAgents.ts (or /scripts/audit_agents.py)
+It must:
+- Discover CODE_WORKERS
+- Load REGISTRY_AGENTS
+- Query DB (state + run logs)
+- Call API endpoint (local server base URL)
+- Print a JSON report + human-readable summary
+- Exit code:
+  - 0 if PASS (UI/API include all CODE_WORKERS)
+  - 1 if FAIL
+
+Include instructions in README:
+- npm run audit:agents
+
+========================================================
+OUTPUT FORMAT
+- Create/modify required files and show their contents.
+- Provide the audit output example format.
+- Provide any necessary SQL migrations if tables are missing.
+- Do NOT hand-wave; implement the script and wire it to package.json.
+
+Begin now by inspecting the repo structure to locate:
+- workers directory
+- registry file
+- DB access method
+- API server entrypoint
+Then implement the audit script accordingly.
