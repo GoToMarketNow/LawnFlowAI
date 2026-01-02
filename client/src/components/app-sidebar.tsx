@@ -67,18 +67,6 @@ const operationsItems = [
     requiresOnboarding: true,
   },
   {
-    title: "Pending Actions",
-    url: "/actions",
-    icon: CheckCircle,
-    requiresOnboarding: true,
-  },
-  {
-    title: "Jobs",
-    url: "/jobs",
-    icon: ClipboardList,
-    requiresOnboarding: true,
-  },
-  {
     title: "Pricing",
     url: "/pricing",
     icon: DollarSign,
