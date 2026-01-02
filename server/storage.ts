@@ -80,6 +80,12 @@ import {
   type InsertQuoteProposal,
   type QuoteAdjustmentLog,
   type InsertQuoteAdjustmentLog,
+  businessRbacPolicies,
+  quoteDrafts,
+  type BusinessRbacPolicy,
+  type InsertBusinessRbacPolicy,
+  type QuoteDraft,
+  type InsertQuoteDraft,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, inArray, sql, and, gte, lte } from "drizzle-orm";
@@ -223,6 +229,16 @@ export interface IStorage {
   // Quote Adjustment Logs
   getQuoteAdjustmentLogs(quoteProposalId: number): Promise<QuoteAdjustmentLog[]>;
   createQuoteAdjustmentLog(log: InsertQuoteAdjustmentLog): Promise<QuoteAdjustmentLog>;
+  
+  // RBAC Policies
+  getBusinessRbacPolicy(businessId: number): Promise<BusinessRbacPolicy | undefined>;
+  upsertBusinessRbacPolicy(businessId: number, updates: Partial<InsertBusinessRbacPolicy>): Promise<BusinessRbacPolicy>;
+  
+  // Quote Drafts (UQB)
+  getQuoteDrafts(businessId: number): Promise<QuoteDraft[]>;
+  getQuoteDraft(id: number): Promise<QuoteDraft | undefined>;
+  createQuoteDraft(draft: InsertQuoteDraft): Promise<QuoteDraft>;
+  updateQuoteDraft(id: number, updates: Partial<QuoteDraft>): Promise<QuoteDraft>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1134,6 +1150,65 @@ export class DatabaseStorage implements IStorage {
   async createQuoteAdjustmentLog(log: InsertQuoteAdjustmentLog): Promise<QuoteAdjustmentLog> {
     const [created] = await db.insert(quoteAdjustmentLogs).values(log).returning();
     return created;
+  }
+
+  // RBAC Policies
+  async getBusinessRbacPolicy(businessId: number): Promise<BusinessRbacPolicy | undefined> {
+    const [policy] = await db
+      .select()
+      .from(businessRbacPolicies)
+      .where(eq(businessRbacPolicies.businessId, businessId))
+      .limit(1);
+    return policy;
+  }
+
+  async upsertBusinessRbacPolicy(businessId: number, updates: Partial<InsertBusinessRbacPolicy>): Promise<BusinessRbacPolicy> {
+    const existing = await this.getBusinessRbacPolicy(businessId);
+    if (existing) {
+      const [updated] = await db
+        .update(businessRbacPolicies)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(businessRbacPolicies.businessId, businessId))
+        .returning();
+      return updated;
+    }
+    const [created] = await db
+      .insert(businessRbacPolicies)
+      .values({ businessId, ...updates })
+      .returning();
+    return created;
+  }
+
+  // Quote Drafts (UQB)
+  async getQuoteDrafts(businessId: number): Promise<QuoteDraft[]> {
+    return db
+      .select()
+      .from(quoteDrafts)
+      .where(eq(quoteDrafts.businessId, businessId))
+      .orderBy(desc(quoteDrafts.createdAt));
+  }
+
+  async getQuoteDraft(id: number): Promise<QuoteDraft | undefined> {
+    const [draft] = await db
+      .select()
+      .from(quoteDrafts)
+      .where(eq(quoteDrafts.id, id))
+      .limit(1);
+    return draft;
+  }
+
+  async createQuoteDraft(draft: InsertQuoteDraft): Promise<QuoteDraft> {
+    const [created] = await db.insert(quoteDrafts).values(draft).returning();
+    return created;
+  }
+
+  async updateQuoteDraft(id: number, updates: Partial<QuoteDraft>): Promise<QuoteDraft> {
+    const [updated] = await db
+      .update(quoteDrafts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(quoteDrafts.id, id))
+      .returning();
+    return updated;
   }
 }
 

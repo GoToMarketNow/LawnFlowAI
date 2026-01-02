@@ -461,6 +461,10 @@ export type PolicyTier = typeof PolicyTiers[number];
 // User Authentication & Phone Verification
 // ============================================
 
+// User roles for RBAC
+export const UserRoles = ["owner", "admin", "crew_lead", "staff"] as const;
+export type UserRole = typeof UserRoles[number];
+
 // Users table for authentication
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -469,6 +473,8 @@ export const users = pgTable("users", {
   phoneE164: text("phone_e164").unique(), // E.164 format phone number
   phoneVerifiedAt: timestamp("phone_verified_at"),
   businessId: integer("business_id").references(() => businessProfiles.id),
+  role: text("role").notNull().default("owner"), // owner, admin, crew_lead, staff
+  displayName: text("display_name"), // For UI display
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
@@ -1754,4 +1760,123 @@ export interface PricingGuardrails {
   ceilingPrice: number; // cents - absolute maximum quote
   lowConfidenceThreshold: number; // 0-1, below this triggers review
   reviewAboveAmount: number; // cents - quotes above this need review
+}
+
+// ============================================
+// Unified Quote Builder (UQB)
+// ============================================
+
+// Business RBAC Policy - configurable permissions per business
+export const businessRbacPolicies = pgTable("business_rbac_policies", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull().unique(),
+  
+  // Quote Builder permissions
+  allowCrewLeadSend: boolean("allow_crew_lead_send").notNull().default(false),
+  allowStaffSend: boolean("allow_staff_send").notNull().default(true),
+  requireApprovalAboveAmount: integer("require_approval_above_amount"), // cents - quotes above this need owner approval
+  
+  // Auto-approval settings
+  autoApproveWithinRange: boolean("auto_approve_within_range").notNull().default(false),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("rbac_policy_business_idx").on(table.businessId),
+}));
+
+// Quote Draft Status
+export const QuoteDraftStatuses = ["draft", "ready", "sent", "blocked", "expired"] as const;
+export type QuoteDraftStatus = typeof QuoteDraftStatuses[number];
+
+// Quote Drafts - incomplete quotes being built via UQB
+export const quoteDrafts = pgTable("quote_drafts", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  createdByUserId: integer("created_by_user_id").references(() => users.id).notNull(),
+  
+  // Customer info (populated progressively)
+  customerName: text("customer_name"),
+  customerPhone: text("customer_phone"),
+  serviceAddress: text("service_address"),
+  
+  // Voice transcript (if created via voice)
+  transcriptText: text("transcript_text"),
+  
+  // Structured input extracted from voice or form
+  structuredInput: jsonb("structured_input").notNull().default({}), // QuoteDraftInput type
+  
+  // Missing fields that need follow-up
+  missingFields: text("missing_fields").array().notNull().default([]),
+  currentQuestion: text("current_question"), // Current follow-up question
+  
+  // Property resolution
+  lotAreaSqft: integer("lot_area_sqft"),
+  lotConfidence: text("lot_confidence"), // high, medium, low
+  propertyBand: text("property_band"), // townhome, small, medium, large, multi_acre
+  
+  // Quote calculation (once resolved)
+  rangeLow: integer("range_low"),
+  rangeHigh: integer("range_high"),
+  assumptions: jsonb("assumptions").default([]),
+  
+  // Approval tracking
+  needsReview: boolean("needs_review").notNull().default(false),
+  reviewReasons: jsonb("review_reasons").default([]),
+  recommendedNextStep: text("recommended_next_step"), // request_photos, site_visit, ready_to_send
+  
+  // Status workflow
+  status: text("status").notNull().default("draft"), // draft, ready, sent, blocked, expired
+  
+  // Link to final quote proposal (once approved/sent)
+  quoteProposalId: integer("quote_proposal_id").references(() => quoteProposals.id),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("quote_draft_business_idx").on(table.businessId),
+  userIdx: index("quote_draft_user_idx").on(table.createdByUserId),
+  statusIdx: index("quote_draft_status_idx").on(table.status),
+}));
+
+// Insert schemas for UQB
+export const insertBusinessRbacPolicySchema = createInsertSchema(businessRbacPolicies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertQuoteDraftSchema = createInsertSchema(quoteDrafts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types for UQB
+export type BusinessRbacPolicy = typeof businessRbacPolicies.$inferSelect;
+export type InsertBusinessRbacPolicy = z.infer<typeof insertBusinessRbacPolicySchema>;
+
+export type QuoteDraft = typeof quoteDrafts.$inferSelect;
+export type InsertQuoteDraft = z.infer<typeof insertQuoteDraftSchema>;
+
+// QuoteDraftInput - unified input model for voice and form
+export interface QuoteDraftInput {
+  customer_name?: string;
+  customer_phone?: string;
+  service_address?: string;
+  services_requested?: string[];
+  frequency?: "one_time" | "weekly" | "biweekly" | "monthly" | "unknown";
+  complexity?: "light" | "medium" | "heavy" | "unknown";
+  lot_area_sqft?: number;
+  lot_confidence?: "high" | "medium" | "low";
+  property_band?: "townhome" | "small" | "medium" | "large" | "multi_acre" | "unknown";
+  photos_provided?: boolean;
+}
+
+// Voice parser response
+export interface VoiceParseResult {
+  extracted: Partial<QuoteDraftInput>;
+  missing_fields: string[];
+  questions: string[];
 }
