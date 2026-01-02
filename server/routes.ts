@@ -26,6 +26,11 @@ import { evaluateFeasibility, type FeasibilityResult } from "./agents/jobFeasibi
 import { getCrewToJobTravelMinutes, type TravelEstimate } from "./agents/routeCost";
 import { computeMarginScore, type MarginBurnResult } from "./agents/marginBurn";
 import { runSimulations, type SimulationResult } from "./agents/simulationRanking";
+import { 
+  createDecision as orchestratorCreateDecision, 
+  approveDecision as orchestratorApproveDecision,
+  type OrchestratorConfig 
+} from "./agents/orchestrator";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -4640,34 +4645,32 @@ Return JSON format:
         return res.status(400).json({ error: "jobRequestId and simulationId required" });
       }
 
-      const jobRequest = await storage.getJobRequest(jobRequestId);
-      if (!jobRequest) {
-        return res.status(404).json({ error: "Job request not found" });
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
       }
 
-      const simulation = await storage.getSimulation(simulationId);
-      if (!simulation) {
-        return res.status(404).json({ error: "Simulation not found" });
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
       }
 
-      // Create decision draft
-      const decision = await storage.createDecision({
-        businessId: jobRequest.businessId,
+      const result = await orchestratorCreateDecision(
+        profile.id,
         jobRequestId,
-        selectedSimulationId: simulationId,
-        mode: "recommend_only",
-        status: "draft",
-        reasoningJson: {
-          selectedCrew: simulation.crewId,
-          proposedDate: simulation.proposedDate,
-          totalScore: simulation.totalScore,
-        },
+        simulationId,
+        userId
+      );
+
+      if (!result.success) {
+        const statusCode = result.error?.includes("not authorized") ? 403 : 400;
+        return res.status(statusCode).json({ error: result.error });
+      }
+
+      res.json({
+        decision: result.decision,
+        reasoningJson: result.reasoningJson,
       });
-
-      // Update job request status
-      await storage.updateJobRequest(jobRequestId, { status: "recommended" });
-
-      res.json(decision);
     } catch (error: any) {
       console.error("[Optimizer] Error creating decision:", error);
       res.status(500).json({ error: error.message });
@@ -4677,35 +4680,32 @@ Return JSON format:
   // --- Optimizer API: Approve ---
   app.post("/api/optimizer/approve", async (req, res) => {
     try {
-      const { decisionId } = req.body;
+      const { decisionId, allowCrewLeadApprove } = req.body;
       if (!decisionId) {
         return res.status(400).json({ error: "decisionId required" });
       }
 
-      const decision = await storage.getDecision(decisionId);
-      if (!decision) {
-        return res.status(404).json({ error: "Decision not found" });
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
       }
 
-      const simulation = await storage.getSimulation(decision.selectedSimulationId);
-      if (!simulation) {
-        return res.status(404).json({ error: "Simulation not found" });
+      const config: OrchestratorConfig = {
+        allowCrewLeadApprove: allowCrewLeadApprove === true,
+      };
+
+      const result = await orchestratorApproveDecision(decisionId, userId, config);
+
+      if (!result.success) {
+        const statusCode = result.error?.includes("not authorized") ? 403 : 400;
+        return res.status(statusCode).json({ error: result.error });
       }
 
-      // Update decision to approved
-      const updatedDecision = await storage.updateDecision(decisionId, {
-        status: "approved",
-        approvedByUserId: req.session?.userId,
+      res.json({
+        decision: result.decision,
+        writebackTriggered: result.writebackTriggered,
+        message: "Assignment approved",
       });
-
-      // Update job request with assignment
-      await storage.updateJobRequest(decision.jobRequestId, {
-        status: "assigned",
-        assignedCrewId: simulation.crewId,
-        assignedDate: new Date(simulation.proposedDate),
-      });
-
-      res.json({ decision: updatedDecision, message: "Assignment approved" });
     } catch (error: any) {
       console.error("[Optimizer] Error approving decision:", error);
       res.status(500).json({ error: error.message });

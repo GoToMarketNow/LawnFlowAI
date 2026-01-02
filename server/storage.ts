@@ -295,6 +295,7 @@ export interface IStorage {
   getDecisionForJobRequest(jobRequestId: number): Promise<AssignmentDecision | undefined>;
   createDecision(decision: InsertAssignmentDecision): Promise<AssignmentDecision>;
   updateDecision(id: number, updates: Partial<AssignmentDecision>): Promise<AssignmentDecision>;
+  deleteDecisionsForJobRequest(jobRequestId: number): Promise<void>;
   
   // Route Optimizer - Distance Cache
   getDistanceCache(originKey: string, destKey: string): Promise<DistanceCache | undefined>;
@@ -1470,6 +1471,12 @@ export class DatabaseStorage implements IStorage {
       .where(eq(assignmentDecisions.id, id))
       .returning();
     return updated;
+  }
+
+  async deleteDecisionsForJobRequest(jobRequestId: number): Promise<void> {
+    await db
+      .delete(assignmentDecisions)
+      .where(eq(assignmentDecisions.jobRequestId, jobRequestId));
   }
 
   // Route Optimizer - Distance Cache

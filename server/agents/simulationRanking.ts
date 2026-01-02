@@ -209,6 +209,8 @@ export async function runSimulations(
     throw new Error(`Job request ${jobRequestId} not found`);
   }
 
+  // Delete existing decisions first (they reference simulations via FK)
+  await storage.deleteDecisionsForJobRequest(jobRequestId);
   await storage.deleteSimulationsForJobRequest(jobRequestId);
 
   const eligibleCrews = await getEligibleCrews(businessId, jobRequestId, cfg.dateRangeDays);
