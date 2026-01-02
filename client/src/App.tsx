@@ -28,6 +28,7 @@ import AgentDetailPage from "@/pages/agent-detail";
 import ViewsPage from "@/pages/views";
 import SmsSessionsPage from "@/pages/sms-sessions";
 import PricingControlCenter from "@/pages/pricing-control-center";
+import QuoteBuilder from "@/pages/quote-builder";
 import NotFound from "@/pages/not-found";
 import { Loader2, AlertCircle } from "lucide-react";
 
@@ -117,6 +118,7 @@ function AuthenticatedLayout() {
               <Route path="/views" component={ViewsPage} />
               <Route path="/sms" component={SmsSessionsPage} />
               <Route path="/pricing" component={PricingControlCenter} />
+              <Route path="/quote-builder" component={QuoteBuilder} />
               <Route path="/admin/coverage" component={AdminCoveragePage} />
               <Route component={NotFound} />
             </Switch>

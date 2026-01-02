@@ -4060,5 +4060,369 @@ export async function registerRoutes(
     }
   });
 
+  // ============================================
+  // Unified Quote Builder (UQB) API
+  // ============================================
+
+  // Get RBAC policy for business
+  app.get("/api/uqb/rbac-policy", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      const policy = await storage.getBusinessRbacPolicy(profile.id);
+      res.json(policy || { businessId: profile.id, allowCrewLeadSend: false, allowStaffSend: true });
+    } catch (error: any) {
+      console.error("[UQB] Error fetching RBAC policy:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update RBAC policy
+  app.patch("/api/uqb/rbac-policy", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = req.user as any;
+      if (user?.role !== "owner" && user?.role !== "admin") {
+        return res.status(403).json({ error: "Only owners and admins can modify RBAC policies" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      const policy = await storage.upsertBusinessRbacPolicy(profile.id, req.body);
+      res.json(policy);
+    } catch (error: any) {
+      console.error("[UQB] Error updating RBAC policy:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Parse voice transcript to structured input
+  app.post("/api/uqb/parse-voice", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const { transcript } = req.body;
+      if (!transcript || typeof transcript !== "string") {
+        return res.status(400).json({ error: "Transcript is required" });
+      }
+
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI();
+
+      const systemPrompt = `You are a voice transcript parser for a lawn care quoting system.
+Extract structured information from the user's voice transcript.
+
+Return a JSON object with these fields (only include fields that were mentioned):
+- customer_name: string (full name if provided)
+- customer_phone: string (phone number if provided)
+- service_address: string (full address if provided)
+- services_requested: string[] (e.g., ["mowing", "leaf cleanup", "mulch"])
+- frequency: "one_time" | "weekly" | "biweekly" | "monthly" | "unknown"
+- complexity: "light" | "medium" | "heavy" | "unknown"
+- lot_area_sqft: number (if they mention lot size)
+- property_band: "townhome" | "small" | "medium" | "large" | "multi_acre" | "unknown"
+- photos_provided: boolean
+
+Also identify missing_fields (fields needed for a complete quote):
+- For lawn care: need address, service type, and ideally frequency
+- If no address, add "service_address" to missing
+- If no service type, add "services_requested" to missing
+
+Generate follow-up questions for missing fields.
+
+Return JSON format:
+{
+  "extracted": { ...partial structured input },
+  "missing_fields": ["field_name", ...],
+  "questions": ["Natural language question to ask", ...]
+}`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: transcript }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.3,
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        return res.status(500).json({ error: "Failed to parse transcript" });
+      }
+
+      const parsed = JSON.parse(content);
+      res.json(parsed);
+    } catch (error: any) {
+      console.error("[UQB] Error parsing voice:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Detect voice commands (send quote, text customer)
+  app.post("/api/uqb/detect-command", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const { transcript } = req.body;
+      if (!transcript || typeof transcript !== "string") {
+        return res.status(400).json({ error: "Transcript is required" });
+      }
+
+      const lowerTranscript = transcript.toLowerCase();
+      const commands = {
+        send_quote: false,
+        clear_form: false,
+        add_service: null as string | null,
+      };
+
+      // Check for send commands
+      if (
+        lowerTranscript.includes("send quote") ||
+        lowerTranscript.includes("text the quote") ||
+        lowerTranscript.includes("send it") ||
+        lowerTranscript.includes("text them") ||
+        lowerTranscript.includes("send that")
+      ) {
+        commands.send_quote = true;
+      }
+
+      // Check for clear commands
+      if (
+        lowerTranscript.includes("clear form") ||
+        lowerTranscript.includes("start over") ||
+        lowerTranscript.includes("reset")
+      ) {
+        commands.clear_form = true;
+      }
+
+      // Check for add service commands
+      const serviceMatch = lowerTranscript.match(/add (mowing|cleanup|mulch|trimming|edging|leaf removal|lawn care)/i);
+      if (serviceMatch) {
+        commands.add_service = serviceMatch[1].toLowerCase();
+      }
+
+      res.json({ commands, detected: commands.send_quote || commands.clear_form || commands.add_service !== null });
+    } catch (error: any) {
+      console.error("[UQB] Error detecting command:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get quote drafts
+  app.get("/api/uqb/drafts", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      const drafts = await storage.getQuoteDrafts(profile.id);
+      res.json(drafts);
+    } catch (error: any) {
+      console.error("[UQB] Error fetching drafts:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get single draft
+  app.get("/api/uqb/drafts/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const draft = await storage.getQuoteDraft(parseInt(req.params.id));
+      if (!draft) {
+        return res.status(404).json({ error: "Draft not found" });
+      }
+      res.json(draft);
+    } catch (error: any) {
+      console.error("[UQB] Error fetching draft:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create quote draft
+  app.post("/api/uqb/drafts", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = req.user as any;
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+
+      const draft = await storage.createQuoteDraft({
+        businessId: profile.id,
+        createdByUserId: user.id,
+        ...req.body,
+      });
+      res.json(draft);
+    } catch (error: any) {
+      console.error("[UQB] Error creating draft:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update quote draft
+  app.patch("/api/uqb/drafts/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const draft = await storage.updateQuoteDraft(parseInt(req.params.id), req.body);
+      res.json(draft);
+    } catch (error: any) {
+      console.error("[UQB] Error updating draft:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Calculate quote from draft input
+  app.post("/api/uqb/calculate", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const { serviceType, lotAreaSqft, complexity, frequency } = req.body;
+
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+
+      // Get active pricing policy
+      const policy = await storage.getActivePricingPolicy(profile.id);
+      
+      const { calculateQuote } = await import("./pricing/quoteRater");
+      
+      // Build property signals
+      const propertySignals = {
+        lotAreaSqft: lotAreaSqft || 5000,
+        complexity: complexity || "medium",
+        dataSource: "user_input" as const,
+        confidence: 0.9,
+      };
+      
+      // Build service request
+      const servicesRequested = [{
+        serviceType: serviceType || "mowing",
+        frequency: frequency || "one_time",
+      }];
+      
+      const result = calculateQuote(policy || null, propertySignals, servicesRequested);
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[UQB] Error calculating quote:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Send quote via SMS with RBAC enforcement
+  app.post("/api/uqb/send", async (req, res) => {
+    try {
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = req.user as any;
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+
+      // Check RBAC permissions
+      const rbacPolicy = await storage.getBusinessRbacPolicy(profile.id);
+      const { customerPhone, rangeLow, rangeHigh, draftId } = req.body;
+
+      // Owner and admin always can send
+      if (user.role !== "owner" && user.role !== "admin") {
+        // Check crew lead permission
+        if (user.role === "crew_lead" && !rbacPolicy?.allowCrewLeadSend) {
+          return res.status(403).json({ error: "Crew leads are not authorized to send quotes" });
+        }
+        // Check staff permission
+        if (user.role === "staff" && !rbacPolicy?.allowStaffSend) {
+          return res.status(403).json({ error: "Staff members are not authorized to send quotes" });
+        }
+        // Check amount threshold
+        if (rbacPolicy?.requireApprovalAboveAmount && rangeHigh > rbacPolicy.requireApprovalAboveAmount) {
+          return res.status(403).json({ 
+            error: "Quote exceeds approval threshold",
+            requiresApproval: true,
+            threshold: rbacPolicy.requireApprovalAboveAmount
+          });
+        }
+      }
+
+      if (!customerPhone) {
+        return res.status(400).json({ error: "Customer phone is required" });
+      }
+
+      // Format quote message
+      const lowPrice = (rangeLow / 100).toFixed(0);
+      const highPrice = (rangeHigh / 100).toFixed(0);
+      const message = `Thanks for your interest! Based on what you've described, we estimate $${lowPrice}-$${highPrice} for this service. Want us to schedule a visit? Reply YES to confirm or call us for questions.`;
+
+      // Send via SMS if Twilio configured
+      let sent = false;
+      if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+        try {
+          const twilio = await import("twilio");
+          const client = twilio.default(
+            process.env.TWILIO_ACCOUNT_SID,
+            process.env.TWILIO_AUTH_TOKEN
+          );
+          await client.messages.create({
+            body: message,
+            to: customerPhone,
+            from: process.env.TWILIO_PHONE_NUMBER || "",
+          });
+          sent = true;
+        } catch (smsError) {
+          console.error("[UQB] SMS send failed:", smsError);
+        }
+      }
+
+      // Update draft status if provided
+      if (draftId) {
+        await storage.updateQuoteDraft(draftId, { status: "sent" });
+      }
+
+      // Create audit log
+      await storage.createAuditLog({
+        action: "quote_sent",
+        entityType: "quote",
+        entityId: draftId || 0,
+        details: {
+          customerPhone,
+          rangeLow,
+          rangeHigh,
+          sentVia: sent ? "twilio" : "mock",
+        },
+      });
+
+      res.json({ success: true, sent, message });
+    } catch (error: any) {
+      console.error("[UQB] Error sending quote:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }

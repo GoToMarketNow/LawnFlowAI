@@ -13,6 +13,7 @@ import {
   Bot,
   LayoutGrid,
   DollarSign,
+  Mic,
 } from "lucide-react";
 import {
   Sidebar,
@@ -51,6 +52,12 @@ const operationsItems = [
     title: "Communications",
     url: "/events",
     icon: Radio,
+    requiresOnboarding: true,
+  },
+  {
+    title: "Quote Builder",
+    url: "/quote-builder",
+    icon: Mic,
     requiresOnboarding: true,
   },
   {
