@@ -1065,3 +1065,86 @@ export interface MarginAlertAction {
   description: string;
   priority: "low" | "medium" | "high";
 }
+
+// ==================== BILLING ORCHESTRATOR ====================
+
+// Tracks billing lifecycle state for each job
+export const jobBillingStates = pgTable("job_billing_states", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  jobberAccountId: text("jobber_account_id").notNull(),
+  jobberJobId: text("jobber_job_id").notNull(),
+  
+  // Job context
+  serviceType: text("service_type").notNull(),
+  totalJobValue: integer("total_job_value"), // cents
+  
+  // Current milestone state
+  currentMilestone: text("current_milestone").notNull().default("created"), // created, scheduled, in_progress, complete
+  milestoneReachedAt: timestamp("milestone_reached_at"),
+  
+  // Invoice stage flags (prevent duplicates)
+  depositInvoiceSent: boolean("deposit_invoice_sent").default(false),
+  progressInvoiceSent: boolean("progress_invoice_sent").default(false),
+  finalInvoiceSent: boolean("final_invoice_sent").default(false),
+  
+  // Billing stage (synced to Jobber custom field)
+  billingStage: text("billing_stage").default("pending"), // pending, deposit_sent, deposit_paid, progress_sent, progress_paid, final_sent, final_paid
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  jobberJobIdx: uniqueIndex("billing_states_jobber_job_idx").on(table.jobberAccountId, table.jobberJobId),
+}));
+
+// Individual invoices created for billing milestones
+export const billingInvoices = pgTable("billing_invoices", {
+  id: serial("id").primaryKey(),
+  billingStateId: integer("billing_state_id").references(() => jobBillingStates.id).notNull(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  
+  // Jobber references
+  jobberAccountId: text("jobber_account_id").notNull(),
+  jobberJobId: text("jobber_job_id").notNull(),
+  jobberInvoiceId: text("jobber_invoice_id"), // Set after invoice created in Jobber
+  
+  // Invoice details
+  invoiceType: text("invoice_type").notNull(), // deposit, progress, final
+  amount: integer("amount").notNull(), // cents
+  percentageOfTotal: integer("percentage_of_total"), // 0-100
+  description: text("description"),
+  
+  // Status tracking
+  status: text("status").notNull().default("pending"), // pending, created, sent, paid, cancelled
+  
+  // Timestamps
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  sentAt: timestamp("sent_at"),
+  paidAt: timestamp("paid_at"),
+  
+  // Error tracking
+  lastError: text("last_error"),
+  retryCount: integer("retry_count").default(0),
+}, (table) => ({
+  // Idempotency: one invoice per type per job
+  jobInvoiceTypeIdx: uniqueIndex("billing_invoice_job_type_idx").on(table.jobberAccountId, table.jobberJobId, table.invoiceType),
+}));
+
+// Insert schemas for billing tables
+export const insertJobBillingStateSchema = createInsertSchema(jobBillingStates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBillingInvoiceSchema = createInsertSchema(billingInvoices).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types for billing
+export type JobBillingState = typeof jobBillingStates.$inferSelect;
+export type InsertJobBillingState = z.infer<typeof insertJobBillingStateSchema>;
+
+export type BillingInvoice = typeof billingInvoices.$inferSelect;
+export type InsertBillingInvoice = z.infer<typeof insertBillingInvoiceSchema>;
