@@ -1,10 +1,8 @@
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
-  CheckCircle,
   User,
   Zap,
-  ClipboardList,
   FileText,
   Radio,
   Settings,
