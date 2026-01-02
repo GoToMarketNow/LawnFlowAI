@@ -370,6 +370,86 @@ class JobberWebhookProcessor {
 
       console.log(`[Jobber Webhook] Enqueued dispatch recompute for business ${account.businessId}`);
     }
+
+    // Customer communications for JOB_SCHEDULE_UPDATE (rescheduled) and JOB_COMPLETED
+    const { processJobRescheduledEvent, processJobCompletedEvent } = await import("../workers/comms/customerCommsWorker");
+    
+    if (topic === "JOB_SCHEDULE_UPDATE") {
+      try {
+        const jobData = await this.fetchJobDataForComms(accountId, objectId);
+        if (jobData) {
+          const result = await processJobRescheduledEvent(accountId, account.businessId, jobData);
+          if (result.messageSent) {
+            console.log(`[Jobber Webhook] Customer rescheduled message sent for job ${objectId}`);
+          }
+        }
+      } catch (error) {
+        console.error(`[Jobber Webhook] Customer comms error (rescheduled):`, error);
+      }
+    }
+
+    if (topic === "JOB_COMPLETED") {
+      try {
+        const jobData = await this.fetchJobDataForComms(accountId, objectId);
+        if (jobData) {
+          const result = await processJobCompletedEvent(accountId, account.businessId, jobData);
+          if (result.messageSent) {
+            console.log(`[Jobber Webhook] Customer completion message sent for job ${objectId}`);
+          }
+        }
+      } catch (error) {
+        console.error(`[Jobber Webhook] Customer comms error (completed):`, error);
+      }
+    }
+  }
+
+  private async fetchJobDataForComms(accountId: string, jobId: string): Promise<any> {
+    try {
+      const client = await getJobberClient(accountId);
+      if (!client) return null;
+
+      const query = `
+        query GetJobForComms($id: EncodedId!) {
+          job(id: $id) {
+            id
+            title
+            startAt
+            endAt
+            jobType
+            notes
+            client {
+              id
+              firstName
+              lastName
+              phones {
+                number
+                primary
+              }
+            }
+            property {
+              address {
+                street1
+                city
+                state
+                postalCode
+              }
+            }
+            lineItems {
+              nodes {
+                name
+                description
+              }
+            }
+          }
+        }
+      `;
+
+      const response = await client.query<any>(query, { id: jobId });
+      return response.job;
+    } catch (error) {
+      console.error(`[Jobber Webhook] Failed to fetch job data for comms:`, error);
+      return null;
+    }
   }
 
   private async handleVisitEvent(

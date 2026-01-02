@@ -2686,5 +2686,73 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/comms/summary", async (req, res) => {
+    try {
+      const { getCommLogSummary } = await import("./workers/comms/customerCommsWorker");
+      const profile = await storage.getBusinessProfile();
+      
+      const summary = await getCommLogSummary(profile?.id);
+      res.json(summary);
+    } catch (error: any) {
+      console.error("[Comms] Error fetching summary:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/comms/log", async (req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { customerCommLog } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const profile = await storage.getBusinessProfile();
+      
+      let query = db.select().from(customerCommLog).orderBy(desc(customerCommLog.createdAt)).limit(100);
+      
+      if (profile) {
+        query = query.where(eq(customerCommLog.businessId, profile.id)) as typeof query;
+      }
+      
+      const entries = await query;
+      res.json(entries);
+    } catch (error: any) {
+      console.error("[Comms] Error fetching log:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/comms/:id", async (req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { customerCommLog } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const logId = parseInt(req.params.id);
+      
+      const [entry] = await db
+        .select()
+        .from(customerCommLog)
+        .where(eq(customerCommLog.id, logId))
+        .limit(1);
+      
+      if (!entry) {
+        return res.status(404).json({ error: "Communication log entry not found" });
+      }
+      
+      res.json(entry);
+    } catch (error: any) {
+      console.error("[Comms] Error fetching log entry:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/comms/templates/list", async (req, res) => {
+    try {
+      const { ALL_TEMPLATES } = await import("./workers/comms/messageTemplates");
+      res.json(ALL_TEMPLATES);
+    } catch (error: any) {
+      console.error("[Comms] Error fetching templates:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }

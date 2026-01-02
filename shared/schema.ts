@@ -1238,9 +1238,61 @@ export const insertDeadLetterQueueSchema = createInsertSchema(deadLetterQueue).o
   createdAt: true,
 });
 
+// Customer communication log for tracking all outbound messages
+export const customerCommLog = pgTable("customer_comm_log", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  jobberAccountId: text("jobber_account_id"),
+  
+  // Message details
+  messageType: text("message_type").notNull(), // job_rescheduled, job_completed, reminder, follow_up
+  serviceCategory: text("service_category"), // lawn_maintenance, hardscape
+  templateId: text("template_id").notNull(),
+  
+  // Recipient info
+  recipientPhone: text("recipient_phone").notNull(),
+  recipientName: text("recipient_name"),
+  
+  // Content
+  messageContent: text("message_content").notNull(),
+  templateVariables: jsonb("template_variables"), // Variables used in rendering
+  
+  // Related entities
+  jobberJobId: text("jobber_job_id"),
+  jobberClientId: text("jobber_client_id"),
+  conversationId: integer("conversation_id").references(() => conversations.id),
+  
+  // Delivery status
+  deliveryStatus: text("delivery_status").notNull().default("pending"), // pending, sent, delivered, failed
+  twilioMessageSid: text("twilio_message_sid"),
+  deliveredAt: timestamp("delivered_at"),
+  failureReason: text("failure_reason"),
+  
+  // Compliance tracking
+  complianceChecks: jsonb("compliance_checks"), // {noExactEta: true, hasRescheduleOption: true}
+  
+  // Jobber sync
+  jobberFieldUpdated: boolean("jobber_field_updated").default(false),
+  jobberFieldValue: text("jobber_field_value"), // The link/pointer written to Jobber
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("comm_log_business_idx").on(table.businessId),
+  jobIdx: index("comm_log_job_idx").on(table.jobberJobId),
+  statusIdx: index("comm_log_status_idx").on(table.deliveryStatus),
+}));
+
+export const insertCustomerCommLogSchema = createInsertSchema(customerCommLog).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type ReconciliationAlert = typeof reconciliationAlerts.$inferSelect;
 export type InsertReconciliationAlert = z.infer<typeof insertReconciliationAlertSchema>;
 
 export type DeadLetterQueueItem = typeof deadLetterQueue.$inferSelect;
 export type InsertDeadLetterQueueItem = z.infer<typeof insertDeadLetterQueueSchema>;
+
+export type CustomerCommLogEntry = typeof customerCommLog.$inferSelect;
+export type InsertCustomerCommLogEntry = z.infer<typeof insertCustomerCommLogSchema>;
