@@ -11,6 +11,7 @@ import { getJobberClient } from "../../connectors/jobber-client";
 import { 
   getBillingRule, 
   getMilestoneForEvent, 
+  getMilestoneForVisitEvent,
   getInvoiceTypeForMilestone,
   getBillingStageForEvent,
   type BillingMilestone 
@@ -426,4 +427,137 @@ export async function getBusinessBillingSummary(businessId: number) {
   };
 
   return summary;
+}
+
+export async function processVisitBillingEvent(
+  accountId: string,
+  event: BillingEvent
+): Promise<BillingResult> {
+  const { objectId: visitId, topic, data } = event;
+  
+  console.log(`[Billing Worker] Processing visit billing ${topic} for visit ${visitId}`);
+
+  try {
+    const [account] = await db
+      .select()
+      .from(jobberAccounts)
+      .where(eq(jobberAccounts.jobberAccountId, accountId))
+      .limit(1);
+
+    if (!account?.businessId) {
+      console.log(`[Billing Worker] No business linked to account ${accountId}`);
+      return { processed: false, invoiceCreated: false, billingStageUpdated: false };
+    }
+
+    const milestone = getMilestoneForVisitEvent(topic);
+    if (!milestone) {
+      console.log(`[Billing Worker] No billing milestone for visit topic ${topic}`);
+      return { processed: false, invoiceCreated: false, billingStageUpdated: false };
+    }
+
+    const client = await getJobberClient(accountId);
+    const visitResult = await client.getVisit(visitId);
+    
+    if (!visitResult?.visit) {
+      console.log(`[Billing Worker] Visit ${visitId} not found`);
+      return { processed: false, invoiceCreated: false, billingStageUpdated: false };
+    }
+
+    const jobId = visitResult.visit.job?.id;
+    if (!jobId) {
+      console.log(`[Billing Worker] No job linked to visit ${visitId}`);
+      return { processed: false, invoiceCreated: false, billingStageUpdated: false };
+    }
+
+    const jobResult = await client.getJob(jobId);
+    if (!jobResult?.job) {
+      console.log(`[Billing Worker] Job ${jobId} not found`);
+      return { processed: false, invoiceCreated: false, billingStageUpdated: false };
+    }
+
+    const job = jobResult.job;
+    const serviceType = job.jobType?.name || "unknown";
+    const totalValue = Math.round((job.amounts?.total || 0) * 100);
+
+    const billingRule = getBillingRule(serviceType);
+    if (!billingRule || !billingRule.requiresProgress) {
+      console.log(`[Billing Worker] No progress billing rule for service type: ${serviceType}`);
+      return { processed: false, invoiceCreated: false, billingStageUpdated: false };
+    }
+
+    let [billingState] = await db
+      .select()
+      .from(jobBillingStates)
+      .where(and(
+        eq(jobBillingStates.jobberAccountId, accountId),
+        eq(jobBillingStates.jobberJobId, jobId)
+      ))
+      .limit(1);
+
+    if (!billingState) {
+      console.log(`[Billing Worker] No billing state for job ${jobId}, skipping progress invoice`);
+      return { processed: false, invoiceCreated: false, billingStageUpdated: false };
+    }
+
+    if (billingState.progressInvoiceSent) {
+      console.log(`[Billing Worker] Progress invoice already sent for job ${jobId}`);
+      return { processed: true, invoiceCreated: false, billingStageUpdated: false };
+    }
+
+    const milestoneConfig = getInvoiceTypeForMilestone(billingRule, milestone);
+    if (!milestoneConfig || milestoneConfig.invoiceType !== "progress") {
+      return { processed: true, invoiceCreated: false, billingStageUpdated: false };
+    }
+
+    const [existingInvoice] = await db
+      .select()
+      .from(billingInvoices)
+      .where(and(
+        eq(billingInvoices.jobberAccountId, accountId),
+        eq(billingInvoices.jobberJobId, jobId),
+        eq(billingInvoices.invoiceType, "progress")
+      ))
+      .limit(1);
+
+    if (existingInvoice) {
+      console.log(`[Billing Worker] Progress invoice already exists for job ${jobId}`);
+      return { processed: true, invoiceCreated: false, billingStageUpdated: false };
+    }
+
+    const invoiceAmount = Math.round((totalValue * milestoneConfig.percentageOfTotal) / 100);
+    
+    const invoiceResult = await createAndSendInvoice(
+      client,
+      accountId,
+      account.businessId,
+      billingState.id,
+      jobId,
+      milestoneConfig,
+      invoiceAmount
+    );
+
+    if (invoiceResult.success && invoiceResult.invoiceId) {
+      await db
+        .update(jobBillingStates)
+        .set({ 
+          progressInvoiceSent: true,
+          currentMilestone: milestone,
+          milestoneReachedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(jobBillingStates.id, billingState.id));
+      
+      const newBillingStage = getBillingStageForEvent(billingRule, "progress", false);
+      await updateBillingStage(client, billingState.id, jobId, billingRule.billingStageField, newBillingStage);
+
+      console.log(`[Billing Worker] Created progress invoice ${invoiceResult.invoiceId} for job ${jobId}`);
+      return { processed: true, invoiceCreated: true, invoiceId: invoiceResult.invoiceId, billingStageUpdated: true };
+    }
+
+    return { processed: true, invoiceCreated: false, billingStageUpdated: false, error: invoiceResult.error };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[Billing Worker] Error processing visit billing:`, errorMessage);
+    return { processed: false, invoiceCreated: false, billingStageUpdated: false, error: errorMessage };
+  }
 }

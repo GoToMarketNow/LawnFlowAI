@@ -161,10 +161,16 @@ export function getMilestoneForEvent(topic: string): string | null {
     JOB_SCHEDULE_UPDATE: "scheduled",
     JOB_UPDATE: "in_progress",
     JOB_COMPLETED: "complete",
+  };
+  return milestoneMap[topic] || null;
+}
+
+export function getMilestoneForVisitEvent(topic: string): string | null {
+  const visitMilestoneMap: Record<string, string> = {
     VISIT_COMPLETED: "in_progress",
     VISIT_APPROVED: "in_progress",
   };
-  return milestoneMap[topic] || null;
+  return visitMilestoneMap[topic] || null;
 }
 
 export function getInvoiceTypeForMilestone(

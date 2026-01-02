@@ -2460,5 +2460,123 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== BILLING ORCHESTRATOR API ====================
+  
+  app.get("/api/billing/summary", async (req, res) => {
+    try {
+      const { getBusinessBillingSummary } = await import("./workers/billing/billingWorker");
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const summary = await getBusinessBillingSummary(profile.id);
+      res.json(summary);
+    } catch (error: any) {
+      console.error("[Billing] Error fetching summary:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/billing/states", async (req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { jobBillingStates, billingInvoices } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const states = await db
+        .select()
+        .from(jobBillingStates)
+        .where(eq(jobBillingStates.businessId, profile.id))
+        .orderBy(desc(jobBillingStates.updatedAt))
+        .limit(50);
+      
+      const invoices = await db
+        .select()
+        .from(billingInvoices)
+        .where(eq(billingInvoices.businessId, profile.id));
+      
+      const statesWithInvoices = states.map(state => ({
+        ...state,
+        invoices: invoices.filter(inv => inv.billingStateId === state.id),
+      }));
+      
+      res.json(statesWithInvoices);
+    } catch (error: any) {
+      console.error("[Billing] Error fetching states:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/billing/states/:jobId", async (req, res) => {
+    try {
+      const { getBillingStateForJob } = await import("./workers/billing/billingWorker");
+      const { jobId } = req.params;
+      const accountId = req.query.accountId as string;
+      
+      if (!accountId) {
+        return res.status(400).json({ error: "accountId query param required" });
+      }
+      
+      const result = await getBillingStateForJob(accountId, jobId);
+      if (!result) {
+        return res.status(404).json({ error: "Billing state not found" });
+      }
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Billing] Error fetching job billing state:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/billing/invoices", async (req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { billingInvoices } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business profile not found" });
+      }
+      
+      const invoices = await db
+        .select()
+        .from(billingInvoices)
+        .where(eq(billingInvoices.businessId, profile.id))
+        .orderBy(desc(billingInvoices.createdAt))
+        .limit(100);
+      
+      res.json(invoices);
+    } catch (error: any) {
+      console.error("[Billing] Error fetching invoices:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/billing/rules", async (req, res) => {
+    try {
+      const { BILLING_RULES, getBillingRule } = await import("./workers/billing/billingRules");
+      const serviceType = req.query.serviceType as string;
+      
+      if (serviceType) {
+        const rule = getBillingRule(serviceType);
+        if (!rule) {
+          return res.status(404).json({ error: "No billing rule for service type" });
+        }
+        return res.json(rule);
+      }
+      
+      res.json(Object.values(BILLING_RULES));
+    } catch (error: any) {
+      console.error("[Billing] Error fetching rules:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }

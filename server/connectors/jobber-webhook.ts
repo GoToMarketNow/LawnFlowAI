@@ -378,6 +378,7 @@ class JobberWebhookProcessor {
     console.log(`[Jobber Webhook] Processing visit event: ${topic} for visit ${objectId}`);
     
     const { processMarginEvent } = await import("../workers/margin/marginWorker");
+    const { processVisitBillingEvent } = await import("../workers/billing/billingWorker");
     
     const [account] = await db
       .select()
@@ -404,6 +405,22 @@ class JobberWebhookProcessor {
       }
     } catch (error) {
       console.error(`[Jobber Webhook] Margin processing error for visit:`, error);
+    }
+
+    // Process billing for visit milestone events (progress invoicing)
+    try {
+      const billingResult = await processVisitBillingEvent(accountId, {
+        accountId,
+        objectId,
+        topic,
+        occurredAt: new Date().toISOString(),
+        data,
+      });
+      if (billingResult.invoiceCreated) {
+        console.log(`[Jobber Webhook] Progress invoice ${billingResult.invoiceId} created from visit ${objectId}`);
+      }
+    } catch (error) {
+      console.error(`[Jobber Webhook] Billing processing error for visit:`, error);
     }
   }
 
