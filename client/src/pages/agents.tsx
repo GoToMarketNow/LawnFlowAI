@@ -48,7 +48,6 @@ interface AgentSummary {
   byCategory: {
     core: number;
     dispatch: number;
-    ops: number;
     finance: number;
     comms: number;
   };
@@ -56,7 +55,6 @@ interface AgentSummary {
 
 const CATEGORY_ICONS: Record<string, typeof Bot> = {
   core: Bot,
-  ops: Truck,
   dispatch: Route,
   finance: Calculator,
   comms: MessageSquare,
@@ -64,8 +62,7 @@ const CATEGORY_ICONS: Record<string, typeof Bot> = {
 
 const CATEGORY_LABELS: Record<string, string> = {
   core: "Core",
-  ops: "Operations",
-  dispatch: "Dispatch & Crew",
+  dispatch: "Operations",
   finance: "Finance",
   comms: "Communications",
 };
