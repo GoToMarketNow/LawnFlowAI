@@ -1,27 +1,55 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
 import {
   Calendar,
   ChevronLeft,
   ChevronRight,
   MapPin,
   Clock,
-  User,
+  Users,
+  Truck,
+  RefreshCw,
+  AlertCircle,
 } from "lucide-react";
-import { useState } from "react";
-import { format, addDays, startOfWeek, isSameDay } from "date-fns";
+import { format, addDays, startOfWeek, isSameDay, parseISO, addWeeks, subWeeks } from "date-fns";
 import { jobStatuses, type JobStatus } from "@/lib/ui/tokens";
+
+interface Crew {
+  id: number;
+  name: string;
+  dailyCapacityMinutes: number;
+  skillsJson: string[];
+  isActive: boolean;
+}
+
+interface ScheduleItem {
+  id: number;
+  crewId: number | null;
+  startAt: string;
+  endAt: string;
+  address: string | null;
+  description: string | null;
+  status: string;
+  jobRequestId: number | null;
+}
 
 interface ScheduledJob {
   id: number;
   customerName: string;
-  address: string;
+  customerAddress: string;
   serviceType: string;
-  scheduledTime: string;
+  scheduledDate: string;
   estimatedDuration: number;
+  crewId?: number;
   crewName?: string;
   status: string;
 }
@@ -34,7 +62,7 @@ function getWeekDays(date: Date): Date[] {
 function DaySkeleton() {
   return (
     <div className="space-y-2">
-      <Skeleton className="h-4 w-20 mb-2" />
+      <Skeleton className="h-12 w-full mb-2" />
       <Skeleton className="h-16 w-full" />
       <Skeleton className="h-16 w-full" />
     </div>
@@ -42,12 +70,29 @@ function DaySkeleton() {
 }
 
 export default function SchedulePage() {
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<"week" | "day">("week");
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [selectedCrew, setSelectedCrew] = useState<string>("all");
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const [dayDrawerOpen, setDayDrawerOpen] = useState(false);
   
-  const weekDays = getWeekDays(selectedDate);
+  const weekDays = getWeekDays(weekStart);
 
-  const { data: jobsData, isLoading } = useQuery<any[]>({
+  const { data: crews = [], isLoading: crewsLoading } = useQuery<Crew[]>({
+    queryKey: ["/api/ops/crews"],
+  });
+
+  const { data: scheduleItems = [], isLoading: scheduleLoading, refetch } = useQuery<ScheduleItem[]>({
+    queryKey: ["/api/ops/schedule", selectedCrew],
+    queryFn: async () => {
+      const url = selectedCrew !== "all" 
+        ? `/api/ops/schedule?crewId=${selectedCrew}` 
+        : "/api/ops/schedule";
+      const res = await fetch(url);
+      return res.json();
+    },
+  });
+
+  const { data: jobsData = [] } = useQuery<any[]>({
     queryKey: ["/api/jobs"],
   });
 
@@ -56,143 +101,383 @@ export default function SchedulePage() {
     .map((job: any) => ({
       id: job.id,
       customerName: job.customerName || "Unknown Customer",
-      address: job.address || job.propertyAddress || "",
-      serviceType: job.services?.[0] || "Service",
-      scheduledTime: job.scheduledDate,
+      customerAddress: job.customerAddress || job.address || "",
+      serviceType: job.serviceType || "Service",
+      scheduledDate: job.scheduledDate,
       estimatedDuration: job.estimatedDuration || 60,
+      crewId: job.crewId,
       crewName: job.crewName,
       status: job.status || "scheduled",
     }));
 
-  const getJobsForDate = (date: Date) => {
-    return scheduledJobs.filter((job) => {
-      const jobDate = new Date(job.scheduledTime);
-      return isSameDay(jobDate, date);
-    });
+  const getCrewById = (crewId: number | null | undefined) => {
+    if (!crewId) return null;
+    return crews.find(c => c.id === crewId);
   };
 
-  const navigateWeek = (direction: "prev" | "next") => {
-    setSelectedDate((current) => addDays(current, direction === "next" ? 7 : -7));
+  const getItemsForDay = (day: Date) => {
+    const jobsOnDay = scheduledJobs.filter((job) => {
+      const jobDate = new Date(job.scheduledDate);
+      const matchesCrew = selectedCrew === "all" || job.crewId?.toString() === selectedCrew;
+      return isSameDay(jobDate, day) && matchesCrew;
+    });
+
+    const scheduleOnDay = scheduleItems.filter(item => {
+      const itemDate = parseISO(item.startAt);
+      return isSameDay(itemDate, day);
+    });
+
+    return { jobs: jobsOnDay, scheduleItems: scheduleOnDay };
+  };
+
+  const calculateDayCapacity = (day: Date) => {
+    const { jobs, scheduleItems: items } = getItemsForDay(day);
+    
+    let totalMinutes = 0;
+    jobs.forEach(job => {
+      totalMinutes += job.estimatedDuration || 60;
+    });
+    items.forEach(item => {
+      const start = parseISO(item.startAt);
+      const end = parseISO(item.endAt);
+      totalMinutes += (end.getTime() - start.getTime()) / (1000 * 60);
+    });
+    
+    const activeCrews = selectedCrew === "all" 
+      ? crews.filter(c => c.isActive)
+      : crews.filter(c => c.id.toString() === selectedCrew && c.isActive);
+    
+    const totalCapacity = activeCrews.reduce((sum, c) => sum + (c.dailyCapacityMinutes || 420), 0);
+    
+    return {
+      used: Math.round(totalMinutes),
+      total: totalCapacity || 420,
+      percentage: totalCapacity > 0 ? Math.min(100, Math.round((totalMinutes / totalCapacity) * 100)) : 0,
+    };
+  };
+
+  const openDayDetail = (day: Date) => {
+    setSelectedDay(day);
+    setDayDrawerOpen(true);
   };
 
   const isToday = (date: Date) => isSameDay(date, new Date());
 
-  return (
-    <div className="p-6">
-      <div className="flex items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold">Schedule</h1>
-          <p className="text-sm text-muted-foreground">
-            {format(weekDays[0], "MMM d")} - {format(weekDays[6], "MMM d, yyyy")}
-          </p>
+  const DayColumn = ({ day }: { day: Date }) => {
+    const { jobs, scheduleItems: items } = getItemsForDay(day);
+    const allItems = [...jobs.map(j => ({ type: 'job' as const, data: j })), ...items.map(i => ({ type: 'schedule' as const, data: i }))];
+    const isCurrentDay = isToday(day);
+    const capacity = calculateDayCapacity(day);
+
+    return (
+      <div 
+        className={`flex-1 min-w-0 border-r last:border-r-0 hover-elevate cursor-pointer flex flex-col ${isCurrentDay ? "bg-primary/5" : ""}`}
+        onClick={() => openDayDetail(day)}
+        data-testid={`schedule-day-${format(day, "yyyy-MM-dd")}`}
+      >
+        <div className={`p-2 border-b text-center ${isCurrentDay ? "bg-primary/10" : "bg-muted/30"}`}>
+          <div className="text-xs text-muted-foreground">{format(day, "EEE")}</div>
+          <div className={`text-lg font-medium ${isCurrentDay ? "text-primary" : ""}`}>
+            {format(day, "d")}
+          </div>
         </div>
         
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => navigateWeek("prev")}
-            data-testid="button-prev-week"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setSelectedDate(new Date())}
-            data-testid="button-today"
-          >
-            Today
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => navigateWeek("next")}
-            data-testid="button-next-week"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+        <div className="p-2 flex-1 min-h-[180px]">
+          {allItems.length === 0 ? (
+            <div className="text-xs text-muted-foreground text-center py-4">
+              No jobs
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {allItems.slice(0, 4).map((item, idx) => (
+                <div 
+                  key={idx} 
+                  className="text-xs p-1.5 rounded bg-primary/10 truncate"
+                >
+                  <div className="font-medium truncate">
+                    {item.type === 'job' 
+                      ? format(new Date(item.data.scheduledDate), "h:mm a")
+                      : format(parseISO((item.data as ScheduleItem).startAt), "h:mm a")
+                    }
+                  </div>
+                  <div className="text-muted-foreground truncate">
+                    {item.type === 'job' 
+                      ? (item.data as ScheduledJob).customerName
+                      : (item.data as ScheduleItem).description || "Scheduled"
+                    }
+                  </div>
+                </div>
+              ))}
+              {allItems.length > 4 && (
+                <div className="text-xs text-muted-foreground text-center">
+                  +{allItems.length - 4} more
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="p-2 border-t bg-muted/20">
+          <div className="text-xs text-muted-foreground mb-1">Capacity</div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+              <div 
+                className={`h-full rounded-full transition-all ${
+                  capacity.percentage > 90 ? "bg-red-500" : 
+                  capacity.percentage > 70 ? "bg-amber-500" : "bg-green-500"
+                }`}
+                style={{ width: `${capacity.percentage}%` }}
+              />
+            </div>
+            <span className="text-xs font-medium w-8 text-right">{capacity.percentage}%</span>
+          </div>
         </div>
       </div>
+    );
+  };
 
-      {isLoading ? (
-        <div className="grid grid-cols-7 gap-4">
-          {Array.from({ length: 7 }).map((_, i) => (
-            <DaySkeleton key={i} />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-7 gap-4">
-          {weekDays.map((day) => {
-            const dayJobs = getJobsForDate(day);
-            const isCurrentDay = isToday(day);
-            
-            return (
-              <div key={day.toISOString()} className="min-h-[300px]">
-                <div
-                  className={`text-sm font-medium mb-2 p-2 rounded-md text-center ${
-                    isCurrentDay
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground"
+  const DayDetailDrawer = () => {
+    if (!selectedDay) return null;
+    const { jobs, scheduleItems: items } = getItemsForDay(selectedDay);
+    const capacity = calculateDayCapacity(selectedDay);
+    const allItems = [...jobs, ...items.map(i => ({
+      id: i.id,
+      customerName: i.description || "Scheduled Item",
+      customerAddress: i.address || "",
+      serviceType: "",
+      scheduledDate: i.startAt,
+      estimatedDuration: Math.round((parseISO(i.endAt).getTime() - parseISO(i.startAt).getTime()) / (1000 * 60)),
+      crewId: i.crewId,
+      status: i.status,
+    }))];
+
+    return (
+      <Sheet open={dayDrawerOpen} onOpenChange={setDayDrawerOpen}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              {format(selectedDay, "EEEE, MMMM d, yyyy")}
+            </SheetTitle>
+            <SheetDescription>
+              {allItems.length} item{allItems.length !== 1 ? "s" : ""} scheduled
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="mt-6 space-y-6">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Capacity Utilization
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Progress 
+                  value={capacity.percentage} 
+                  className={`h-2 ${
+                    capacity.percentage > 90 ? "[&>div]:bg-red-500" : 
+                    capacity.percentage > 70 ? "[&>div]:bg-amber-500" : "[&>div]:bg-green-500"
                   }`}
-                >
-                  <div>{format(day, "EEE")}</div>
-                  <div className="text-lg">{format(day, "d")}</div>
+                />
+                <div className="flex justify-between mt-2 text-sm">
+                  <span className="text-muted-foreground">
+                    {capacity.used} min used
+                  </span>
+                  <span className="font-medium">{capacity.percentage}%</span>
                 </div>
-                
-                <div className="space-y-2">
-                  {dayJobs.length === 0 ? (
-                    <div className="text-xs text-muted-foreground text-center py-4">
-                      No jobs
-                    </div>
-                  ) : (
-                    dayJobs.map((job) => {
-                      const statusConfig = jobStatuses[job.status as JobStatus] || jobStatuses.scheduled;
+                <div className="text-xs text-muted-foreground mt-1">
+                  {capacity.total} min total capacity
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Assignments
+              </h4>
+              {allItems.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No jobs scheduled for this day.</p>
+              ) : (
+                <ScrollArea className="h-[300px]">
+                  <div className="space-y-3 pr-4">
+                    {allItems.map((item, idx) => {
+                      const crew = getCrewById(item.crewId);
                       return (
-                        <Card
-                          key={job.id}
-                          className="hover-elevate cursor-pointer"
-                          data-testid={`schedule-job-${job.id}`}
-                        >
-                          <CardContent className="p-2">
-                            <div className="text-xs font-medium truncate mb-1">
-                              {job.customerName}
+                        <Card key={idx} data-testid={`schedule-item-${item.id}`}>
+                          <CardContent className="p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm truncate">{item.customerName}</div>
+                                <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                                  <Clock className="h-3 w-3" />
+                                  {format(new Date(item.scheduledDate), "h:mm a")}
+                                  <span>({item.estimatedDuration} min)</span>
+                                </div>
+                                {item.customerAddress && (
+                                  <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                                    <MapPin className="h-3 w-3" />
+                                    <span className="truncate">{item.customerAddress}</span>
+                                  </div>
+                                )}
+                              </div>
+                              <Badge variant="secondary" className="text-xs shrink-0">
+                                {item.status}
+                              </Badge>
                             </div>
-                            <div className="text-xs text-muted-foreground truncate mb-1">
-                              {job.serviceType}
-                            </div>
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Clock className="h-3 w-3" />
-                              {format(new Date(job.scheduledTime), "h:mm a")}
-                            </div>
-                            {job.crewName && (
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                                <User className="h-3 w-3" />
-                                {job.crewName}
+                            {crew && (
+                              <div className="flex items-center gap-2 mt-2 pt-2 border-t text-xs">
+                                <Users className="h-3 w-3 text-muted-foreground" />
+                                <span>{crew.name}</span>
                               </div>
                             )}
                           </CardContent>
                         </Card>
                       );
-                    })
-                  )}
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium flex items-center gap-2">
+                <Truck className="h-4 w-4" />
+                Route Overview
+              </h4>
+              {allItems.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No route for this day.</p>
+              ) : (
+                <div className="space-y-2">
+                  {allItems
+                    .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime())
+                    .map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-3 text-sm">
+                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium shrink-0">
+                          {idx + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="truncate font-medium">{item.customerName}</div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {item.customerAddress || "Location not specified"}
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground shrink-0">
+                          {format(new Date(item.scheduledDate), "h:mm a")}
+                        </div>
+                      </div>
+                    ))}
                 </div>
-              </div>
-            );
-          })}
+              )}
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+    );
+  };
+
+  const isLoading = crewsLoading || scheduleLoading;
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="border-b p-4">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-semibold flex items-center gap-2">
+              <Calendar className="h-6 w-6" />
+              Schedule
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Week of {format(weekStart, "MMM d, yyyy")}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Select value={selectedCrew} onValueChange={setSelectedCrew}>
+              <SelectTrigger className="w-40" data-testid="select-crew-filter">
+                <SelectValue placeholder="All Crews" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Crews</SelectItem>
+                {crews.filter(c => c.isActive).map(crew => (
+                  <SelectItem key={crew.id} value={crew.id.toString()}>
+                    {crew.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => refetch()}
+              data-testid="button-refresh-schedule"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setWeekStart(subWeeks(weekStart, 1))}
+          data-testid="button-prev-week"
+        >
+          <ChevronLeft className="h-4 w-4 mr-1" />
+          Previous
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
+          data-testid="button-today"
+        >
+          Today
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setWeekStart(addWeeks(weekStart, 1))}
+          data-testid="button-next-week"
+        >
+          Next
+          <ChevronRight className="h-4 w-4 ml-1" />
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex-1 grid grid-cols-7 gap-0 border-t overflow-hidden">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i} className="border-r last:border-r-0 p-2">
+              <DaySkeleton />
+            </div>
+          ))}
+        </div>
+      ) : crews.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+          <Users className="h-12 w-12 text-muted-foreground mb-4" />
+          <h3 className="font-medium">No crews configured</h3>
+          <p className="text-sm text-muted-foreground">
+            Add crews in Settings to start scheduling.
+          </p>
+        </div>
+      ) : (
+        <div className="flex-1 flex border-t overflow-x-auto">
+          {weekDays.map(day => (
+            <DayColumn key={day.toISOString()} day={day} />
+          ))}
         </div>
       )}
 
-      {scheduledJobs.length === 0 && !isLoading && (
-        <Card className="mt-6">
-          <CardContent className="p-12 text-center">
-            <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-medium mb-2">No scheduled jobs</h3>
-            <p className="text-sm text-muted-foreground">
-              Jobs will appear here once they are scheduled with customers.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      <DayDetailDrawer />
     </div>
   );
 }
