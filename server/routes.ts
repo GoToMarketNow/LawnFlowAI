@@ -1635,32 +1635,41 @@ export async function registerRoutes(
         .filter((job) => job.estimatedPrice && job.estimatedPrice > 0)
         .map((job) => {
           let status: string = "draft";
+          const notes = job.notes || "";
+          const needsApproval = notes.includes("Needs Approval: true");
+          
           if (job.status === "scheduled" || job.status === "completed") {
             status = "accepted";
-          } else if ((job as any).quoteSentAt) {
-            status = (job as any).quoteApproved ? "accepted" : "sent";
-          } else if ((job as any).quoteNeedsApproval && !(job as any).quoteApproved) {
+          } else if (notes.includes("SENT")) {
+            status = "sent";
+          } else if (needsApproval) {
             status = "awaiting_approval";
-          } else if ((job as any).quoteApproved) {
-            status = "draft";
           }
+          
+          const servicesMatch = notes.match(/Services: ([^\n]+)/);
+          const services = servicesMatch 
+            ? servicesMatch[1].split(", ").map(s => s.trim())
+            : [job.serviceType];
+          
+          const frequencyMatch = notes.match(/Frequency: ([^\n]+)/);
+          const frequency = frequencyMatch ? frequencyMatch[1].trim() : null;
+          
+          const priceRangeMatch = notes.match(/Price Range: \$([0-9.]+) - \$([0-9.]+)/);
+          const amountLow = priceRangeMatch ? Math.round(parseFloat(priceRangeMatch[1]) * 100) : null;
+          const amountHigh = priceRangeMatch ? Math.round(parseFloat(priceRangeMatch[2]) * 100) : null;
           
           return {
             id: job.id,
             customerName: job.customerName || "Unknown Customer",
             customerPhone: job.customerPhone,
-            customerAddress: job.address,
+            customerAddress: job.customerAddress,
             amount: job.estimatedPrice || 0,
-            amountLow: (job as any).estimatedPriceLow,
-            amountHigh: (job as any).estimatedPriceHigh,
+            amountLow,
+            amountHigh,
             status,
-            services: job.services || [],
-            frequency: (job as any).frequency,
-            lotSize: (job as any).lotSizeSqft,
-            confidence: (job as any).confidence,
+            services,
+            frequency,
             createdAt: job.createdAt,
-            sentAt: (job as any).quoteSentAt,
-            approvedAt: (job as any).quoteApprovedAt,
             expiresAt: null,
           };
         });
@@ -1678,7 +1687,8 @@ export async function registerRoutes(
       if (!job) {
         return res.status(404).json({ error: "Quote not found" });
       }
-      await storage.updateJob(id, { quoteSentAt: new Date() });
+      const newNotes = (job.notes || "") + `\nSENT: ${new Date().toISOString()}`;
+      await storage.updateJob(id, { notes: newNotes });
       res.json({ success: true, message: "Quote sent successfully" });
     } catch (error) {
       console.error("Error sending quote:", error);
@@ -1700,11 +1710,10 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Quote not found" });
       }
       
-      await storage.updateJob(id, { 
-        quoteApproved: true,
-        quoteApprovedAt: new Date(),
-        quoteApprovedByUserId: user.id,
-      });
+      let newNotes = (job.notes || "").replace("Needs Approval: true", "Needs Approval: false");
+      newNotes += `\nAPPROVED: ${new Date().toISOString()} by ${user.email || user.id}`;
+      
+      await storage.updateJob(id, { notes: newNotes });
       
       res.json({ success: true, message: "Quote approved" });
     } catch (error) {
@@ -1721,33 +1730,67 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Quote not found" });
       }
       
+      const notes = job.notes || "";
+      const needsApproval = notes.includes("Needs Approval: true");
+      const isSent = notes.includes("SENT");
+      
+      let status: string = "draft";
+      if (job.status === "scheduled" || job.status === "completed") {
+        status = "accepted";
+      } else if (isSent) {
+        status = "sent";
+      } else if (needsApproval) {
+        status = "awaiting_approval";
+      }
+      
+      const servicesMatch = notes.match(/Services: ([^\n]+)/);
+      const services = servicesMatch 
+        ? servicesMatch[1].split(", ").map(s => s.trim())
+        : [job.serviceType];
+      
+      const frequencyMatch = notes.match(/Frequency: ([^\n]+)/);
+      const frequency = frequencyMatch ? frequencyMatch[1].trim() : null;
+      
+      const lotSizeMatch = notes.match(/Lot Size: ([0-9]+)/);
+      const lotSize = lotSizeMatch ? parseInt(lotSizeMatch[1]) : null;
+      
+      const priceRangeMatch = notes.match(/Price Range: \$([0-9.]+) - \$([0-9.]+)/);
+      const amountLow = priceRangeMatch ? Math.round(parseFloat(priceRangeMatch[1]) * 100) : null;
+      const amountHigh = priceRangeMatch ? Math.round(parseFloat(priceRangeMatch[2]) * 100) : null;
+      
+      const auditTrail = [
+        { id: 1, action: "Quote Created", createdAt: job.createdAt },
+      ];
+      
+      if (notes.includes("APPROVED:")) {
+        const approvedMatch = notes.match(/APPROVED: ([^\n]+)/);
+        if (approvedMatch) {
+          auditTrail.push({ id: 2, action: "Quote Approved", createdAt: approvedMatch[1] });
+        }
+      }
+      
+      if (isSent) {
+        const sentMatch = notes.match(/SENT: ([^\n]+)/);
+        if (sentMatch) {
+          auditTrail.push({ id: 3, action: "Quote Sent", createdAt: sentMatch[1] });
+        }
+      }
+      
       const quote = {
         id: job.id,
         customerName: job.customerName || "Unknown Customer",
         customerPhone: job.customerPhone,
-        customerAddress: job.address,
+        customerAddress: job.customerAddress,
         amount: job.estimatedPrice || 0,
-        amountLow: job.estimatedPriceLow,
-        amountHigh: job.estimatedPriceHigh,
-        status: job.quoteSentAt 
-          ? (job.quoteApproved ? "accepted" : "sent")
-          : (job.quoteApproved ? "draft" : (job.quoteNeedsApproval ? "awaiting_approval" : "draft")),
-        services: job.services || [],
-        frequency: job.frequency,
-        lotSize: job.lotSizeSqft,
-        assumptions: job.assumptions || [],
-        customerMessage: job.customerMessagePreview,
-        confidence: job.confidence,
+        amountLow,
+        amountHigh,
+        status,
+        services,
+        frequency,
+        lotSize,
+        assumptions: lotSize ? [] : ["Lot size estimated based on typical residential property"],
         createdAt: job.createdAt,
-        createdByUserId: job.createdByUserId,
-        sentAt: job.quoteSentAt,
-        approvedAt: job.quoteApprovedAt,
-        approvedByUserId: job.quoteApprovedByUserId,
-        auditTrail: [
-          { id: 1, action: "Quote Created", createdAt: job.createdAt },
-          ...(job.quoteApprovedAt ? [{ id: 2, action: "Quote Approved", createdAt: job.quoteApprovedAt }] : []),
-          ...(job.quoteSentAt ? [{ id: 3, action: "Quote Sent", createdAt: job.quoteSentAt }] : []),
-        ],
+        auditTrail,
       };
       
       res.json(quote);
@@ -1817,34 +1860,13 @@ export async function registerRoutes(
       
       const job = await storage.createJob({
         customerName,
-        customerPhone: customerPhone || null,
-        address: customerAddress || null,
-        services,
-        frequency: frequency || "one_time",
-        lotSizeSqft,
+        customerPhone: customerPhone || "N/A",
+        customerAddress: customerAddress || null,
+        serviceType: services[0] || "other",
         estimatedPrice: priceAvg,
-        estimatedPriceLow: priceLow,
-        estimatedPriceHigh: priceHigh,
         status: "pending",
-        quoteNeedsApproval: !isOwnerOrAdmin,
-        quoteApproved: isOwnerOrAdmin,
-        createdByUserId: user?.id,
-        notes: notes || null,
-        confidence: propertySize === "unknown" ? "medium" : "high",
-        assumptions: propertySize === "unknown" 
-          ? ["Lot size estimated based on typical residential property"]
-          : [],
+        notes: notes ? `${notes}\n\nServices: ${services.join(", ")}\nFrequency: ${frequency}\nProperty Size: ${propertySize}\nLot Size: ${lotSizeSqft} sq ft\nPrice Range: $${(priceLow/100).toFixed(2)} - $${(priceHigh/100).toFixed(2)}\nNeeds Approval: ${!isOwnerOrAdmin}` : `Services: ${services.join(", ")}\nFrequency: ${frequency}\nProperty Size: ${propertySize}\nLot Size: ${lotSizeSqft} sq ft\nPrice Range: $${(priceLow/100).toFixed(2)} - $${(priceHigh/100).toFixed(2)}\nNeeds Approval: ${!isOwnerOrAdmin}`,
       });
-      
-      if (!isOwnerOrAdmin) {
-        await storage.createPendingAction({
-          type: "quote_approval",
-          stage: "QUOTE_BUILD",
-          description: `New quote for ${customerName} requires approval`,
-          context: { jobId: job.id, amount: priceAvg, services },
-          status: "pending",
-        });
-      }
       
       res.json({ 
         success: true, 
