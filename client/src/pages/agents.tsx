@@ -19,6 +19,17 @@ import {
   FileText,
   TrendingUp,
   ChevronRight,
+  Route,
+  Users,
+  MapPin,
+  BarChart3,
+  Target,
+  Gauge,
+  CheckCircle,
+  Star,
+  RefreshCw,
+  Gift,
+  UserPlus,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -36,6 +47,7 @@ interface AgentSummary {
   totalRevenueProtectedCents: number;
   byCategory: {
     core: number;
+    dispatch: number;
     ops: number;
     finance: number;
     comms: number;
@@ -45,6 +57,7 @@ interface AgentSummary {
 const CATEGORY_ICONS: Record<string, typeof Bot> = {
   core: Bot,
   ops: Truck,
+  dispatch: Route,
   finance: Calculator,
   comms: MessageSquare,
 };
@@ -52,6 +65,7 @@ const CATEGORY_ICONS: Record<string, typeof Bot> = {
 const CATEGORY_LABELS: Record<string, string> = {
   core: "Core",
   ops: "Operations",
+  dispatch: "Dispatch & Crew",
   finance: "Finance",
   comms: "Communications",
 };
@@ -64,6 +78,18 @@ const AGENT_ICONS: Record<string, typeof Bot> = {
   comms_worker: MessageSquare,
   upsell_worker: DollarSign,
   billing_worker: Calculator,
+  crew_intelligence: Users,
+  job_feasibility: CheckCircle,
+  route_cost: MapPin,
+  simulation_ranking: BarChart3,
+  optimizer_orchestrator: Target,
+  margin_burn: Gauge,
+  intake_agent: UserPlus,
+  quoting_agent: DollarSign,
+  scheduling_agent: Clock,
+  reviews_agent: Star,
+  inbound_engagement: MessageSquare,
+  renewal_upsell: Gift,
 };
 
 function getHealthBadgeVariant(score: number): "default" | "secondary" | "destructive" | "outline" {
@@ -280,7 +306,7 @@ export default function AgentsPage() {
     return acc;
   }, {} as Record<string, AgentRegistryEntry[]>) || {};
 
-  const categoryOrder = ["core", "ops", "finance", "comms"];
+  const categoryOrder = ["core", "dispatch", "ops", "finance", "comms"];
 
   return (
     <div className="space-y-6 p-6" data-testid="page-agents">
