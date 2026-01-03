@@ -1305,11 +1305,21 @@ export const agentRegistry = pgTable("agent_registry", {
   // Agent identification
   agentKey: text("agent_key").notNull(), // unique key: margin_worker, dispatch_worker, comms_worker, etc.
   displayName: text("display_name").notNull(),
+  purpose: text("purpose"), // Short one-line purpose
   description: text("description"),
   category: text("category").notNull(), // core, ops, finance, comms
   
+  // New: Lifecycle stage and domains for Agent Directory UI
+  stage: text("stage").notNull().default("core"), // lead_intake, quoting, confirmation, scheduling, crew_assignment, booking, retention_insights, integrations, core
+  domains: text("domains").array(), // messaging, pricing, routing, memory, integrations, orchestration, fsm
+  triggers: text("triggers").array(), // e.g., ["missed_call", "inbound_sms", "webhook"]
+  
+  // I/O Schema (from Zod contracts)
+  inputSchema: jsonb("input_schema"), // JSON schema for inputs
+  outputSchema: jsonb("output_schema"), // JSON schema for outputs
+  
   // Status & Control
-  status: text("status").notNull().default("active"), // active, paused, disabled
+  status: text("status").notNull().default("active"), // active, paused, error, needs_config
   lastRunAt: timestamp("last_run_at"),
   lastSuccessAt: timestamp("last_success_at"),
   lastErrorAt: timestamp("last_error_at"),
@@ -1337,6 +1347,7 @@ export const agentRegistry = pgTable("agent_registry", {
   businessAgentIdx: uniqueIndex("agent_business_key_idx").on(table.businessId, table.agentKey),
   categoryIdx: index("agent_category_idx").on(table.category),
   statusIdx: index("agent_status_idx").on(table.status),
+  stageIdx: index("agent_stage_idx").on(table.stage),
 }));
 
 // Agent Run Log - Execution history for each agent
@@ -1351,6 +1362,7 @@ export const agentRuns = pgTable("agent_runs", {
   triggeredBy: text("triggered_by").notNull(), // cron, event, manual
   eventType: text("event_type"), // For event-driven runs
   eventPayload: jsonb("event_payload"),
+  isTestRun: boolean("is_test_run").default(false), // Manual test execution flag
   
   // Timing
   startedAt: timestamp("started_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
@@ -1371,6 +1383,7 @@ export const agentRuns = pgTable("agent_runs", {
   // Related entities
   relatedJobId: text("related_job_id"),
   relatedClientId: text("related_client_id"),
+  jobRequestId: integer("job_request_id"), // For test runs with specific job requests
   
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => ({
@@ -2578,3 +2591,33 @@ export const customerInsightsSchema = z.object({
 });
 
 export type CustomerInsights = z.infer<typeof customerInsightsSchema>;
+
+// ============================================
+// Agents & Agent Runs - Additional Types
+// ============================================
+
+// Agent lifecycle stages - user-facing stages shown as tiles, core is hidden but searchable
+export const AgentStages = [
+  "lead_intake",
+  "quoting", 
+  "confirmation",
+  "scheduling",
+  "crew_assignment",
+  "booking",
+  "retention_insights",
+  "integrations",
+  "core" // Hidden from tiles, but searchable/auditable
+] as const;
+export type AgentStage = typeof AgentStages[number];
+
+// Agent domains for tagging
+export const AgentDomains = [
+  "messaging",
+  "pricing", 
+  "routing",
+  "memory",
+  "integrations",
+  "orchestration",
+  "fsm"
+] as const;
+export type AgentDomain = typeof AgentDomains[number];

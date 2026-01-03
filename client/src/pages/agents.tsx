@@ -1,9 +1,10 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { 
   Sheet,
   SheetContent,
@@ -41,11 +42,84 @@ import {
   X,
   ArrowRight,
   ArrowLeft,
+  Search,
+  FlaskConical,
+  Cog,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { AgentRegistryEntry } from "@shared/schema";
-import { agentPhases, agentRegistry, type AgentPhase } from "@/lib/ui/tokens";
+
+type AgentStage = 
+  | 'lead_intake' 
+  | 'quoting' 
+  | 'confirmation' 
+  | 'scheduling' 
+  | 'crew_assignment' 
+  | 'booking' 
+  | 'retention_insights' 
+  | 'integrations'
+  | 'core';
+
+const stageInfo: Record<AgentStage, { label: string; order: number; description: string }> = {
+  lead_intake: {
+    label: 'Lead Intake',
+    order: 1,
+    description: 'Capture and parse incoming leads from calls, SMS, and web forms',
+  },
+  quoting: {
+    label: 'Quote Build',
+    order: 2,
+    description: 'Generate pricing based on services, lot size, and frequency',
+  },
+  confirmation: {
+    label: 'Quote Confirm',
+    order: 3,
+    description: 'Parse customer responses: accept, decline, modify, or question',
+  },
+  scheduling: {
+    label: 'Schedule',
+    order: 4,
+    description: 'Generate time windows and handle customer selection',
+  },
+  crew_assignment: {
+    label: 'Crew Assign',
+    order: 5,
+    description: 'Run simulations, check feasibility, and lock crew assignments',
+  },
+  booking: {
+    label: 'Job Booking',
+    order: 6,
+    description: 'Create dispatch tasks and sync with Jobber',
+  },
+  retention_insights: {
+    label: 'Retention & Insights',
+    order: 7,
+    description: 'Handle renewals, upsells, and customer memory',
+  },
+  integrations: {
+    label: 'Integrations',
+    order: 8,
+    description: 'Sync with external systems and handle webhooks',
+  },
+  core: {
+    label: 'Core Orchestrators',
+    order: 99,
+    description: 'Central orchestration and supervision agents',
+  },
+};
+
+const STAGE_ICONS: Record<AgentStage, typeof Bot> = {
+  lead_intake: UserPlus,
+  quoting: DollarSign,
+  confirmation: MessageSquare,
+  scheduling: Clock,
+  crew_assignment: Users,
+  booking: CheckCircle,
+  retention_insights: Gift,
+  integrations: Cog,
+  core: Bot,
+};
 
 interface AgentSummary {
   totalAgents: number;
@@ -65,36 +139,26 @@ interface AgentSummary {
   };
 }
 
-const PHASE_ICONS: Record<AgentPhase, typeof Bot> = {
-  lead: UserPlus,
-  quote: DollarSign,
-  confirm: MessageSquare,
-  schedule: Clock,
-  assign: Users,
-  book: CheckCircle,
-  postjob: Gift,
-};
-
 const AGENT_ICONS: Record<string, typeof Bot> = {
-  orchestration_engine: Bot,
-  margin_worker: TrendingUp,
-  reconciliation_worker: FileText,
-  dispatch_worker: Truck,
-  comms_worker: MessageSquare,
-  upsell_worker: DollarSign,
-  billing_worker: Calculator,
-  crew_intelligence: Users,
-  job_feasibility: CheckCircle,
-  route_cost: MapPin,
-  simulation_ranking: BarChart3,
+  lead_intake_agent: UserPlus,
+  quote_builder_agent: DollarSign,
+  lot_size_resolver: MapPin,
+  quote_confirm_agent: MessageSquare,
+  schedule_propose_agent: Clock,
+  crew_simulation_agent: BarChart3,
+  feasibility_check_agent: CheckCircle,
+  margin_validate_agent: TrendingUp,
+  crew_lock_agent: Users,
+  dispatch_agent: Truck,
+  customer_memory_agent: Target,
+  renewal_upsell_agent: Gift,
+  jobber_sync_agent: RefreshCw,
+  customer_comms_agent: MessageSquare,
+  reconciliation_agent: FileText,
+  lead_to_cash_orchestrator: Bot,
   optimizer_orchestrator: Target,
-  margin_burn: Gauge,
-  intake_agent: UserPlus,
-  quoting_agent: DollarSign,
-  scheduling_agent: Clock,
-  reviews_agent: Star,
-  inbound_engagement: MessageSquare,
-  renewal_upsell: Gift,
+  supervisor_agent: Shield,
+  dlq_processor: Gauge,
 };
 
 function getHealthBadgeVariant(score: number): "default" | "secondary" | "destructive" | "outline" {
@@ -232,14 +296,7 @@ interface AgentDetailDrawerProps {
 function AgentDetailDrawer({ agent, onClose }: AgentDetailDrawerProps) {
   const { toast } = useToast();
   const agentKey = agent?.agentKey ?? '';
-  const displayName = agent?.displayName ?? '';
   const Icon = agent ? (AGENT_ICONS[agentKey] || Bot) : Bot;
-  
-  const registryEntry = agent ? agentRegistry.find(a => 
-    a.id === agentKey || 
-    agentKey.includes(a.id.replace('_agent', '')) ||
-    (displayName && a.name.toLowerCase().includes(displayName.toLowerCase().split(' ')[0]))
-  ) : null;
   
   const statusMutation = useMutation({
     mutationFn: async (newStatus: string) => {
@@ -256,12 +313,31 @@ function AgentDetailDrawer({ agent, onClose }: AgentDetailDrawerProps) {
     },
   });
 
+  const testMutation = useMutation({
+    mutationFn: async () => {
+      if (!agent) return;
+      return await apiRequest("POST", `/api/agents/${agent.id}/test`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agents", agent?.id, "runs"] });
+      toast({ title: "Test run started" });
+    },
+    onError: () => {
+      toast({ title: "Failed to start test run", variant: "destructive" });
+    },
+  });
+
   if (!agent) return null;
 
   const timeSaved = agent.timeSavedMinutes || 0;
   const cashAccel = agent.cashAcceleratedCents || 0;
   const revProtected = agent.revenueProtectedCents || 0;
   const healthScore = agent.healthScore || 100;
+  const triggers = (agent.triggers as string[] | null) || [];
+  const domains = (agent.domains as string[] | null) || [];
+  const inputSchema = agent.inputSchema as Record<string, unknown> | null;
+  const outputSchema = agent.outputSchema as Record<string, unknown> | null;
+  const stage = agent.stage as AgentStage | null;
 
   return (
     <Sheet open={!!agent} onOpenChange={(open) => !open && onClose()}>
@@ -316,48 +392,77 @@ function AgentDetailDrawer({ agent, onClose }: AgentDetailDrawerProps) {
             </Card>
           </div>
 
-          {registryEntry && (
-            <div className="space-y-4">
+          <div className="space-y-4">
+            {agent.purpose && (
               <div>
                 <h4 className="text-sm font-medium mb-2">Purpose</h4>
-                <p className="text-sm text-muted-foreground">{registryEntry.purpose}</p>
+                <p className="text-sm text-muted-foreground">{agent.purpose}</p>
               </div>
-              
+            )}
+            
+            {stage && stageInfo[stage] && (
+              <div>
+                <h4 className="text-sm font-medium mb-2">Stage</h4>
+                <Badge variant="secondary" className="gap-1">
+                  {(() => { const I = STAGE_ICONS[stage]; return <I className="h-3 w-3" />; })()}
+                  {stageInfo[stage].label}
+                </Badge>
+              </div>
+            )}
+
+            {domains.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium mb-2">Domains</h4>
+                <div className="flex flex-wrap gap-2">
+                  {domains.map((domain, i) => (
+                    <Badge key={i} variant="outline" className="text-xs">{domain}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {triggers.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium mb-2">Triggers</h4>
                 <div className="flex flex-wrap gap-2">
-                  {registryEntry.triggers.map((trigger, i) => (
+                  {triggers.map((trigger, i) => (
                     <Badge key={i} variant="outline" className="text-xs">{trigger}</Badge>
                   ))}
                 </div>
               </div>
+            )}
 
+            {(inputSchema || outputSchema) && (
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
-                    <ArrowRight className="h-3 w-3" /> Inputs
-                  </h4>
-                  <ul className="text-xs text-muted-foreground space-y-1">
-                    {registryEntry.inputs.map((input, i) => (
-                      <li key={i}>{input}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
-                    <ArrowLeft className="h-3 w-3" /> Outputs
-                  </h4>
-                  <ul className="text-xs text-muted-foreground space-y-1">
-                    {registryEntry.outputs.map((output, i) => (
-                      <li key={i}>{output}</li>
-                    ))}
-                  </ul>
-                </div>
+                {inputSchema && (
+                  <div>
+                    <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
+                      <ArrowRight className="h-3 w-3" /> Input Schema
+                    </h4>
+                    <div className="text-xs text-muted-foreground font-mono bg-muted p-2 rounded-md overflow-auto max-h-32">
+                      {Object.keys((inputSchema as { properties?: Record<string, unknown> }).properties || {}).map((key, i) => (
+                        <div key={i}>{key}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {outputSchema && (
+                  <div>
+                    <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
+                      <ArrowLeft className="h-3 w-3" /> Output Schema
+                    </h4>
+                    <div className="text-xs text-muted-foreground font-mono bg-muted p-2 rounded-md overflow-auto max-h-32">
+                      {Object.keys((outputSchema as { properties?: Record<string, unknown> }).properties || {}).map((key, i) => (
+                        <div key={i}>{key}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
-          <div className="flex items-center gap-2 pt-4 border-t">
+          <div className="flex items-center gap-2 pt-4 border-t flex-wrap">
             <Button 
               onClick={() => statusMutation.mutate(agent.status === "active" ? "paused" : "active")}
               disabled={statusMutation.isPending}
@@ -374,7 +479,16 @@ function AgentDetailDrawer({ agent, onClose }: AgentDetailDrawerProps) {
                 </>
               )}
             </Button>
-            <Button variant="outline" disabled data-testid="button-drawer-settings">
+            <Button 
+              variant="outline" 
+              onClick={() => testMutation.mutate()}
+              disabled={testMutation.isPending}
+              data-testid="button-drawer-test"
+            >
+              <FlaskConical className="h-4 w-4 mr-2" /> 
+              {testMutation.isPending ? "Starting..." : "Run Test"}
+            </Button>
+            <Button variant="ghost" disabled data-testid="button-drawer-settings">
               <Settings2 className="h-4 w-4 mr-2" /> Configure
             </Button>
           </div>
@@ -437,21 +551,30 @@ function SummaryCard({ summary, isLoading }: { summary?: AgentSummary; isLoading
   );
 }
 
+const STAGE_ORDER: AgentStage[] = [
+  'lead_intake',
+  'quoting',
+  'confirmation',
+  'scheduling',
+  'crew_assignment',
+  'booking',
+  'retention_insights',
+  'integrations',
+];
+
 function LifecyclePhaseBanner() {
-  const phaseOrder: AgentPhase[] = ['lead', 'quote', 'confirm', 'schedule', 'assign', 'book', 'postjob'];
-  
   return (
     <div className="flex items-center gap-1 overflow-x-auto pb-2 mb-4">
-      {phaseOrder.map((phase, index) => {
-        const Icon = PHASE_ICONS[phase];
-        const phaseInfo = agentPhases[phase];
+      {STAGE_ORDER.map((stage, index) => {
+        const Icon = STAGE_ICONS[stage];
+        const info = stageInfo[stage];
         return (
-          <div key={phase} className="flex items-center">
+          <div key={stage} className="flex items-center">
             <div className="flex items-center gap-1 px-3 py-1 rounded-md bg-muted text-sm whitespace-nowrap">
               <Icon className="h-4 w-4" />
-              <span>{phaseInfo.label}</span>
+              <span>{info.label}</span>
             </div>
-            {index < phaseOrder.length - 1 && (
+            {index < STAGE_ORDER.length - 1 && (
               <ChevronRight className="h-4 w-4 text-muted-foreground mx-1" />
             )}
           </div>
@@ -463,6 +586,7 @@ function LifecyclePhaseBanner() {
 
 export default function AgentsPage() {
   const [selectedAgent, setSelectedAgent] = useState<AgentRegistryEntry | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   
   const { data: agents, isLoading: loadingAgents } = useQuery<AgentRegistryEntry[]>({
     queryKey: ["/api/agents"],
@@ -472,28 +596,60 @@ export default function AgentsPage() {
     queryKey: ["/api/agents/summary"],
   });
 
-  const phaseOrder: AgentPhase[] = ['lead', 'quote', 'confirm', 'schedule', 'assign', 'book', 'postjob'];
-  
-  const groupedByPhase = agents?.reduce((acc, agent) => {
-    const displayName = agent.displayName ?? '';
-    const agentKey = agent.agentKey ?? '';
-    const registryMatch = agentRegistry.find(a => 
-      a.id === agentKey || 
-      agentKey.includes(a.id.replace('_agent', '')) ||
-      (displayName && a.name.toLowerCase().includes(displayName.toLowerCase().split(' ')[0]))
+  const filteredAgents = useMemo(() => {
+    if (!agents) return [];
+    if (!searchQuery.trim()) return agents;
+    const query = searchQuery.toLowerCase();
+    return agents.filter(agent => 
+      agent.displayName?.toLowerCase().includes(query) ||
+      agent.description?.toLowerCase().includes(query) ||
+      agent.agentKey?.toLowerCase().includes(query) ||
+      agent.stage?.toLowerCase().includes(query) ||
+      (agent.domains as string[] | null)?.some(d => d.toLowerCase().includes(query))
     );
-    const phase = registryMatch?.phase || 'lead';
-    if (!acc[phase]) acc[phase] = [];
-    acc[phase].push(agent);
-    return acc;
-  }, {} as Record<AgentPhase, AgentRegistryEntry[]>) || {};
+  }, [agents, searchQuery]);
+
+  const groupedByStage = useMemo(() => {
+    const groups: Record<AgentStage, AgentRegistryEntry[]> = {
+      lead_intake: [],
+      quoting: [],
+      confirmation: [],
+      scheduling: [],
+      crew_assignment: [],
+      booking: [],
+      retention_insights: [],
+      integrations: [],
+      core: [],
+    };
+    
+    for (const agent of filteredAgents) {
+      const stage = (agent.stage as AgentStage) || 'lead_intake';
+      if (groups[stage]) {
+        groups[stage].push(agent);
+      }
+    }
+    
+    return groups;
+  }, [filteredAgents]);
+
+  const showCoreAgents = searchQuery.trim().length > 0 && groupedByStage.core.length > 0;
 
   return (
     <div className="space-y-6 p-6" data-testid="page-agents">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold">Agents</h1>
           <p className="text-muted-foreground">AI-powered automation across the lead-to-cash lifecycle</p>
+        </div>
+        <div className="relative w-full max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search agents..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+            data-testid="input-agent-search"
+          />
         </div>
       </div>
 
@@ -523,29 +679,29 @@ export default function AgentsPage() {
         </div>
       ) : (
         <div className="space-y-8">
-          {phaseOrder.map(phase => {
-            const phaseAgents = groupedByPhase[phase];
-            if (!phaseAgents?.length) return null;
+          {STAGE_ORDER.map(stage => {
+            const stageAgents = groupedByStage[stage];
+            if (!stageAgents?.length) return null;
 
-            const PhaseIcon = PHASE_ICONS[phase];
-            const phaseInfo = agentPhases[phase];
+            const StageIcon = STAGE_ICONS[stage];
+            const info = stageInfo[stage];
 
             return (
-              <div key={phase} className="space-y-3" data-testid={`section-phase-${phase}`}>
+              <div key={stage} className="space-y-3" data-testid={`section-stage-${stage}`}>
                 <div className="flex items-center gap-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
-                    <PhaseIcon className="h-4 w-4" />
+                    <StageIcon className="h-4 w-4" />
                   </div>
                   <div>
                     <h2 className="text-base font-medium flex items-center gap-2">
-                      {phaseInfo.label}
-                      <Badge variant="outline">{phaseAgents.length}</Badge>
+                      {info.label}
+                      <Badge variant="outline">{stageAgents.length}</Badge>
                     </h2>
-                    <p className="text-xs text-muted-foreground">{phaseInfo.description}</p>
+                    <p className="text-xs text-muted-foreground">{info.description}</p>
                   </div>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  {phaseAgents.map(agent => (
+                  {stageAgents.map((agent: AgentRegistryEntry) => (
                     <AgentCard 
                       key={agent.id} 
                       agent={agent} 
@@ -556,6 +712,41 @@ export default function AgentsPage() {
               </div>
             );
           })}
+          
+          {showCoreAgents && (
+            <div className="space-y-3" data-testid="section-stage-core">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                  <Bot className="h-4 w-4" />
+                </div>
+                <div>
+                  <h2 className="text-base font-medium flex items-center gap-2">
+                    {stageInfo.core.label}
+                    <Badge variant="outline">{groupedByStage.core.length}</Badge>
+                  </h2>
+                  <p className="text-xs text-muted-foreground">{stageInfo.core.description}</p>
+                </div>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                {groupedByStage.core.map((agent: AgentRegistryEntry) => (
+                  <AgentCard 
+                    key={agent.id} 
+                    agent={agent} 
+                    onViewDetails={setSelectedAgent}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {filteredAgents.length === 0 && !loadingAgents && (
+            <Card className="p-8 text-center">
+              <Bot className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+              <p className="text-muted-foreground">
+                {searchQuery ? `No agents found matching "${searchQuery}"` : "No agents found. Seed agents to get started."}
+              </p>
+            </Card>
+          )}
         </div>
       )}
 

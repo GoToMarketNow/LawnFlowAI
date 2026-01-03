@@ -6888,5 +6888,128 @@ Return JSON format:
     }
   });
 
+  // ============================================
+  // Agent Directory API Routes
+  // ============================================
+
+  app.get("/api/agents", async (req, res) => {
+    try {
+      const agents = await storage.getAgents();
+      res.json(agents);
+    } catch (error: any) {
+      console.error("[Agents] Error fetching agents:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/agents/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid agent ID" });
+      }
+      const agent = await storage.getAgent(id);
+      if (!agent) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+      res.json(agent);
+    } catch (error: any) {
+      console.error("[Agents] Error fetching agent:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/agents/:id/status", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid agent ID" });
+      }
+      const { status } = req.body;
+      if (!["active", "paused", "error", "needs_config"].includes(status)) {
+        return res.status(400).json({ error: "Invalid status" });
+      }
+      const agent = await storage.updateAgent(id, { status });
+      res.json(agent);
+    } catch (error: any) {
+      console.error("[Agents] Error updating agent status:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/agents/:id/runs", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid agent ID" });
+      }
+      const limit = parseInt(req.query.limit as string) || 10;
+      const runs = await storage.getAgentRuns(id, limit);
+      res.json(runs);
+    } catch (error: any) {
+      console.error("[Agents] Error fetching agent runs:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/agents/:id/test", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid agent ID" });
+      }
+      const agent = await storage.getAgent(id);
+      if (!agent) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+      
+      const { jobRequestId } = req.body;
+      const runId = `test-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      
+      const run = await storage.createAgentRun({
+        agentId: id,
+        runId,
+        triggeredBy: "manual",
+        status: "running",
+        isTestRun: true,
+        jobRequestId: jobRequestId || null,
+        eventPayload: req.body,
+      });
+      
+      setTimeout(async () => {
+        try {
+          const success = Math.random() > 0.1;
+          await storage.updateAgentRun(run.id, {
+            status: success ? "success" : "failed",
+            completedAt: new Date(),
+            durationMs: Math.floor(Math.random() * 2000) + 500,
+            result: success ? { message: "Test completed successfully", items: Math.floor(Math.random() * 5) + 1 } : null,
+            error: success ? null : "Simulated test failure",
+          });
+          await storage.updateAgent(id, { lastRunAt: new Date() });
+        } catch (e) {
+          console.error("[Agents] Error completing test run:", e);
+        }
+      }, 1500);
+      
+      res.json({ run, message: "Test run started" });
+    } catch (error: any) {
+      console.error("[Agents] Error starting test run:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/agents/seed", async (req, res) => {
+    try {
+      const { seedAgents } = await import("./seed-agents");
+      await seedAgents();
+      const agents = await storage.getAgents();
+      res.json({ success: true, count: agents.length, agents });
+    } catch (error: any) {
+      console.error("[Agents] Error seeding agents:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }

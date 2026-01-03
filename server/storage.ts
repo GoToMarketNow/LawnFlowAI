@@ -107,6 +107,12 @@ import {
   type InsertAssignmentDecision,
   type DistanceCache,
   type InsertDistanceCache,
+  agentRegistry,
+  agentRuns,
+  type AgentRegistryEntry,
+  type InsertAgentRegistryEntry,
+  type AgentRunEntry,
+  type InsertAgentRunEntry,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, inArray, sql, and, gte, lte } from "drizzle-orm";
@@ -300,6 +306,19 @@ export interface IStorage {
   // Route Optimizer - Distance Cache
   getDistanceCache(originKey: string, destKey: string): Promise<DistanceCache | undefined>;
   upsertDistanceCache(entry: InsertDistanceCache): Promise<DistanceCache>;
+  
+  // Agent Registry
+  getAgents(): Promise<AgentRegistryEntry[]>;
+  getAgent(id: number): Promise<AgentRegistryEntry | undefined>;
+  getAgentByKey(agentKey: string): Promise<AgentRegistryEntry | undefined>;
+  createAgent(agent: InsertAgentRegistryEntry): Promise<AgentRegistryEntry>;
+  updateAgent(id: number, updates: Partial<InsertAgentRegistryEntry>): Promise<AgentRegistryEntry>;
+  
+  // Agent Runs
+  getAgentRuns(agentId: number, limit?: number): Promise<AgentRunEntry[]>;
+  getAgentRun(id: number): Promise<AgentRunEntry | undefined>;
+  createAgentRun(run: InsertAgentRunEntry): Promise<AgentRunEntry>;
+  updateAgentRun(id: number, updates: Partial<AgentRunEntry>): Promise<AgentRunEntry>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1510,6 +1529,64 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return upserted;
+  }
+
+  // Agent Registry
+  async getAgents(): Promise<AgentRegistryEntry[]> {
+    return await db.select().from(agentRegistry).orderBy(agentRegistry.stage, agentRegistry.displayName);
+  }
+
+  async getAgent(id: number): Promise<AgentRegistryEntry | undefined> {
+    const [agent] = await db.select().from(agentRegistry).where(eq(agentRegistry.id, id)).limit(1);
+    return agent;
+  }
+
+  async getAgentByKey(agentKey: string): Promise<AgentRegistryEntry | undefined> {
+    const [agent] = await db.select().from(agentRegistry).where(eq(agentRegistry.agentKey, agentKey)).limit(1);
+    return agent;
+  }
+
+  async createAgent(agent: InsertAgentRegistryEntry): Promise<AgentRegistryEntry> {
+    const [created] = await db.insert(agentRegistry).values(agent).returning();
+    return created;
+  }
+
+  async updateAgent(id: number, updates: Partial<InsertAgentRegistryEntry>): Promise<AgentRegistryEntry> {
+    const [updated] = await db
+      .update(agentRegistry)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(agentRegistry.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Agent Runs
+  async getAgentRuns(agentId: number, limit: number = 10): Promise<AgentRunEntry[]> {
+    return await db
+      .select()
+      .from(agentRuns)
+      .where(eq(agentRuns.agentId, agentId))
+      .orderBy(desc(agentRuns.startedAt))
+      .limit(limit);
+  }
+
+  async getAgentRun(id: number): Promise<AgentRunEntry | undefined> {
+    const [run] = await db.select().from(agentRuns).where(eq(agentRuns.id, id)).limit(1);
+    return run;
+  }
+
+  async createAgentRun(run: InsertAgentRunEntry): Promise<AgentRunEntry> {
+    const [created] = await db.insert(agentRuns).values(run).returning();
+    return created;
+  }
+
+  async updateAgentRun(id: number, updates: Partial<AgentRunEntry>): Promise<AgentRunEntry> {
+    const [updated] = await db
+      .update(agentRuns)
+      .set(updates)
+      .where(eq(agentRuns.id, id))
+      .returning();
+    return updated;
   }
 }
 
