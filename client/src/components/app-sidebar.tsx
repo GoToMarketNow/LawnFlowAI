@@ -23,10 +23,13 @@ import {
   SidebarHeader,
   SidebarFooter,
   SidebarMenuBadge,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { useUserRole } from "@/components/role-gate";
-import { navigation, type UserRole } from "@/lib/ui/tokens";
+import { getFilteredNavigation } from "@/lib/ui/nav";
 import { Badge } from "@/components/ui/badge";
+import { SystemStatus } from "@/components/system-status";
+import { Separator } from "@/components/ui/separator";
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard,
@@ -46,6 +49,7 @@ interface AppSidebarProps {
 export function AppSidebar({ isOnboardingComplete }: AppSidebarProps) {
   const [location] = useLocation();
   const userRole = useUserRole();
+  const { state } = useSidebar();
   
   const { data: pendingActions } = useQuery<any[]>({
     queryKey: ["/api/pending-actions"],
@@ -64,39 +68,32 @@ export function AppSidebar({ isOnboardingComplete }: AppSidebarProps) {
     return location === url || location.startsWith(url + "/");
   };
 
-  const canAccess = (roles: UserRole[]) => {
-    return roles.includes(userRole);
-  };
-
-  const filteredNavigation = navigation
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) => canAccess(item.roles)),
-    }))
-    .filter((group) => group.items.length > 0);
+  const filteredNavigation = getFilteredNavigation(userRole);
 
   return (
-    <Sidebar aria-label="Primary">
+    <Sidebar aria-label="Primary" collapsible="icon">
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
+          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground shrink-0">
             <Zap className="h-5 w-5" />
           </div>
-          <div className="flex flex-col">
-            <span className="text-base font-semibold text-sidebar-foreground">
-              LawnFlow AI
-            </span>
-            <span className="text-xs text-muted-foreground">
-              Agentic Automation
-            </span>
-          </div>
+          {state !== 'collapsed' && (
+            <div className="flex flex-col min-w-0">
+              <span className="text-base font-semibold text-sidebar-foreground truncate">
+                LawnFlow AI
+              </span>
+              <span className="text-xs text-muted-foreground truncate">
+                Agentic Automation
+              </span>
+            </div>
+          )}
         </div>
       </SidebarHeader>
 
       <SidebarContent>
         {filteredNavigation.map((group) => (
           <SidebarGroup key={group.id}>
-            {group.label !== "Core" && (
+            {group.label !== "Core" && state !== 'collapsed' && (
               <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             )}
             <SidebarGroupContent>
@@ -113,6 +110,7 @@ export function AppSidebar({ isOnboardingComplete }: AppSidebarProps) {
                         isActive={isActive(item.href)}
                         disabled={disabled}
                         className={disabled ? "opacity-50 cursor-not-allowed" : ""}
+                        tooltip={item.label}
                       >
                         {disabled ? (
                           <span className="flex items-center gap-2">
@@ -148,15 +146,25 @@ export function AppSidebar({ isOnboardingComplete }: AppSidebarProps) {
         ))}
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t border-sidebar-border">
-        <div className="flex items-center justify-between">
-          <div className="text-xs text-muted-foreground">
-            MVP v1.0
+      <SidebarFooter className="border-t border-sidebar-border">
+        {state !== 'collapsed' ? (
+          <div className="p-3 space-y-3">
+            <SystemStatus />
+            <Separator />
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>MVP v1.0</span>
+              <Badge variant="outline" className="text-xs">
+                {userRole}
+              </Badge>
+            </div>
           </div>
-          <Badge variant="outline" className="text-xs">
-            {userRole}
-          </Badge>
-        </div>
+        ) : (
+          <div className="p-2 flex flex-col items-center gap-2">
+            <Badge variant="outline" className="text-xs px-1">
+              {userRole.slice(0, 1)}
+            </Badge>
+          </div>
+        )}
       </SidebarFooter>
     </Sidebar>
   );

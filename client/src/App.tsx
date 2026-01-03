@@ -1,14 +1,28 @@
-import { Switch, Route, useLocation, Redirect } from "wouter";
+import { useState, useCallback } from "react";
+import { Switch, Route, useLocation, Redirect, Link } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
+import { DrawerProvider } from "@/lib/drawer-context";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { GlobalSearch, SearchTrigger } from "@/components/global-search";
+import { ContextualDrawer } from "@/components/contextual-drawer";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { getPageTitle } from "@/lib/ui/nav";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import Dashboard from "@/pages/dashboard";
 import InboxPage from "@/pages/inbox";
 import ConversationsPage from "@/pages/conversations";
@@ -37,6 +51,8 @@ import CustomersPage from "@/pages/customers";
 import SettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 import { Loader2, AlertCircle } from "lucide-react";
+import { useUserRole } from "@/components/role-gate";
+import { canAccess, accessLevels } from "@/lib/ui/tokens";
 
 function OnboardingCheck({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -83,15 +99,72 @@ function SetupBanner() {
   );
 }
 
+function QuickActions() {
+  const userRole = useUserRole();
+  const canCreateQuote = canAccess(userRole, accessLevels.operations);
+  const canCreateJob = canAccess(userRole, accessLevels.fullAdmin);
+
+  if (!canCreateQuote && !canCreateJob) {
+    return null;
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button size="sm" data-testid="button-quick-actions">
+          <Plus className="h-4 w-4 mr-1" />
+          New
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {canCreateQuote && (
+          <DropdownMenuItem asChild>
+            <Link href="/quote-builder" data-testid="link-new-quote">
+              New Quote
+            </Link>
+          </DropdownMenuItem>
+        )}
+        {canCreateJob && (
+          <DropdownMenuItem asChild>
+            <Link href="/jobs?action=new" data-testid="link-new-job">
+              New Job
+            </Link>
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function AuthenticatedLayout() {
+  const [location] = useLocation();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const userRole = useUserRole();
+  
   const { data: onboarding } = useQuery<{ isOnboardingComplete: boolean }>({
     queryKey: ["/api/onboarding"],
     staleTime: 60000,
   });
 
+  const pageTitle = getPageTitle(location);
+
+  const handleOpenSearch = useCallback(() => {
+    setSearchOpen(true);
+  }, []);
+
+  const handleCloseSearch = useCallback(() => {
+    setSearchOpen(false);
+  }, []);
+
+  useKeyboardShortcuts({
+    search: handleOpenSearch,
+    close: handleCloseSearch,
+    userRole,
+  });
+
   const style = {
     "--sidebar-width": "16rem",
-    "--sidebar-width-icon": "3rem",
+    "--sidebar-width-icon": "3.5rem",
   };
 
   return (
@@ -100,44 +173,59 @@ function AuthenticatedLayout() {
         <AppSidebar isOnboardingComplete={onboarding?.isOnboardingComplete ?? false} />
         <div className="flex flex-col flex-1 overflow-hidden">
           <SetupBanner />
-          <header className="flex items-center justify-between gap-4 p-3 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50">
-            <SidebarTrigger data-testid="button-sidebar-toggle" aria-label="Toggle sidebar" />
+          <header className="flex items-center justify-between gap-4 px-4 py-3 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50 sticky top-0">
+            <div className="flex items-center gap-4">
+              <SidebarTrigger data-testid="button-sidebar-toggle" aria-label="Toggle sidebar" />
+              <h1 className="text-lg font-semibold hidden sm:block" data-testid="text-page-title">
+                {pageTitle}
+              </h1>
+            </div>
+            
+            <div className="flex-1 flex justify-center max-w-xl mx-4">
+              <SearchTrigger onClick={handleOpenSearch} />
+            </div>
+            
             <div className="flex items-center gap-2">
+              <QuickActions />
               <ThemeToggle />
               <UserMenu />
             </div>
           </header>
           <main className="flex-1 overflow-auto bg-background">
-            <Switch>
-              <Route path="/" component={Dashboard} />
-              <Route path="/dashboard" component={Dashboard} />
-              <Route path="/inbox" component={InboxPage} />
-              <Route path="/jobs" component={JobsPage} />
-              <Route path="/quotes" component={QuotesPage} />
-              <Route path="/quote-builder" component={QuoteBuilder} />
-              <Route path="/schedule" component={SchedulePage} />
-              <Route path="/customers" component={CustomersPage} />
-              <Route path="/customers/:id" component={ConversationDetailPage} />
-              <Route path="/agents" component={AgentsPage} />
-              <Route path="/agents/:id" component={AgentDetailPage} />
-              <Route path="/settings" component={SettingsPage} />
-              <Route path="/profile" component={BusinessProfilePage} />
-              <Route path="/simulator" component={SimulatorPage} />
-              <Route path="/audit" component={AuditLogPage} />
-              <Route path="/pricing" component={PricingControlCenter} />
-              <Route path="/ops" component={OpsDashboard} />
-              <Route path="/admin/coverage" component={AdminCoveragePage} />
-              <Route path="/conversations" component={ConversationsPage} />
-              <Route path="/conversations/:id" component={ConversationDetailPage} />
-              <Route path="/actions" component={PendingActionsPage} />
-              <Route path="/events" component={EventsFeedPage} />
-              <Route path="/views" component={ViewsPage} />
-              <Route path="/sms" component={SmsSessionsPage} />
-              <Route component={NotFound} />
-            </Switch>
+            <div className="max-w-7xl mx-auto">
+              <Switch>
+                <Route path="/" component={Dashboard} />
+                <Route path="/dashboard" component={Dashboard} />
+                <Route path="/inbox" component={InboxPage} />
+                <Route path="/jobs" component={JobsPage} />
+                <Route path="/quotes" component={QuotesPage} />
+                <Route path="/quote-builder" component={QuoteBuilder} />
+                <Route path="/schedule" component={SchedulePage} />
+                <Route path="/customers" component={CustomersPage} />
+                <Route path="/customers/:id" component={ConversationDetailPage} />
+                <Route path="/agents" component={AgentsPage} />
+                <Route path="/agents/:id" component={AgentDetailPage} />
+                <Route path="/settings" component={SettingsPage} />
+                <Route path="/profile" component={BusinessProfilePage} />
+                <Route path="/simulator" component={SimulatorPage} />
+                <Route path="/audit" component={AuditLogPage} />
+                <Route path="/pricing" component={PricingControlCenter} />
+                <Route path="/ops" component={OpsDashboard} />
+                <Route path="/admin/coverage" component={AdminCoveragePage} />
+                <Route path="/conversations" component={ConversationsPage} />
+                <Route path="/conversations/:id" component={ConversationDetailPage} />
+                <Route path="/actions" component={PendingActionsPage} />
+                <Route path="/events" component={EventsFeedPage} />
+                <Route path="/views" component={ViewsPage} />
+                <Route path="/sms" component={SmsSessionsPage} />
+                <Route component={NotFound} />
+              </Switch>
+            </div>
           </main>
         </div>
       </div>
+      <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
+      <ContextualDrawer />
     </SidebarProvider>
   );
 }
@@ -194,7 +282,9 @@ function App() {
       <ThemeProvider defaultTheme="light" storageKey="lawnflow-ui-theme">
         <TooltipProvider>
           <AuthProvider>
-            <AppRoutes />
+            <DrawerProvider>
+              <AppRoutes />
+            </DrawerProvider>
           </AuthProvider>
           <Toaster />
         </TooltipProvider>

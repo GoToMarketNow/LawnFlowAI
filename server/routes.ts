@@ -116,6 +116,152 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // Global Search API
+  // ============================================
+
+  app.get("/api/search", async (req, res) => {
+    try {
+      const query = (req.query.query as string || "").toLowerCase().trim();
+      
+      if (query.length < 2) {
+        return res.json([]);
+      }
+
+      const results: Array<{
+        id: string;
+        type: 'customer' | 'job' | 'quote';
+        title: string;
+        subtitle?: string;
+        href: string;
+      }> = [];
+
+      // Search leads as "customers"
+      try {
+        const leads = await storage.getLeads();
+        const matchingLeads = leads.filter(l => 
+          l.customerName?.toLowerCase().includes(query) ||
+          l.customerPhone?.includes(query) ||
+          l.customerEmail?.toLowerCase().includes(query)
+        ).slice(0, 5);
+
+        for (const lead of matchingLeads) {
+          results.push({
+            id: String(lead.id),
+            type: 'customer',
+            title: lead.customerName || 'Unknown Customer',
+            subtitle: lead.customerPhone || lead.customerEmail || undefined,
+            href: `/customers/${lead.id}`,
+          });
+        }
+      } catch (e) {
+        console.warn("[Search] Could not search leads:", e);
+      }
+
+      // Search jobs
+      try {
+        const jobs = await storage.getJobs();
+        const matchingJobs = jobs.filter(j => 
+          j.customerName?.toLowerCase().includes(query) ||
+          j.customerPhone?.includes(query) ||
+          j.serviceType?.toLowerCase().includes(query)
+        ).slice(0, 5);
+
+        for (const job of matchingJobs) {
+          results.push({
+            id: String(job.id),
+            type: 'job',
+            title: job.customerName || 'Unknown Job',
+            subtitle: job.serviceType || undefined,
+            href: `/jobs?id=${job.id}`,
+          });
+        }
+      } catch (e) {
+        console.warn("[Search] Could not search jobs:", e);
+      }
+
+      // Search quote proposals
+      try {
+        const profile = await storage.getBusinessProfile();
+        const businessId = profile?.id || 1;
+        const quotes = await storage.getQuoteProposals(businessId);
+        const matchingQuotes = (quotes || []).filter(q => 
+          q.customerName?.toLowerCase().includes(query) ||
+          q.customerPhone?.includes(query)
+        ).slice(0, 5);
+
+        for (const quote of matchingQuotes) {
+          results.push({
+            id: String(quote.id),
+            type: 'quote',
+            title: quote.customerName || 'Unknown Quote',
+            subtitle: quote.status ? `$${(quote.totalCents || 0) / 100} - ${quote.status}` : undefined,
+            href: `/quotes?id=${quote.id}`,
+          });
+        }
+      } catch (e) {
+        console.warn("[Search] Could not search quotes:", e);
+      }
+
+      res.json(results.slice(0, 10));
+    } catch (error: any) {
+      console.error("[Search] Error:", error);
+      res.json([]); // Return empty array instead of 500
+    }
+  });
+
+  // ============================================
+  // System Health API
+  // ============================================
+
+  app.get("/api/system/health", async (req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+      const { agentRegistry } = await import("@shared/schema");
+      const profile = await storage.getBusinessProfile();
+      
+      if (!profile) {
+        return res.json({
+          status: 'healthy',
+          activeAgents: 0,
+          totalAgents: 0,
+          lastCheck: new Date().toISOString(),
+        });
+      }
+
+      const agents = await db
+        .select()
+        .from(agentRegistry)
+        .where(eq(agentRegistry.businessId, profile.id));
+
+      const activeCount = agents.filter(a => a.status === "active").length;
+      const errorCount = agents.filter(a => a.status === "error").length;
+      
+      let status: 'healthy' | 'degraded' | 'down' = 'healthy';
+      if (errorCount > 0 && errorCount < agents.length / 2) {
+        status = 'degraded';
+      } else if (errorCount >= agents.length / 2) {
+        status = 'down';
+      }
+
+      res.json({
+        status,
+        activeAgents: activeCount,
+        totalAgents: agents.length,
+        lastCheck: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error("[System Health] Error:", error);
+      res.json({
+        status: 'degraded',
+        activeAgents: 0,
+        totalAgents: 0,
+        lastCheck: new Date().toISOString(),
+      });
+    }
+  });
+
+  // ============================================
   // Growth Advisor API Routes
   // ============================================
 
