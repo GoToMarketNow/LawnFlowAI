@@ -5923,11 +5923,18 @@ Return JSON format:
     try {
       const profile = await storage.getBusinessProfile();
       const businessId = profile?.id || 1;
-      const limit = Math.min(parseInt(req.query.limit as string) || 8, 20);
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+      
+      // Filter params
+      const typeFilter = req.query.type as string | undefined; // orchestration, approval, error
+      const urgencyFilter = req.query.urgency as string | undefined; // urgent, warning, normal
+      const statusFilter = req.query.status as string | undefined;
+      const assignedToMe = req.query.assignedToMe === 'true';
 
       interface InboxItem {
         id: string;
-        type: 'orchestration' | 'approval' | 'error';
+        type: 'quote' | 'schedule' | 'crew_assign' | 'low_confidence' | 'integration' | 'approval';
+        category: 'orchestration' | 'approval' | 'error';
         title: string;
         description: string;
         stage?: string;
@@ -5941,12 +5948,32 @@ Return JSON format:
         actionType?: string;
         ctaLabel: string;
         ctaAction: string;
+        // Rich data
+        customerName?: string;
+        customerAddress?: string;
+        customerPhone?: string;
+        confidence?: string;
+        services?: string[];
+        lotSize?: number;
+        quoteRange?: { min: number; max: number };
+        scheduleWindows?: string[];
+        crewRecommendations?: Array<{ id: number; name: string; score?: number }>;
+        aiSummary?: string;
+        contextJson?: any;
       }
 
       const items: InboxItem[] = [];
       const now = new Date();
 
-      // 1. Get waiting_ops orchestration runs
+      // Map stage to inbox type
+      const stageToType = (stage: string): InboxItem['type'] => {
+        if (stage.includes('QUOTE')) return 'quote';
+        if (stage.includes('SCHEDULE')) return 'schedule';
+        if (stage.includes('CREW') || stage.includes('ASSIGN')) return 'crew_assign';
+        return 'low_confidence';
+      };
+
+      // 1. Get waiting_ops orchestration runs with job request data
       try {
         const waitingRuns = await db
           .select()
@@ -5963,21 +5990,66 @@ Return JSON format:
         for (const run of waitingRuns) {
           const createdAt = new Date(run.createdAt);
           const hoursSince = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+          const context = run.contextJson as any || {};
+          
+          // Get job request details if available
+          let customerName = context.customerName;
+          let customerAddress = context.address;
+          let customerPhone = context.phone;
+          let services = context.services;
+          let lotSize = context.lotSizeSqFt;
+          
+          if (run.primaryEntityType === 'job_request' && run.primaryEntityId) {
+            try {
+              const jobRequest = await db.select().from(jobRequests).where(eq(jobRequests.id, run.primaryEntityId)).limit(1);
+              if (jobRequest[0]) {
+                customerName = customerName || jobRequest[0].customerName;
+                customerAddress = customerAddress || jobRequest[0].propertyAddress;
+                customerPhone = customerPhone || jobRequest[0].customerPhone;
+                services = services || jobRequest[0].serviceTypes;
+                lotSize = lotSize || jobRequest[0].lotSizeSqFt;
+              }
+            } catch {}
+          }
+
+          const stage = run.currentStage || 'UNKNOWN';
+          const itemType = stageToType(stage);
+          
+          // Generate AI summary
+          let aiSummary = `This ${stage.replace(/_/g, ' ').toLowerCase()} needs your review.`;
+          if (run.confidence === 'low') {
+            aiSummary = `Low confidence action requires human verification. ` + aiSummary;
+          }
+          if (context.notes) {
+            aiSummary += ` Notes: ${context.notes}`;
+          }
           
           items.push({
             id: `orch_${run.id}`,
-            type: 'orchestration',
-            title: `${run.currentStage?.replace(/_/g, ' ')} needs review`,
-            description: `Orchestration run waiting for approval`,
-            stage: run.currentStage,
+            type: itemType,
+            category: 'orchestration',
+            title: `${stage.replace(/_/g, ' ')} needs review`,
+            description: customerName ? `Customer: ${customerName}` : `Orchestration run waiting for approval`,
+            stage: stage,
             status: run.status,
             priority: hoursSince > 4 ? 'urgent' : hoursSince > 2 ? 'warning' : 'normal',
             createdAt: run.createdAt.toISOString(),
             entityType: run.primaryEntityType,
             entityId: run.primaryEntityId,
             runId: run.runId,
-            ctaLabel: 'Review',
-            ctaAction: `/api/orchestrator/l2c/run/${run.runId}/approve`,
+            ctaLabel: itemType === 'quote' ? 'Review Quote' : itemType === 'schedule' ? 'Review Schedule' : 'Review',
+            ctaAction: `/api/ops/inbox/resolve`,
+            customerName,
+            customerAddress,
+            customerPhone,
+            confidence: run.confidence,
+            services,
+            lotSize,
+            quoteRange: context.quoteRange,
+            scheduleWindows: context.scheduleWindows,
+            crewRecommendations: context.crewRecommendations,
+            aiSummary,
+            contextJson: context,
           });
         }
       } catch (e) {
@@ -5986,25 +6058,40 @@ Return JSON format:
 
       // 2. Get pending actions
       try {
-        const pendingActions = await storage.getPendingActions();
-        const pending = pendingActions.filter(a => a.status === "pending").slice(0, limit);
+        const allPendingActions = await storage.getPendingActions();
+        const pending = allPendingActions.filter(a => a.status === "pending").slice(0, limit);
 
         for (const action of pending) {
           const createdAt = new Date(action.createdAt);
           const hoursSince = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+          const payload = action.payload as any || {};
+          
+          // Get conversation for customer info
+          let customerName: string | undefined;
+          let customerPhone: string | undefined;
+          try {
+            const conv = await storage.getConversation(action.conversationId);
+            customerName = conv?.customerName || undefined;
+            customerPhone = conv?.customerPhone || undefined;
+          } catch {}
           
           items.push({
             id: `action_${action.id}`,
-            type: 'approval',
+            type: action.actionType === 'send_quote' ? 'quote' : 'approval',
+            category: 'approval',
             title: action.description || 'Pending approval',
-            description: `${action.actionType?.replace(/_/g, ' ')} requires your review`,
+            description: customerName ? `Customer: ${customerName}` : `${action.actionType?.replace(/_/g, ' ')} requires your review`,
             status: action.status,
             priority: hoursSince > 4 ? 'urgent' : hoursSince > 2 ? 'warning' : 'normal',
             createdAt: action.createdAt.toISOString(),
             entityId: action.id,
             actionType: action.actionType,
             ctaLabel: 'Approve',
-            ctaAction: `/api/pending-actions/${action.id}/approve`,
+            ctaAction: `/api/ops/inbox/resolve`,
+            customerName,
+            customerPhone,
+            aiSummary: `Action "${action.actionType?.replace(/_/g, ' ')}" is ready to be approved.`,
+            contextJson: payload,
           });
         }
       } catch (e) {
@@ -6021,12 +6108,10 @@ Return JSON format:
           .limit(5);
 
         for (const error of errors) {
-          const createdAt = new Date(error.createdAt);
-          const hoursSince = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
-          
           items.push({
             id: `dlq_${error.id}`,
-            type: 'error',
+            type: 'integration',
+            category: 'error',
             title: `Integration error: ${error.errorType}`,
             description: error.errorMessage?.substring(0, 100) || 'Failed webhook or integration',
             status: error.status,
@@ -6034,6 +6119,7 @@ Return JSON format:
             createdAt: error.createdAt.toISOString(),
             ctaLabel: 'Retry',
             ctaAction: `/api/dlq/${error.id}/retry`,
+            aiSummary: `An integration error occurred: ${error.errorMessage}. Retry to attempt recovery.`,
           });
         }
 
@@ -6048,7 +6134,8 @@ Return JSON format:
         for (const alert of alerts) {
           items.push({
             id: `recon_${alert.id}`,
-            type: 'error',
+            type: 'integration',
+            category: 'error',
             title: `Reconciliation: ${alert.alertType}`,
             description: alert.details ? JSON.stringify(alert.details).substring(0, 100) : 'Needs review',
             status: alert.status,
@@ -6057,24 +6144,275 @@ Return JSON format:
             entityId: alert.id,
             ctaLabel: 'Review',
             ctaAction: `/api/reconciliation/alerts/${alert.id}`,
+            aiSummary: `A reconciliation issue was detected. Review and resolve the discrepancy.`,
           });
         }
       } catch (e) {
         console.warn("[Inbox] Could not fetch errors:", e);
       }
 
+      // Apply filters
+      let filteredItems = items;
+      
+      if (typeFilter) {
+        filteredItems = filteredItems.filter(i => i.type === typeFilter);
+      }
+      if (urgencyFilter) {
+        filteredItems = filteredItems.filter(i => i.priority === urgencyFilter);
+      }
+      if (statusFilter) {
+        filteredItems = filteredItems.filter(i => i.status === statusFilter);
+      }
+
       // Sort by priority and createdAt
       const priorityOrder = { urgent: 0, warning: 1, normal: 2 };
-      items.sort((a, b) => {
+      filteredItems.sort((a, b) => {
         const pDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
         if (pDiff !== 0) return pDiff;
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       });
 
-      res.json(items.slice(0, limit));
+      res.json(filteredItems.slice(0, limit));
     } catch (error: any) {
       console.error("[Inbox] Error:", error);
       res.json([]);
+    }
+  });
+
+  // POST /api/ops/inbox/resolve - Resolve an inbox item
+  app.post("/api/ops/inbox/resolve", async (req, res) => {
+    try {
+      const { itemId, action, payload } = req.body;
+      
+      if (!itemId || !action) {
+        return res.status(400).json({ error: "itemId and action are required" });
+      }
+
+      // Parse item type from ID
+      const [itemType, idStr] = itemId.split('_');
+      const id = parseInt(idStr);
+
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid item ID format" });
+      }
+
+      let result: any = { success: true };
+
+      if (itemType === 'orch') {
+        // Resolve orchestration run
+        const run = await db.select().from(orchestrationRuns).where(eq(orchestrationRuns.id, id)).limit(1);
+        if (!run[0]) {
+          return res.status(404).json({ error: "Orchestration run not found" });
+        }
+
+        if (action === 'approve') {
+          // Create an approval step and advance the run
+          const stepData = {
+            orchestrationRunId: id,
+            stage: run[0].currentStage || 'UNKNOWN',
+            startedAt: new Date(),
+            completedAt: new Date(),
+            inputJson: payload || {},
+            decisionJson: {
+              advance: true,
+              approved: true,
+              approvedBy: 'operator',
+              approvedAt: new Date().toISOString(),
+              ...payload,
+            },
+          };
+
+          await db.insert(orchestrationSteps).values(stepData);
+
+          // Update the run status to running (or next stage)
+          await db.update(orchestrationRuns)
+            .set({ 
+              status: 'running', 
+              updatedAt: new Date(),
+            })
+            .where(eq(orchestrationRuns.id, id));
+
+          result.message = "Orchestration run approved and resumed";
+          result.runId = run[0].runId;
+        } else if (action === 'request_info') {
+          // Set to waiting_customer and trigger SMS
+          await db.update(orchestrationRuns)
+            .set({ 
+              status: 'waiting_customer',
+              updatedAt: new Date(),
+            })
+            .where(eq(orchestrationRuns.id, id));
+
+          // If there's a message to send, queue it
+          if (payload?.message && run[0].primaryEntityId) {
+            const jobRequest = await db.select().from(jobRequests).where(eq(jobRequests.id, run[0].primaryEntityId)).limit(1);
+            if (jobRequest[0]?.customerPhone) {
+              await storage.createPendingAction({
+                conversationId: jobRequest[0].conversationId || 1,
+                actionType: 'send_sms',
+                description: 'Request more information from customer',
+                payload: {
+                  to: jobRequest[0].customerPhone,
+                  message: payload.message,
+                },
+              });
+            }
+          }
+
+          result.message = "Requested more information from customer";
+        } else if (action === 'reject' || action === 'cancel') {
+          await db.update(orchestrationRuns)
+            .set({ 
+              status: 'canceled',
+              updatedAt: new Date(),
+            })
+            .where(eq(orchestrationRuns.id, id));
+
+          result.message = "Orchestration run canceled";
+        }
+      } else if (itemType === 'action') {
+        // Resolve pending action
+        const actionRecord = await storage.getPendingAction(id);
+        if (!actionRecord) {
+          return res.status(404).json({ error: "Pending action not found" });
+        }
+
+        if (action === 'approve') {
+          await storage.approvePendingAction(id);
+          result.message = "Action approved";
+        } else if (action === 'reject') {
+          await db.update(pendingActions)
+            .set({ 
+              status: 'rejected',
+              resolvedAt: new Date(),
+              resolvedBy: 'operator',
+            })
+            .where(eq(pendingActions.id, id));
+          result.message = "Action rejected";
+        }
+      } else if (itemType === 'dlq') {
+        // Retry dead letter queue item
+        if (action === 'retry') {
+          await db.update(deadLetterQueue)
+            .set({ 
+              status: 'retrying',
+              retryCount: sql`retry_count + 1`,
+              nextRetryAt: new Date(),
+            })
+            .where(eq(deadLetterQueue.id, id));
+          result.message = "Queued for retry";
+        } else if (action === 'dismiss') {
+          await db.update(deadLetterQueue)
+            .set({ status: 'resolved' })
+            .where(eq(deadLetterQueue.id, id));
+          result.message = "Error dismissed";
+        }
+      } else if (itemType === 'recon') {
+        // Resolve reconciliation alert
+        if (action === 'resolve' || action === 'dismiss') {
+          await db.update(reconciliationAlerts)
+            .set({ 
+              status: 'resolved',
+              resolvedAt: new Date(),
+            })
+            .where(eq(reconciliationAlerts.id, id));
+          result.message = "Alert resolved";
+        }
+      } else {
+        return res.status(400).json({ error: `Unknown item type: ${itemType}` });
+      }
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Inbox] Resolve error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/ops/inbox/:id - Get single inbox item details with audit trail
+  app.get("/api/ops/inbox/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [itemType, idStr] = id.split('_');
+      const numId = parseInt(idStr);
+
+      if (isNaN(numId)) {
+        return res.status(400).json({ error: "Invalid item ID format" });
+      }
+
+      let item: any = null;
+      let auditTrail: any[] = [];
+
+      if (itemType === 'orch') {
+        const run = await db.select().from(orchestrationRuns).where(eq(orchestrationRuns.id, numId)).limit(1);
+        if (!run[0]) {
+          return res.status(404).json({ error: "Not found" });
+        }
+
+        // Get job request details
+        let jobRequest: any = null;
+        if (run[0].primaryEntityType === 'job_request' && run[0].primaryEntityId) {
+          const jr = await db.select().from(jobRequests).where(eq(jobRequests.id, run[0].primaryEntityId)).limit(1);
+          jobRequest = jr[0] || null;
+        }
+
+        // Get orchestration steps as audit trail
+        const steps = await db
+          .select()
+          .from(orchestrationSteps)
+          .where(eq(orchestrationSteps.orchestrationRunId, numId))
+          .orderBy(orchestrationSteps.startedAt);
+
+        auditTrail = steps.map(s => ({
+          id: s.id,
+          stage: s.stage,
+          startedAt: s.startedAt.toISOString(),
+          completedAt: s.completedAt?.toISOString(),
+          decision: s.decisionJson,
+        }));
+
+        const context = run[0].contextJson as any || {};
+        item = {
+          id: `orch_${numId}`,
+          type: 'orchestration',
+          run: run[0],
+          jobRequest,
+          customerName: jobRequest?.customerName || context.customerName,
+          customerPhone: jobRequest?.customerPhone || context.phone,
+          customerAddress: jobRequest?.propertyAddress || context.address,
+          services: jobRequest?.serviceTypes || context.services,
+          lotSize: jobRequest?.lotSizeSqFt || context.lotSizeSqFt,
+          confidence: run[0].confidence,
+          stage: run[0].currentStage,
+          contextJson: context,
+          auditTrail,
+        };
+      } else if (itemType === 'action') {
+        const action = await storage.getPendingAction(numId);
+        if (!action) {
+          return res.status(404).json({ error: "Not found" });
+        }
+
+        const conv = await storage.getConversation(action.conversationId);
+        item = {
+          id: `action_${numId}`,
+          type: 'approval',
+          action,
+          customerName: conv?.customerName,
+          customerPhone: conv?.customerPhone,
+          contextJson: action.payload,
+          auditTrail: [],
+        };
+      }
+
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+
+      res.json(item);
+    } catch (error: any) {
+      console.error("[Inbox] Error fetching item:", error);
+      res.status(500).json({ error: error.message });
     }
   });
 
