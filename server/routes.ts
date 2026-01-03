@@ -31,6 +31,20 @@ import {
   approveDecision as orchestratorApproveDecision,
   type OrchestratorConfig 
 } from "./agents/orchestrator";
+import {
+  startOrchestration,
+  runNextStep,
+  handleInboundMessage,
+  handleOpsApproval,
+  handleOpsOverride,
+  getOrchestrationRun,
+  getRunsForJobRequest,
+} from "./orchestrator/leadToCash";
+import {
+  startOrchestrationInputSchema,
+  opsApprovalInputSchema,
+  opsOverrideInputSchema,
+} from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -5084,6 +5098,147 @@ Return JSON format:
       res.json({ success: true, sent, message });
     } catch (error: any) {
       console.error("[UQB] Error sending quote:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================
+  // Lead-to-Cash Orchestrator API
+  // ============================================
+
+  app.post("/api/orchestrator/l2c/start", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+
+      const input = startOrchestrationInputSchema.parse(req.body);
+      const userId = (req as any).user?.id;
+
+      const result = await startOrchestration({
+        accountId: `account_${profile.id}`,
+        businessId: profile.id,
+        jobRequestId: input.jobRequestId,
+        userId: userId || input.userId,
+        channel: input.channel,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[L2C] Error starting orchestration:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/orchestrator/l2c/run/:runId", async (req, res) => {
+    try {
+      const { run, steps, jobRequest } = await getOrchestrationRun(req.params.runId);
+      if (!run) {
+        return res.status(404).json({ error: "Run not found" });
+      }
+      res.json({ run, steps, jobRequest });
+    } catch (error: any) {
+      console.error("[L2C] Error fetching run:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/orchestrator/l2c/runs", async (req, res) => {
+    try {
+      const jobRequestId = parseInt(req.query.jobRequestId as string);
+      if (isNaN(jobRequestId)) {
+        return res.status(400).json({ error: "jobRequestId required" });
+      }
+      const runs = await getRunsForJobRequest(jobRequestId);
+      res.json(runs);
+    } catch (error: any) {
+      console.error("[L2C] Error fetching runs:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/orchestrator/l2c/run/:runId/next", async (req, res) => {
+    try {
+      const result = await runNextStep(req.params.runId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("[L2C] Error running next step:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/orchestrator/l2c/run/:runId/approve", async (req, res) => {
+    try {
+      const userId = (req as any).user?.id || 1;
+      const input = opsApprovalInputSchema.parse({
+        runId: req.params.runId,
+        ...req.body,
+      });
+
+      const result = await handleOpsApproval({
+        runId: input.runId,
+        userId,
+        stage: input.stage as any,
+        approvalData: input.approvalData,
+        notes: input.notes,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[L2C] Error approving:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/orchestrator/l2c/run/:runId/override", async (req, res) => {
+    try {
+      const userId = (req as any).user?.id || 1;
+      const input = opsOverrideInputSchema.parse({
+        runId: req.params.runId,
+        ...req.body,
+      });
+
+      const result = await handleOpsOverride({
+        runId: input.runId,
+        userId,
+        action: input.action as any,
+        targetStage: input.targetStage as any,
+        contextUpdate: input.contextUpdate,
+        notes: input.notes,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[L2C] Error overriding:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/orchestrator/l2c/inbound-message", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+
+      const { from, to, body, messageId } = req.body;
+      if (!from || !body) {
+        return res.status(400).json({ error: "from and body required" });
+      }
+
+      const result = await handleInboundMessage({
+        accountId: `account_${profile.id}`,
+        businessId: profile.id,
+        from,
+        to: to || profile.phone || "",
+        body,
+        messageId,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[L2C] Error handling inbound message:", error);
       res.status(500).json({ error: error.message });
     }
   });

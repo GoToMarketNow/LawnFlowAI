@@ -1975,11 +1975,17 @@ export const jobRequests = pgTable("job_requests", {
   assignedCrewId: integer("assigned_crew_id").references(() => crews.id),
   assignedDate: timestamp("assigned_date"),
   
+  // Lifecycle tracking for orchestrator
+  lifecycleStage: text("lifecycle_stage").default("LEAD_INTAKE"), // LEAD_INTAKE, QUOTE_BUILD, etc.
+  lifecycleStatus: text("lifecycle_status").default("open"), // open, won, lost, paused
+  lastOrchestrationRunId: integer("last_orchestration_run_id"), // Last run that touched this
+  
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => ({
   businessIdx: index("job_request_business_idx").on(table.businessId),
   statusIdx: index("job_request_status_idx").on(table.status),
+  lifecycleIdx: index("job_request_lifecycle_idx").on(table.lifecycleStage, table.lifecycleStatus),
 }));
 
 // Schedule Item Statuses
@@ -2194,4 +2200,188 @@ export const decideInputSchema = z.object({
 
 export const approveInputSchema = z.object({
   decisionId: z.number(),
+});
+
+// ============================================
+// Lead-to-Cash Orchestrator
+// ============================================
+
+// Orchestration Stages - fixed lifecycle ordering
+export const OrchestrationStages = [
+  "LEAD_INTAKE",
+  "QUOTE_BUILD", 
+  "QUOTE_CONFIRM",
+  "SCHEDULE_PROPOSE",
+  "CREW_ASSIGN",
+  "JOB_BOOKED"
+] as const;
+export type OrchestrationStage = typeof OrchestrationStages[number];
+
+// Orchestration Run Statuses
+export const OrchestrationRunStatuses = [
+  "running",
+  "waiting_customer",
+  "waiting_ops",
+  "completed",
+  "failed",
+  "canceled"
+] as const;
+export type OrchestrationRunStatus = typeof OrchestrationRunStatuses[number];
+
+// Confidence levels
+export const ConfidenceLevels = ["high", "medium", "low"] as const;
+export type ConfidenceLevel = typeof ConfidenceLevels[number];
+
+// Lifecycle statuses for job requests
+export const LifecycleStatuses = ["open", "won", "lost", "paused"] as const;
+export type LifecycleStatus = typeof LifecycleStatuses[number];
+
+// Orchestration Runs - tracks each Lead-to-Cash execution
+export const orchestrationRuns = pgTable("orchestration_runs", {
+  id: serial("id").primaryKey(),
+  runId: text("run_id").notNull().unique(), // UUID for external reference
+  accountId: text("account_id").notNull(), // Business/account identifier
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  
+  // Channel info
+  channel: text("channel").notNull().default("sms"), // sms, web, ops
+  
+  // Current state
+  currentStage: text("current_stage").notNull().default("LEAD_INTAKE"),
+  status: text("status").notNull().default("running"), // running, waiting_customer, waiting_ops, completed, failed, canceled
+  confidence: text("confidence").notNull().default("medium"), // high, medium, low
+  
+  // Primary entity reference
+  primaryEntityType: text("primary_entity_type").notNull().default("job_request"),
+  primaryEntityId: integer("primary_entity_id").notNull(), // References jobRequests.id
+  
+  // Rolling context (validated, minimal JSON)
+  contextJson: jsonb("context_json").notNull().default({}),
+  
+  // Ownership
+  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  
+  // HITL tracking
+  lastApprovedByUserId: integer("last_approved_by_user_id").references(() => users.id),
+  lastApprovedAt: timestamp("last_approved_at"),
+  waitingReason: text("waiting_reason"), // Why we're paused
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  runIdIdx: uniqueIndex("orch_run_id_idx").on(table.runId),
+  entityIdx: index("orch_run_entity_idx").on(table.primaryEntityType, table.primaryEntityId),
+  statusIdx: index("orch_run_status_idx").on(table.status),
+  businessIdx: index("orch_run_business_idx").on(table.businessId),
+}));
+
+// Orchestration Steps - individual step execution log
+export const orchestrationSteps = pgTable("orchestration_steps", {
+  id: serial("id").primaryKey(),
+  orchestrationRunId: integer("orchestration_run_id").references(() => orchestrationRuns.id).notNull(),
+  
+  // Step identification
+  stage: text("stage").notNull(), // LEAD_INTAKE, QUOTE_BUILD, etc.
+  stepIndex: integer("step_index").notNull(), // Order within the run
+  
+  // Input/Output tracking
+  inputJson: jsonb("input_json").notNull().default({}),
+  actionsJson: jsonb("actions_json").notNull().default([]), // List of agent calls
+  outputJson: jsonb("output_json").notNull().default({}), // Consolidated outputs
+  decisionJson: jsonb("decision_json").notNull().default({}), // advance, next_stage, confidence, notes
+  
+  // Timing
+  startedAt: timestamp("started_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  completedAt: timestamp("completed_at"),
+  
+  // Error tracking
+  error: text("error"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  runIdx: index("orch_step_run_idx").on(table.orchestrationRunId),
+  stageIdx: index("orch_step_stage_idx").on(table.stage),
+}));
+
+// Customer Messages - inbound/outbound message tracking for orchestration
+export const customerMessages = pgTable("customer_messages", {
+  id: serial("id").primaryKey(),
+  messageId: text("message_id").notNull().unique(), // UUID for deduplication
+  accountId: text("account_id").notNull(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  
+  // Links to orchestration
+  orchestrationRunId: integer("orchestration_run_id").references(() => orchestrationRuns.id),
+  jobRequestId: integer("job_request_id").references(() => jobRequests.id),
+  
+  // Message details
+  direction: text("direction").notNull(), // inbound, outbound
+  channel: text("channel").notNull().default("sms"),
+  fromNumber: text("from_number").notNull(),
+  toNumber: text("to_number").notNull(),
+  body: text("body").notNull(),
+  
+  // Intent parsing (for inbound)
+  parsedIntent: text("parsed_intent"), // accepted, declined, question, modify, schedule_select, etc.
+  intentConfidence: text("intent_confidence"), // high, medium, low
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  messageIdIdx: uniqueIndex("cust_msg_id_idx").on(table.messageId),
+  runIdx: index("cust_msg_run_idx").on(table.orchestrationRunId),
+  jobReqIdx: index("cust_msg_job_req_idx").on(table.jobRequestId),
+  phoneIdx: index("cust_msg_phone_idx").on(table.fromNumber),
+}));
+
+// Insert schemas for Lead-to-Cash Orchestrator
+export const insertOrchestrationRunSchema = createInsertSchema(orchestrationRuns).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertOrchestrationStepSchema = createInsertSchema(orchestrationSteps).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertCustomerMessageSchema = createInsertSchema(customerMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types for Lead-to-Cash Orchestrator
+export type OrchestrationRun = typeof orchestrationRuns.$inferSelect;
+export type InsertOrchestrationRun = z.infer<typeof insertOrchestrationRunSchema>;
+
+export type OrchestrationStep = typeof orchestrationSteps.$inferSelect;
+export type InsertOrchestrationStep = z.infer<typeof insertOrchestrationStepSchema>;
+
+export type CustomerMessage = typeof customerMessages.$inferSelect;
+export type InsertCustomerMessage = z.infer<typeof insertCustomerMessageSchema>;
+
+// API input schemas for orchestrator
+export const startOrchestrationInputSchema = z.object({
+  jobRequestId: z.number(),
+  userId: z.number().optional(),
+  channel: z.enum(["sms", "web", "ops"]).default("ops"),
+});
+
+export const runNextStepInputSchema = z.object({
+  runId: z.string(),
+});
+
+export const opsApprovalInputSchema = z.object({
+  runId: z.string(),
+  stage: z.enum(["LEAD_INTAKE", "QUOTE_BUILD", "QUOTE_CONFIRM", "SCHEDULE_PROPOSE", "CREW_ASSIGN", "JOB_BOOKED"]),
+  approvalData: z.record(z.unknown()).optional(),
+  notes: z.string().optional(),
+});
+
+export const opsOverrideInputSchema = z.object({
+  runId: z.string(),
+  action: z.enum(["advance", "revert", "cancel", "inject_context"]),
+  targetStage: z.enum(["LEAD_INTAKE", "QUOTE_BUILD", "QUOTE_CONFIRM", "SCHEDULE_PROPOSE", "CREW_ASSIGN", "JOB_BOOKED"]).optional(),
+  contextUpdate: z.record(z.unknown()).optional(),
+  notes: z.string().optional(),
 });

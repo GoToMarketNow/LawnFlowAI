@@ -1,0 +1,343 @@
+You are a senior full-stack engineer building LawnFlow’s INTERNAL AGENT ORCHESTRATOR (Lead → Cash) in a Replit Postgres + Next.js App Router + TypeScript codebase.
+
+PRIMARY GOAL
+Implement a deterministic, testable orchestrator that executes the lifecycle:
+LEAD_INTAKE → QUOTE_BUILD → QUOTE_CONFIRM → SCHEDULE_PROPOSE → CREW_ASSIGN → JOB_BOOKED
+
+SECONDARY GOALS
+- Ensure agents are called in the correct order
+- Enforce stage exit criteria (no skipping)
+- Provide human-in-the-loop gating based on confidence
+- Persist every step, input, output, decision, and transition for audit/debug
+- Provide an Ops UI to run orchestrations, view state, and replay
+- Build tests that validate ordering, gating, and transitions
+
+CONSTRAINTS
+- Orchestrator controls flow. Agents do NOT call each other.
+- Agents return STRUCTURED JSON only. No freeform.
+- Orchestrator is the only component allowed to mutate lifecycle stage.
+- Use Postgres via Prisma.
+- Keep it MVP-fast and deterministic; avoid over-automation.
+
+================================================================================
+A) DATA MODEL (PRISMA) — ADD/UPDATE THESE TABLES
+================================================================================
+
+1) OrchestrationRun
+- id (uuid)
+- accountId
+- channel (sms|web|ops)
+- currentStage (enum)
+- status (enum: running|waiting_customer|waiting_ops|completed|failed|canceled)
+- confidence (enum: high|medium|low)
+- primaryEntityType (enum: job_request)
+- primaryEntityId (JobRequest.id)
+- contextJson (jsonb)  // rolling context for the run (validated, minimal)
+- createdByUserId (nullable)
+- createdAt, updatedAt
+
+2) OrchestrationStep
+- id (uuid)
+- orchestrationRunId
+- stage (enum)
+- stepIndex (int)
+- inputJson (jsonb)
+- actionsJson (jsonb)     // list of agent calls requested
+- outputJson (jsonb)      // consolidated outputs
+- decisionJson (jsonb)    // advance, next_stage, confidence, notes
+- startedAt, completedAt
+- error (text nullable)
+
+3) CustomerMessage
+- id (uuid)
+- accountId
+- orchestrationRunId (nullable)
+- jobRequestId (nullable)
+- direction (inbound|outbound)
+- channel (sms)
+- fromNumber
+- toNumber
+- body
+- parsedIntent (nullable)
+- createdAt
+
+4) Add to JobRequest:
+- lifecycleStage (enum same as orchestrator stages) default LEAD_INTAKE
+- lifecycleStatus (enum: open|won|lost|paused) default open
+- lastOrchestrationRunId (nullable)
+
+ENUMS
+- OrchestrationStage: LEAD_INTAKE, QUOTE_BUILD, QUOTE_CONFIRM, SCHEDULE_PROPOSE, CREW_ASSIGN, JOB_BOOKED
+- Confidence: high, medium, low
+- RunStatus: running, waiting_customer, waiting_ops, completed, failed, canceled
+
+MIGRATION
+Create Prisma migration and update seed to create:
+- 8 JobRequests (already seeded) + a couple in LEAD_INTAKE and QUOTE_BUILD stages for demo
+
+================================================================================
+B) AGENT CONTRACTS — STRICT JSON SCHEMAS (ZOD)
+================================================================================
+
+Create /lib/orchestrator/contracts.ts with Zod schemas:
+
+1) LeadIntakeResult
+{
+  customerName?: string,
+  customerPhone: string,
+  address: string,
+  services: string[],
+  frequency: "one_time|weekly|biweekly|monthly|unknown",
+  timeline?: string,
+  missingFields: string[],
+  confidence: "high|medium|low"
+}
+
+2) PropertyResolverResult
+{
+  lat?: number,
+  lng?: number,
+  zip?: string,
+  lotAreaSqft?: number,
+  lotConfidence: "high|medium|low",
+  notes?: string
+}
+
+3) QuoteBuildResult
+{
+  rangeLow: number,
+  rangeHigh: number,
+  currency: "USD",
+  servicesIncluded: string[],
+  assumptions: string[],
+  nextStep: "ready_to_send|request_photos|schedule_site_visit",
+  confidence: "high|medium|low"
+}
+
+4) QuoteConfirmResult
+{
+  outcome: "accepted|question|modify|declined|no_response",
+  customerMessage?: string,
+  confidence: "high|medium|low"
+}
+
+5) ScheduleProposeResult
+{
+  proposedWindows: Array<{ startISO: string, endISO: string }>,
+  deliveryChannel: "sms",
+  confidence: "high|medium|low"
+}
+
+6) ScheduleSelectResult  // produced when customer replies
+{
+  outcome: "selected|needs_more_options|no_response",
+  selectedWindow?: { startISO: string, endISO: string },
+  confidence: "high|medium|low"
+}
+
+7) CrewAssignResult
+{
+  topOptions: Array<{
+    crewId: string,
+    proposedStartISO: string,
+    travelMinutesDelta: number,
+    marginScore: number,
+    riskScore: number,
+    totalScore: number,
+    reasons: string[]
+  }>,
+  selectedOption?: { crewId: string, proposedStartISO: string },
+  mode: "recommend_only|auto_assign",
+  confidence: "high|medium|low"
+}
+
+8) JobBookedResult
+{
+  writeback: "success|failed",
+  externalProvider: "jobber",
+  externalId?: string,
+  confirmationSent: boolean,
+  confidence: "high|medium|low"
+}
+
+================================================================================
+C) AGENT IMPLEMENTATIONS (MVP) — STUB + REAL WHERE AVAILABLE
+================================================================================
+
+Create /lib/agents/* modules with deterministic behavior:
+- leadIntakeAgent.ts: parse from JobRequest existing fields; if missing return missingFields
+- propertyResolverAgent.ts: if JobRequest has lat/lng already, return them; else attempt lookup (optional), else low confidence
+- quoteBuildAgent.ts: generate range using existing pricing policy templates; ensure assumptions list
+- quoteConfirmAgent.ts: interpret last inbound CustomerMessage (if exists) with simple keyword rules:
+  accepted: "yes", "accept", "sounds good"
+  declined: "no", "too high"
+  question: "why", "what", "how"
+  modify: "instead", "can you", "change"
+- scheduleProposeAgent.ts: propose 2–3 windows in next 7 days that leave gaps (use ScheduleItem cache + duration estimate)
+- scheduleSelectInterpreterAgent.ts: interpret customer reply selecting option 1/2/3
+- crewAssignAgent.ts: call your existing simulation engine (Crew Intelligence + Feasibility + Route Cost + Margin/Burn + Ranking)
+- jobBookAgent.ts: call Jobber writeback stub (or real if already built), then create outbound SMS confirmation
+
+IMPORTANT: Each agent returns ONLY JSON matching the contract schemas. Validate with Zod.
+
+================================================================================
+D) THE ORCHESTRATOR ENGINE — ORDERING + EXIT CRITERIA
+================================================================================
+
+Create /lib/orchestrator/engine.ts:
+
+Core functions:
+- startOrchestration({ accountId, jobRequestId, userId?, channel }): creates OrchestrationRun and runs first step
+- runNextStep(runId): executes the step for run.currentStage and persists OrchestrationStep record
+- handleInboundMessage({ accountId, from, to, body }): stores CustomerMessage then resumes orchestration if waiting_customer
+
+Rules:
+1) Stage ordering is fixed:
+   LEAD_INTAKE -> QUOTE_BUILD -> QUOTE_CONFIRM -> SCHEDULE_PROPOSE -> CREW_ASSIGN -> JOB_BOOKED
+
+2) Exit criteria:
+- LEAD_INTAKE exits if: phone + address + services exist (missingFields empty)
+- QUOTE_BUILD exits if: rangeLow/rangeHigh and assumptions exist
+- QUOTE_CONFIRM exits if: outcome accepted -> advance; declined -> end (completed with lost); question/modify -> loop to QUOTE_BUILD
+- SCHEDULE_PROPOSE exits when: customer selects a window (via inbound message) OR ops approves a chosen window
+- CREW_ASSIGN exits when: selected option exists; auto_assign only if confidence high
+- JOB_BOOKED exits when: writeback success AND confirmationSent true
+
+3) Confidence gating:
+- high: auto-advance
+- medium: waiting_ops at CREW_ASSIGN (recommendation requires approval)
+- low: waiting_ops at any stage (do not proceed)
+
+4) Persistence:
+For every step:
+- write OrchestrationStep with inputJson, actionsJson, outputJson, decisionJson
+Update OrchestrationRun currentStage/status/confidence/contextJson
+Update JobRequest lifecycleStage + lastOrchestrationRunId
+
+5) Logging:
+Create /lib/orchestrator/logger.ts that logs to console and appends to OrchestrationStep.decisionJson.notes
+
+================================================================================
+E) API ROUTES — CONTROL + HOOKS
+================================================================================
+
+Add Next.js routes:
+
+1) POST /api/orchestrator/start { jobRequestId }
+- starts run and returns runId
+
+2) POST /api/orchestrator/run-next { runId }
+- runs next step (ops-only)
+
+3) GET /api/orchestrator/run?runId=
+- returns run + steps + current status
+
+4) POST /api/sms/inbound (Twilio webhook)
+- verify Twilio signature if already configured
+- call handleInboundMessage()
+- respond 200 quickly
+
+5) POST /api/orchestrator/ops/approve
+- payload depends on stage:
+  - approve crew assignment: { runId, selectedOption }
+  - approve schedule window: { runId, selectedWindow }
+- resumes orchestration
+
+================================================================================
+F) OPS UI — DASHBOARD TO TEST/VALIDATE
+================================================================================
+
+Create /ops/orchestrator page:
+- Left: list JobRequests with lifecycleStage/status
+- Middle: selected job details + “Start Orchestration”
+- Right: OrchestrationRun viewer:
+  - current stage, status, confidence
+  - button “Run Next Step” (enabled if waiting_ops or running)
+  - steps timeline list with expandable JSON for each step
+
+Also add “Simulate inbound SMS” dev tool:
+- textbox + send button that calls /api/sms/inbound with mock payload (in dev only)
+
+================================================================================
+G) TESTS — BUILD, RUN, VALIDATE
+================================================================================
+
+Use Vitest (or Jest) and add tests under /tests/orchestrator.test.ts:
+
+Test 1: Happy path (high confidence)
+- Seed job with all required intake fields and lat/lng
+- startOrchestration
+- run through stages with mocked agent outputs:
+  - lead intake -> quote build -> quote confirm accepted -> schedule propose -> customer selects window -> crew assign high confidence -> job booked success
+Assert:
+- steps executed in correct order
+- OrchestrationRun.status = completed
+- JobRequest.lifecycleStage = JOB_BOOKED
+
+Test 2: Missing fields blocks LEAD_INTAKE
+- Seed job missing address
+- startOrchestration
+Assert:
+- run.status = waiting_customer
+- currentStage remains LEAD_INTAKE
+- OrchestrationStep shows missingFields
+
+Test 3: Quote question loops back
+- QuoteConfirmResult outcome="question"
+Assert:
+- orchestrator moves back to QUOTE_BUILD and does not advance until rebuilt
+
+Test 4: Crew assign medium confidence requires ops approval
+- CrewAssignResult confidence="medium" mode="recommend_only"
+Assert:
+- run.status = waiting_ops
+- cannot reach JOB_BOOKED without /ops/approve call
+
+Test 5: Webhook/inbound resume
+- Create run waiting_customer at SCHEDULE_PROPOSE
+- send mock inbound selecting option 1
+Assert:
+- orchestrator resumes and advances to CREW_ASSIGN
+
+Add npm scripts:
+- "test": "vitest"
+- "test:watch": "vitest --watch"
+
+================================================================================
+H) VALIDATION CHECKLIST (MVP ACCEPTANCE)
+================================================================================
+
+1) From Ops UI:
+- Select a seeded JobRequest
+- Click Start Orchestration
+- Observe steps created and state transitions
+- Simulate inbound messages to advance quote confirm and schedule selection
+- Approve crew assignment (if needed)
+- Verify JOB_BOOKED and outbound confirmation recorded
+
+2) Ensure:
+- No stage skipping
+- All agent outputs validated by Zod
+- All steps persisted and viewable in Ops UI
+- Waiting states function correctly (waiting_customer vs waiting_ops)
+- Failures are logged and visible
+
+================================================================================
+I) DELIVERABLES — OUTPUT AS CODE FILES
+================================================================================
+
+Generate code file-by-file with paths:
+- prisma schema updates + migration steps
+- /lib/orchestrator/engine.ts
+- /lib/orchestrator/contracts.ts
+- /lib/orchestrator/logger.ts
+- /lib/agents/*.ts (MVP implementations)
+- /app/api/orchestrator/* routes
+- /app/api/sms/inbound route
+- /app/ops/orchestrator/page.tsx + components
+- /tests/orchestrator.test.ts
+- package.json scripts updates
+
+Do NOT leave placeholders without TODO notes.
+Do NOT skip tests.
+Ensure the orchestrator is deterministic and safe.
