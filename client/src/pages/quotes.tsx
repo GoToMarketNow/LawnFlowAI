@@ -150,7 +150,14 @@ export default function QuotesPage() {
   });
 
   const { data: quotesData, isLoading, error, refetch } = useQuery<{ quotes: Quote[] }>({
-    queryKey: ["/api/quotes", statusFilter],
+    queryKey: ["/api/quotes", { status: statusFilter }],
+    queryFn: async () => {
+      const url = statusFilter !== "all" 
+        ? `/api/quotes?status=${statusFilter}` 
+        : "/api/quotes";
+      const res = await fetch(url);
+      return res.json();
+    },
   });
 
   const { data: quoteDetail } = useQuery<QuoteDetail>({

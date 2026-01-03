@@ -1724,7 +1724,16 @@ export async function registerRoutes(
 
   app.get("/api/quotes/:id", async (req, res) => {
     try {
+      // Handle special routes that might match this pattern
+      if (req.params.id === "all" || req.params.id === "pending" || req.params.id === "quick") {
+        return res.status(400).json({ error: "Invalid quote ID" });
+      }
+      
       const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid quote ID" });
+      }
+      
       const job = await storage.getJob(id);
       if (!job) {
         return res.status(404).json({ error: "Quote not found" });
