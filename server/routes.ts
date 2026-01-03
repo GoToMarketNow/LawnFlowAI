@@ -2388,6 +2388,285 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // Agent Registry Seed Endpoint (MVP Demo Data)
+  // Registers all agents including dispatch & crew assignment agents
+  // ============================================
+
+  app.post("/api/seed/agents", async (req, res) => {
+    try {
+      const { agentRegistry, businessProfiles } = await import("@shared/schema");
+      const { db } = await import("./db");
+
+      const [profile] = await db.select().from(businessProfiles).limit(1);
+      if (!profile) {
+        return res.status(404).json({ error: "No business profile found" });
+      }
+
+      const agents = [
+        // Core agents
+        {
+          agentKey: "orchestration_engine",
+          displayName: "Orchestration Engine",
+          description: "Central supervisor that coordinates all agents and manages event-driven workflows",
+          category: "core",
+          status: "active",
+          healthScore: 95,
+          totalRuns: 1247,
+          timeSavedMinutes: 420,
+          cashAcceleratedCents: 0,
+          revenueProtectedCents: 0,
+        },
+        {
+          agentKey: "intake_agent",
+          displayName: "Intake Agent",
+          description: "Qualifies leads and extracts property details from inbound SMS and calls",
+          category: "core",
+          status: "active",
+          healthScore: 88,
+          totalRuns: 523,
+          timeSavedMinutes: 185,
+          cashAcceleratedCents: 0,
+          revenueProtectedCents: 125000,
+        },
+        {
+          agentKey: "quoting_agent",
+          displayName: "Quoting Agent",
+          description: "Generates accurate quotes based on lot size, services, and pricing rules",
+          category: "core",
+          status: "active",
+          healthScore: 92,
+          totalRuns: 312,
+          timeSavedMinutes: 156,
+          cashAcceleratedCents: 450000,
+          revenueProtectedCents: 0,
+        },
+        {
+          agentKey: "scheduling_agent",
+          displayName: "Scheduling Agent",
+          description: "Books jobs into optimal time slots based on crew availability",
+          category: "core",
+          status: "active",
+          healthScore: 90,
+          totalRuns: 189,
+          timeSavedMinutes: 95,
+          cashAcceleratedCents: 0,
+          revenueProtectedCents: 85000,
+        },
+
+        // Dispatch & Crew agents
+        {
+          agentKey: "crew_intelligence",
+          displayName: "Crew Intelligence Agent",
+          description: "Evaluates crew skills, equipment, and availability for job matching",
+          category: "dispatch",
+          status: "active",
+          healthScore: 94,
+          totalRuns: 856,
+          timeSavedMinutes: 285,
+          cashAcceleratedCents: 0,
+          revenueProtectedCents: 0,
+        },
+        {
+          agentKey: "job_feasibility",
+          displayName: "Job Feasibility Agent",
+          description: "Validates job requirements against crew capabilities and constraints",
+          category: "dispatch",
+          status: "active",
+          healthScore: 91,
+          totalRuns: 642,
+          timeSavedMinutes: 128,
+          cashAcceleratedCents: 0,
+          revenueProtectedCents: 45000,
+        },
+        {
+          agentKey: "route_cost",
+          displayName: "Route Cost Agent",
+          description: "Calculates travel time and distance costs between jobs using Haversine",
+          category: "dispatch",
+          status: "active",
+          healthScore: 96,
+          totalRuns: 1423,
+          timeSavedMinutes: 356,
+          cashAcceleratedCents: 0,
+          revenueProtectedCents: 0,
+        },
+        {
+          agentKey: "simulation_ranking",
+          displayName: "Simulation & Ranking Agent",
+          description: "Runs crew-job simulations and ranks by travel, margin, and risk scores",
+          category: "dispatch",
+          status: "active",
+          healthScore: 93,
+          totalRuns: 428,
+          timeSavedMinutes: 214,
+          cashAcceleratedCents: 0,
+          revenueProtectedCents: 0,
+        },
+        {
+          agentKey: "optimizer_orchestrator",
+          displayName: "Optimizer Orchestrator Agent",
+          description: "Creates decisions from simulations, handles approvals with RBAC enforcement",
+          category: "dispatch",
+          status: "active",
+          healthScore: 89,
+          totalRuns: 156,
+          timeSavedMinutes: 78,
+          cashAcceleratedCents: 0,
+          revenueProtectedCents: 62000,
+        },
+        {
+          agentKey: "margin_burn",
+          displayName: "Margin Burn Agent",
+          description: "Computes margin impact from travel and labor costs for job assignments",
+          category: "dispatch",
+          status: "active",
+          healthScore: 94,
+          totalRuns: 734,
+          timeSavedMinutes: 146,
+          cashAcceleratedCents: 0,
+          revenueProtectedCents: 0,
+        },
+        {
+          agentKey: "dispatch_worker",
+          displayName: "Dispatch Worker",
+          description: "Applies optimized routes to Jobber and manages crew assignments",
+          category: "dispatch",
+          status: "active",
+          healthScore: 87,
+          totalRuns: 245,
+          timeSavedMinutes: 122,
+          cashAcceleratedCents: 0,
+          revenueProtectedCents: 38000,
+        },
+
+        // Operations agents
+        {
+          agentKey: "reconciliation_worker",
+          displayName: "Reconciliation Worker",
+          description: "Validates invoice/payment integrity and creates alerts for mismatches",
+          category: "ops",
+          status: "active",
+          healthScore: 98,
+          totalRuns: 892,
+          timeSavedMinutes: 178,
+          cashAcceleratedCents: 0,
+          revenueProtectedCents: 23500,
+        },
+
+        // Finance agents
+        {
+          agentKey: "billing_worker",
+          displayName: "Billing Worker",
+          description: "Automates invoice generation and payment processing workflows",
+          category: "finance",
+          status: "active",
+          healthScore: 96,
+          totalRuns: 456,
+          timeSavedMinutes: 228,
+          cashAcceleratedCents: 125000,
+          revenueProtectedCents: 0,
+        },
+        {
+          agentKey: "renewal_upsell",
+          displayName: "Renewal & Upsell Worker",
+          description: "Scans for upsell opportunities and creates seasonal service offers",
+          category: "finance",
+          status: "active",
+          healthScore: 85,
+          totalRuns: 89,
+          timeSavedMinutes: 45,
+          cashAcceleratedCents: 185000,
+          revenueProtectedCents: 0,
+        },
+
+        // Communications agents
+        {
+          agentKey: "comms_worker",
+          displayName: "Customer Comms Worker",
+          description: "Produces customer-facing messages with compliance and tone rules",
+          category: "comms",
+          status: "active",
+          healthScore: 91,
+          totalRuns: 1534,
+          timeSavedMinutes: 384,
+          cashAcceleratedCents: 0,
+          revenueProtectedCents: 56000,
+        },
+        {
+          agentKey: "inbound_engagement",
+          displayName: "Inbound Engagement Agent",
+          description: "Responds to SMS inquiries with intelligent, context-aware messages",
+          category: "comms",
+          status: "active",
+          healthScore: 88,
+          totalRuns: 723,
+          timeSavedMinutes: 181,
+          cashAcceleratedCents: 0,
+          revenueProtectedCents: 92000,
+        },
+        {
+          agentKey: "reviews_agent",
+          displayName: "Reviews Agent",
+          description: "Requests reviews after job completion and manages reputation",
+          category: "comms",
+          status: "paused",
+          healthScore: 75,
+          totalRuns: 34,
+          timeSavedMinutes: 17,
+          cashAcceleratedCents: 0,
+          revenueProtectedCents: 0,
+        },
+      ];
+
+      let created = 0;
+      let updated = 0;
+
+      for (const agent of agents) {
+        try {
+          const [existing] = await db
+            .select()
+            .from(agentRegistry)
+            .where((await import("drizzle-orm")).eq(agentRegistry.agentKey, agent.agentKey))
+            .limit(1);
+
+          if (existing) {
+            await db
+              .update(agentRegistry)
+              .set({
+                ...agent,
+                businessId: profile.id,
+                updatedAt: new Date(),
+              })
+              .where((await import("drizzle-orm")).eq(agentRegistry.id, existing.id));
+            updated++;
+          } else {
+            await db.insert(agentRegistry).values({
+              ...agent,
+              businessId: profile.id,
+            });
+            created++;
+          }
+        } catch (e) {
+          console.log(`[Seed] Agent ${agent.agentKey} error:`, e);
+        }
+      }
+
+      console.log(`[Seed] Created ${created} agents, updated ${updated} agents`);
+
+      res.json({
+        success: true,
+        message: `Created ${created} agents, updated ${updated} agents`,
+        agentsCreated: created,
+        agentsUpdated: updated,
+        totalAgents: agents.length,
+      });
+    } catch (error) {
+      console.error("[Seed] Agent error:", error);
+      res.status(500).json({ error: "Failed to seed agents" });
+    }
+  });
+
+  // ============================================
   // Policy Profile Routes
   // ============================================
 
