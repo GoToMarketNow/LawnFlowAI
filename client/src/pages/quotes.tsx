@@ -181,8 +181,8 @@ export default function QuotesPage() {
           ? "Quote is ready to send" 
           : "Quote submitted for approval",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/ops/inbox"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes"], exact: false });
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/inbox"], exact: false });
       setQuickQuoteOpen(false);
       resetQuickQuoteForm();
     },
@@ -206,11 +206,10 @@ export default function QuotesPage() {
       }
       return res.json();
     },
-    onSuccess: (_, quoteId) => {
+    onSuccess: () => {
       toast({ title: "Quote approved" });
-      queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/quotes", quoteId, "detail"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/ops/inbox"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes"], exact: false });
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/inbox"], exact: false });
       setSelectedQuote(prev => prev ? { ...prev, status: "draft" } : null);
     },
     onError: (error: Error) => {
@@ -226,10 +225,9 @@ export default function QuotesPage() {
       }
       return res.json();
     },
-    onSuccess: (_, quoteId) => {
+    onSuccess: () => {
       toast({ title: "Quote sent to customer" });
-      queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/quotes", quoteId, "detail"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes"], exact: false });
       setSelectedQuote(prev => prev ? { ...prev, status: "sent" } : null);
     },
     onError: (error: Error) => {
