@@ -2390,3 +2390,191 @@ export const opsOverrideInputSchema = z.object({
   contextUpdate: z.record(z.unknown()).optional(),
   notes: z.string().optional(),
 });
+
+// ============================================================================
+// CUSTOMER EXPERIENCE VECTOR MEMORY
+// ============================================================================
+// Customer profiles with tenant isolation via businessId
+// Memories support vector embeddings (pgvector) for semantic search
+
+// Memory type enum for customer memories
+export const memoryTypeEnum = z.enum(["interaction", "preference", "outcome", "summary"]);
+export type MemoryType = z.infer<typeof memoryTypeEnum>;
+
+// Channel enum for memory sources
+export const memoryChannelEnum = z.enum(["sms", "call", "email", "in_app", "ops_note", "system"]);
+export type MemoryChannel = z.infer<typeof memoryChannelEnum>;
+
+// Customer Profiles - consolidated customer data per tenant
+export const customerProfiles = pgTable("customer_profiles", {
+  id: serial("id").primaryKey(),
+  
+  // Tenant isolation (required for all queries)
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  accountId: text("account_id"), // Optional account-level grouping
+  
+  // Customer identity
+  name: text("name").notNull(),
+  phone: text("phone").notNull(),
+  email: text("email"),
+  primaryAddress: text("primary_address"),
+  
+  // Linked entities (for cross-referencing)
+  conversationId: integer("conversation_id").references(() => conversations.id),
+  jobRequestId: integer("job_request_id").references(() => jobRequests.id),
+  
+  // Aggregated stats
+  totalJobs: integer("total_jobs").default(0).notNull(),
+  totalRevenue: integer("total_revenue").default(0).notNull(), // in cents
+  avgNpsScore: doublePrecision("avg_nps_score"),
+  lastInteractionAt: timestamp("last_interaction_at"),
+  
+  // Tags for quick filtering
+  tagsJson: jsonb("tags_json").default({}).notNull(),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessPhoneIdx: uniqueIndex("customer_profile_business_phone_idx").on(table.businessId, table.phone),
+  businessIdx: index("customer_profile_business_idx").on(table.businessId),
+  accountIdx: index("customer_profile_account_idx").on(table.accountId),
+}));
+
+// Customer Memories - semantic memory entries with optional vector embeddings
+// Note: embedding column uses pgvector type (1536 dimensions for OpenAI text-embedding-3-small)
+// Run SQL: CREATE EXTENSION IF NOT EXISTS vector; before using embeddings
+export const customerMemories = pgTable("customer_memories", {
+  id: serial("id").primaryKey(),
+  
+  // Tenant isolation (required for all queries)
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  accountId: text("account_id"),
+  customerId: integer("customer_id").references(() => customerProfiles.id).notNull(),
+  
+  // Memory classification
+  memoryType: text("memory_type").notNull(), // interaction, preference, outcome, summary
+  serviceType: text("service_type"), // mowing, cleanup, mulch, etc.
+  channel: text("channel"), // sms, call, email, in_app, ops_note, system
+  
+  // Importance and sentiment
+  importance: integer("importance").default(3).notNull(), // 1-5 scale
+  sentiment: doublePrecision("sentiment"), // -1.0 to +1.0
+  npsScore: integer("nps_score"), // 0-10
+  
+  // Timing
+  occurredAt: timestamp("occurred_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  
+  // Core content
+  text: text("text").notNull(), // Canonical text to embed
+  
+  // Vector embedding (stored as text array, converted at query time)
+  // We store as JSONB for compatibility; vector search uses raw SQL
+  embeddingJson: jsonb("embedding_json"), // number[] with 1536 dimensions
+  embeddingModel: text("embedding_model"), // e.g., "text-embedding-3-small"
+  
+  // Metadata and provenance
+  tagsJson: jsonb("tags_json").default({}).notNull(),
+  sourceEntityType: text("source_entity_type"), // "CustomerMessage", "JobRequest", etc.
+  sourceEntityId: text("source_entity_id"),
+  
+  // Content hash for idempotency
+  contentHash: text("content_hash"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  customerOccurredIdx: index("customer_memory_customer_occurred_idx").on(table.customerId, table.occurredAt),
+  businessTypeIdx: index("customer_memory_business_type_idx").on(table.businessId, table.memoryType),
+  contentHashIdx: uniqueIndex("customer_memory_content_hash_idx").on(table.contentHash),
+}));
+
+// Relations for customer profiles
+export const customerProfilesRelations = relations(customerProfiles, ({ one, many }) => ({
+  business: one(businessProfiles, {
+    fields: [customerProfiles.businessId],
+    references: [businessProfiles.id],
+  }),
+  conversation: one(conversations, {
+    fields: [customerProfiles.conversationId],
+    references: [conversations.id],
+  }),
+  jobRequest: one(jobRequests, {
+    fields: [customerProfiles.jobRequestId],
+    references: [jobRequests.id],
+  }),
+  memories: many(customerMemories),
+}));
+
+export const customerMemoriesRelations = relations(customerMemories, ({ one }) => ({
+  business: one(businessProfiles, {
+    fields: [customerMemories.businessId],
+    references: [businessProfiles.id],
+  }),
+  customer: one(customerProfiles, {
+    fields: [customerMemories.customerId],
+    references: [customerProfiles.id],
+  }),
+}));
+
+// Insert schemas for Customer Memory
+export const insertCustomerProfileSchema = createInsertSchema(customerProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCustomerMemorySchema = createInsertSchema(customerMemories).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types for Customer Memory
+export type CustomerProfile = typeof customerProfiles.$inferSelect;
+export type InsertCustomerProfile = z.infer<typeof insertCustomerProfileSchema>;
+
+export type CustomerMemory = typeof customerMemories.$inferSelect;
+export type InsertCustomerMemory = z.infer<typeof insertCustomerMemorySchema>;
+
+// API input schemas for memory operations
+export const memoryUpsertInputSchema = z.object({
+  customer: z.object({
+    name: z.string().min(1),
+    phone: z.string().min(1),
+    email: z.string().email().optional(),
+    address: z.string().optional(),
+  }),
+  memory: z.object({
+    memoryType: memoryTypeEnum,
+    serviceType: z.string().optional(),
+    channel: memoryChannelEnum.optional(),
+    importance: z.number().min(1).max(5).optional(),
+    sentiment: z.number().min(-1).max(1).optional(),
+    npsScore: z.number().min(0).max(10).optional(),
+    occurredAt: z.string().datetime().optional(),
+    text: z.string().min(1),
+    tagsJson: z.record(z.unknown()).optional(),
+    sourceEntityType: z.string().optional(),
+    sourceEntityId: z.string().optional(),
+  }),
+});
+
+export const memorySearchInputSchema = z.object({
+  customerId: z.number().optional(),
+  queryText: z.string().min(1),
+  limit: z.number().min(1).max(50).default(8),
+  memoryTypes: z.array(memoryTypeEnum).optional(),
+  serviceType: z.string().optional(),
+});
+
+export const customerInsightsSchema = z.object({
+  summary: z.string().optional(),
+  tags: z.array(z.string()).default([]),
+  topMemoryIds: z.array(z.number()).default([]),
+  preferences: z.array(z.string()).default([]),
+  recentIssues: z.array(z.string()).default([]),
+  avgSentiment: z.number().optional(),
+  confidence: z.enum(["high", "medium", "low"]).default("low"),
+});
+
+export type CustomerInsights = z.infer<typeof customerInsightsSchema>;

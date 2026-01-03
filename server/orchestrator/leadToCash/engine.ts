@@ -120,7 +120,7 @@ export async function startOrchestration(
       confidence: "medium",
       primaryEntityType: "job_request",
       primaryEntityId: jobRequestId,
-      contextJson: buildInitialContext(jobRequest),
+      contextJson: await buildContextWithMemory(jobRequest, businessId),
       createdByUserId: userId || null,
     })
     .returning();
@@ -166,6 +166,22 @@ function buildInitialContext(jobRequest: JobRequest): OrchestrationContext {
     zip: jobRequest.zip || undefined,
     lotAreaSqft: jobRequest.lotAreaSqft || undefined,
   };
+}
+
+async function buildContextWithMemory(jobRequest: JobRequest, businessId: number): Promise<OrchestrationContext> {
+  const baseContext = buildInitialContext(jobRequest);
+  
+  try {
+    const { enrichContextWithCustomerInsights } = await import("./memoryHooks");
+    const enrichedContext = await enrichContextWithCustomerInsights(businessId, baseContext);
+    if (enrichedContext.customerId) {
+      log("info", `[Memory] Enriched context with customer ID ${enrichedContext.customerId}`);
+    }
+    return enrichedContext;
+  } catch (error) {
+    log("warn", `[Memory] Failed to enrich context: ${error}`);
+    return baseContext;
+  }
 }
 
 export interface RunNextStepResult {
@@ -671,6 +687,7 @@ async function applyDecision(
   let newStatus: string = run.status;
   let newStage: string = currentStage;
   let lifecycleStatus: string = "open";
+  let memoryOutcome: "success" | "waiting" | "failed" = "waiting";
 
   if (decision.advance) {
     if (decision.nextStage) {
@@ -687,6 +704,7 @@ async function applyDecision(
     } else {
       newStatus = "running";
     }
+    memoryOutcome = "success";
   } else {
     // Check for special cases
     if (decision.waitReason === "customer_response") {
@@ -699,6 +717,7 @@ async function applyDecision(
     if (currentStage === "QUOTE_CONFIRM" && decision.notes?.some(n => n.includes("declined"))) {
       newStatus = "completed";
       lifecycleStatus = "lost";
+      memoryOutcome = "failed";
     }
     
     // Handle loop back to previous stage
@@ -730,6 +749,20 @@ async function applyDecision(
       updatedAt: new Date(),
     })
     .where(eq(jobRequests.id, run.primaryEntityId));
+  
+  // Write memory for key stages (async, non-blocking)
+  const keyStages: OrchestrationStage[] = ["LEAD_INTAKE", "QUOTE_CONFIRM", "SCHEDULE_PROPOSE", "CREW_LOCK", "JOB_BOOKED"];
+  if (keyStages.includes(currentStage)) {
+    try {
+      const { writeMemoryForStage } = await import("./memoryHooks");
+      const memResult = await writeMemoryForStage(run, currentStage, validatedContext, memoryOutcome);
+      if (memResult.memoriesWritten > 0) {
+        log("info", `[Memory] Wrote ${memResult.memoriesWritten} memory(s) for stage ${currentStage}`);
+      }
+    } catch (memError) {
+      log("warn", `[Memory] Failed to write memory for stage ${currentStage}: ${memError}`);
+    }
+  }
 }
 
 // ============================================

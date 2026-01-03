@@ -334,6 +334,19 @@ export const OrchestrationContextSchema = z.object({
   dispatchStatus: z.enum(["queued", "notified", "acknowledged"]).optional(),
   crewLeaderNotified: z.boolean().optional(),
   
+  // ============================================
+  // Customer Memory / Insights
+  // ============================================
+  customerId: z.number().optional(), // Reference to customerProfiles
+  customerInsights: z.object({
+    preferredCrew: z.string().optional(),
+    preferredTimeSlots: z.array(z.string()).optional(),
+    priorServices: z.array(z.string()).optional(),
+    notablePreferences: z.array(z.string()).optional(),
+    communicationStyle: z.string().optional(),
+    lastInteractionSummary: z.string().optional(),
+  }).optional(),
+  
   // External references
   externalJobId: z.string().optional(),
   externalQuoteId: z.string().optional(),

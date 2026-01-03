@@ -54,6 +54,16 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
 - **Reconciliation Worker:** Validates invoice/payment integrity by comparing paid_total against sum of payments. Creates alerts for mismatches >$0.01 variance and handles deposit consistency checks. Updates Jobber RECON_STATUS custom field (NEEDS_REVIEW/OK) and includes a Dead Letter Queue (DLQ) pipeline for failed webhooks with exponential backoff retry.
 - **Customer Comms Worker:** Produces customer-facing messages with strict tone and compliance rules. Uses templates by service category (lawn_maintenance, hardscape, general). Compliance rules: never promise exact arrival unless GPS-driven ETA, always include reschedule options. Writes Jobber-visible log pointer via LAWNFLOW_COMM_LOG custom field. Handles JOB_SCHEDULE_UPDATE (rescheduled) and JOB_COMPLETED events.
 - **Renewal & Upsell Worker:** Weekly scan for clients with completed jobs, computes next-best-offer by service + season + lot size using deterministic rules engine. Creates draft quotes in Jobber. Gated by UPSELL_OPT_IN custom field. Tracks offered packages via LAWNFLOW_LAST_OFFER custom field to prevent duplicates. Includes offer catalog JSON with 15+ seasonal service offers.
+- **Customer Experience Vector Memory:** Semantic search-enabled customer memory system with pgvector integration:
+  - Customer profiles (`customerProfiles` table) with phone-based lookup and tenant-scoped isolation
+  - Customer memories (`customerMemories` table) storing interactions, preferences, outcomes, and summaries
+  - OpenAI embeddings (text-embedding-3-small, 1536 dimensions) with graceful degradation to keyword search
+  - Idempotent memory writes using SHA-256 content hash to prevent duplicates
+  - Memory formatters for structured text generation from interaction/preference/outcome data
+  - Semantic search via cosine similarity with keyword fallback when embeddings unavailable
+  - Orchestrator integration: memories written at key stage completions (LEAD_INTAKE, QUOTE_CONFIRM, SCHEDULE_PROPOSE, CREW_LOCK, JOB_BOOKED)
+  - Context enrichment: returning customers get customerInsights populated (preferred crew, time slots, prior services)
+  - API endpoints: POST /api/memory/upsert, POST /api/memory/search, GET /api/memory/customer, GET /api/memory/customers, GET /api/memory/status
 - **Key Features:** Dashboard with ROI metrics, conversation overview, pending actions for human approval, business profile configuration, event simulator, job tracking, and audit logging.
 
 **System Design Choices:**

@@ -5539,5 +5539,179 @@ Return JSON format:
     }
   });
 
+  // ============================================
+  // Customer Memory API Routes
+  // ============================================
+  const {
+    upsertCustomer,
+    createMemory,
+    getCustomerById,
+    getRecentMemories,
+    listCustomers,
+  } = await import("./memory/storage");
+  const { searchMemories, getCustomerWithMemories } = await import("./memory/search");
+  const { isEmbeddingsAvailable } = await import("./memory/embedder");
+  const {
+    memoryUpsertInputSchema,
+    memorySearchInputSchema,
+  } = await import("@shared/schema");
+
+  // POST /api/memory/upsert - Upsert customer and create memory
+  app.post("/api/memory/upsert", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+
+      const parsed = memoryUpsertInputSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.message });
+      }
+
+      const { customer, memory } = parsed.data;
+
+      const customerResult = await upsertCustomer(profile.id, {
+        name: customer.name,
+        phone: customer.phone,
+        email: customer.email,
+        address: customer.address,
+      });
+
+      const memoryResult = await createMemory({
+        businessId: profile.id,
+        customerId: customerResult.customerId,
+        memoryType: memory.memoryType,
+        serviceType: memory.serviceType,
+        channel: memory.channel,
+        importance: memory.importance,
+        sentiment: memory.sentiment,
+        npsScore: memory.npsScore,
+        occurredAt: memory.occurredAt ? new Date(memory.occurredAt) : undefined,
+        text: memory.text,
+        tagsJson: memory.tagsJson as Record<string, unknown> | undefined,
+        sourceEntityType: memory.sourceEntityType,
+        sourceEntityId: memory.sourceEntityId,
+      });
+
+      res.json({
+        customerId: customerResult.customerId,
+        customerIsNew: customerResult.isNew,
+        memoryId: memoryResult.memoryId,
+        memoryIsNew: memoryResult.isNew,
+        hasEmbedding: memoryResult.hasEmbedding,
+      });
+    } catch (error: any) {
+      console.error("[Memory] Error upserting:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/memory/search - Search customer memories
+  app.post("/api/memory/search", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+
+      const parsed = memorySearchInputSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.message });
+      }
+
+      const { customerId, queryText, limit, memoryTypes, serviceType } = parsed.data;
+
+      const results = await searchMemories({
+        businessId: profile.id,
+        customerId,
+        queryText,
+        limit,
+        memoryTypes,
+        serviceType,
+      });
+
+      res.json({
+        results: results.map(r => ({
+          memory: r.memory,
+          similarity: r.similarity,
+          matchType: r.matchType,
+        })),
+        embeddingsEnabled: isEmbeddingsAvailable(),
+      });
+    } catch (error: any) {
+      console.error("[Memory] Error searching:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/memory/customer - Get customer with memories
+  app.get("/api/memory/customer", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+
+      const customerIdStr = req.query.customerId as string;
+      if (!customerIdStr) {
+        return res.status(400).json({ error: "customerId required" });
+      }
+      const customerId = parseInt(customerIdStr, 10);
+      if (isNaN(customerId) || customerId <= 0) {
+        return res.status(400).json({ error: "customerId must be a valid positive integer" });
+      }
+
+      const data = await getCustomerWithMemories(profile.id, customerId);
+      if (!data.customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+
+      res.json({
+        customer: data.customer,
+        memories: data.memories,
+        preferences: data.preferences,
+        embeddingsEnabled: isEmbeddingsAvailable(),
+      });
+    } catch (error: any) {
+      console.error("[Memory] Error fetching customer:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/memory/customers - List all customers
+  app.get("/api/memory/customers", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+      const search = req.query.search as string | undefined;
+
+      const data = await listCustomers(profile.id, { limit, offset, search });
+
+      res.json({
+        customers: data.customers,
+        total: data.total,
+        limit,
+        offset,
+      });
+    } catch (error: any) {
+      console.error("[Memory] Error listing customers:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/memory/status - Check embeddings status
+  app.get("/api/memory/status", async (_req, res) => {
+    res.json({
+      embeddingsEnabled: isEmbeddingsAvailable(),
+      embeddingsProvider: isEmbeddingsAvailable() ? "openai" : "disabled",
+    });
+  });
+
   return httpServer;
 }
