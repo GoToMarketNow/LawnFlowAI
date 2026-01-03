@@ -13,6 +13,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { GlobalSearch, SearchTrigger } from "@/components/global-search";
 import { ContextualDrawer } from "@/components/contextual-drawer";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { getPageTitle } from "@/lib/ui/nav";
 import { Button } from "@/components/ui/button";
@@ -192,35 +193,37 @@ function AuthenticatedLayout() {
             </div>
           </header>
           <main className="flex-1 overflow-auto bg-background">
-            <div className="max-w-7xl mx-auto">
-              <Switch>
-                <Route path="/" component={Dashboard} />
-                <Route path="/dashboard" component={Dashboard} />
-                <Route path="/inbox" component={InboxPage} />
-                <Route path="/jobs" component={JobsPage} />
-                <Route path="/quotes" component={QuotesPage} />
-                <Route path="/quote-builder" component={QuoteBuilder} />
-                <Route path="/schedule" component={SchedulePage} />
-                <Route path="/customers" component={CustomersPage} />
-                <Route path="/customers/:id" component={ConversationDetailPage} />
-                <Route path="/agents" component={AgentsPage} />
-                <Route path="/agents/:id" component={AgentDetailPage} />
-                <Route path="/settings" component={SettingsPage} />
-                <Route path="/profile" component={BusinessProfilePage} />
-                <Route path="/simulator" component={SimulatorPage} />
-                <Route path="/audit" component={AuditLogPage} />
-                <Route path="/pricing" component={PricingControlCenter} />
-                <Route path="/ops" component={OpsDashboard} />
-                <Route path="/admin/coverage" component={AdminCoveragePage} />
-                <Route path="/conversations" component={ConversationsPage} />
-                <Route path="/conversations/:id" component={ConversationDetailPage} />
-                <Route path="/actions" component={PendingActionsPage} />
-                <Route path="/events" component={EventsFeedPage} />
-                <Route path="/views" component={ViewsPage} />
-                <Route path="/sms" component={SmsSessionsPage} />
-                <Route component={NotFound} />
-              </Switch>
-            </div>
+            <ErrorBoundary>
+              <div className="max-w-7xl mx-auto">
+                <Switch>
+                  <Route path="/" component={Dashboard} />
+                  <Route path="/dashboard" component={Dashboard} />
+                  <Route path="/inbox" component={InboxPage} />
+                  <Route path="/jobs" component={JobsPage} />
+                  <Route path="/quotes" component={QuotesPage} />
+                  <Route path="/quote-builder" component={QuoteBuilder} />
+                  <Route path="/schedule" component={SchedulePage} />
+                  <Route path="/customers" component={CustomersPage} />
+                  <Route path="/customers/:id" component={ConversationDetailPage} />
+                  <Route path="/agents" component={AgentsPage} />
+                  <Route path="/agents/:id" component={AgentDetailPage} />
+                  <Route path="/settings" component={SettingsPage} />
+                  <Route path="/profile" component={BusinessProfilePage} />
+                  <Route path="/simulator" component={SimulatorPage} />
+                  <Route path="/audit" component={AuditLogPage} />
+                  <Route path="/pricing" component={PricingControlCenter} />
+                  <Route path="/ops" component={OpsDashboard} />
+                  <Route path="/admin/coverage" component={AdminCoveragePage} />
+                  <Route path="/conversations" component={ConversationsPage} />
+                  <Route path="/conversations/:id" component={ConversationDetailPage} />
+                  <Route path="/actions" component={PendingActionsPage} />
+                  <Route path="/events" component={EventsFeedPage} />
+                  <Route path="/views" component={ViewsPage} />
+                  <Route path="/sms" component={SmsSessionsPage} />
+                  <Route component={NotFound} />
+                </Switch>
+              </div>
+            </ErrorBoundary>
           </main>
         </div>
       </div>
