@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth-context";
@@ -138,6 +138,8 @@ export default function InboxPage() {
   const [selectedItem, setSelectedItem] = useState<InboxItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [requestInfoMessage, setRequestInfoMessage] = useState("");
+  const [focusedIndex, setFocusedIndex] = useState<number>(-1);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const buildQueryParams = () => {
     const params = new URLSearchParams();
@@ -223,6 +225,54 @@ export default function InboxPage() {
     resolveMutation.mutate({ itemId: item.id, action: "retry" });
   };
 
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (drawerOpen) return;
+    
+    const itemCount = items.length;
+    if (itemCount === 0) return;
+
+    switch (e.key) {
+      case "ArrowDown":
+      case "j":
+        e.preventDefault();
+        setFocusedIndex(prev => Math.min(prev + 1, itemCount - 1));
+        break;
+      case "ArrowUp":
+      case "k":
+        e.preventDefault();
+        setFocusedIndex(prev => Math.max(prev - 1, 0));
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (focusedIndex >= 0 && focusedIndex < itemCount) {
+          handleItemClick(items[focusedIndex]);
+        }
+        break;
+      case "a":
+        e.preventDefault();
+        if (focusedIndex >= 0 && focusedIndex < itemCount && !e.metaKey && !e.ctrlKey) {
+          handleApprove(items[focusedIndex]);
+        }
+        break;
+      case "Escape":
+        e.preventDefault();
+        setFocusedIndex(-1);
+        break;
+    }
+  }, [items, focusedIndex, drawerOpen]);
+
+  useEffect(() => {
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+
+  useEffect(() => {
+    if (focusedIndex >= 0 && listRef.current) {
+      const focusedElement = listRef.current.querySelector(`[data-index="${focusedIndex}"]`);
+      focusedElement?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [focusedIndex]);
+
   const formatTimeWaiting = (createdAt: string) => {
     return formatDistanceToNow(new Date(createdAt), { addSuffix: true });
   };
@@ -251,13 +301,21 @@ export default function InboxPage() {
   const urgentCount = items.filter(i => i.priority === "urgent").length;
   const warningCount = items.filter(i => i.priority === "warning").length;
 
-  const InboxItemCard = ({ item }: { item: InboxItem }) => {
+  const InboxItemCard = ({ item, index }: { item: InboxItem; index: number }) => {
     const Icon = typeIcons[item.type] || FileText;
+    const isFocused = focusedIndex === index;
 
     return (
       <div
-        className="flex items-center gap-4 p-4 border-b hover-elevate cursor-pointer"
+        className={`flex items-center gap-4 p-4 border-b hover-elevate cursor-pointer transition-colors ${
+          isFocused ? "bg-accent/50 ring-2 ring-primary/30 ring-inset" : ""
+        }`}
         onClick={() => handleItemClick(item)}
+        onFocus={() => setFocusedIndex(index)}
+        tabIndex={0}
+        role="button"
+        aria-label={`${item.title} - ${item.priority} priority`}
+        data-index={index}
         data-testid={`inbox-item-${item.id}`}
       >
         <div className={`p-2 rounded-md ${priorityColors[item.priority]}`}>
@@ -584,9 +642,9 @@ export default function InboxPage() {
     }
 
     return (
-      <div>
-        {items.map((item) => (
-          <InboxItemCard key={item.id} item={item} />
+      <div ref={listRef} role="list" aria-label="Inbox items">
+        {items.map((item, index) => (
+          <InboxItemCard key={item.id} item={item} index={index} />
         ))}
       </div>
     );
