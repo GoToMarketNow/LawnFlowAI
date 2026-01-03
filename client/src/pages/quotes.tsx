@@ -191,13 +191,20 @@ export default function QuotesPage() {
   const approveQuoteMutation = useMutation({
     mutationFn: async (quoteId: number) => {
       const res = await apiRequest("POST", `/api/quotes/${quoteId}/approve`);
+      if (!res.ok) {
+        if (res.status === 403) {
+          throw new Error("Only owners can approve quotes");
+        }
+        throw new Error("Failed to approve quote");
+      }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, quoteId) => {
       toast({ title: "Quote approved" });
       queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes", quoteId, "detail"] });
       queryClient.invalidateQueries({ queryKey: ["/api/ops/inbox"] });
-      setDrawerOpen(false);
+      setSelectedQuote(prev => prev ? { ...prev, status: "draft" } : null);
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -207,12 +214,16 @@ export default function QuotesPage() {
   const sendQuoteMutation = useMutation({
     mutationFn: async (quoteId: number) => {
       const res = await apiRequest("POST", `/api/quotes/${quoteId}/send`);
+      if (!res.ok) {
+        throw new Error("Failed to send quote");
+      }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, quoteId) => {
       toast({ title: "Quote sent to customer" });
       queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
-      setDrawerOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes", quoteId, "detail"] });
+      setSelectedQuote(prev => prev ? { ...prev, status: "sent" } : null);
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
