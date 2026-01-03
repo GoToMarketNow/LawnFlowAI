@@ -2179,6 +2179,215 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // JobRequest Seed Endpoint (MVP Demo Data)
+  // Creates 8 clustered JobRequests around Charlottesville area
+  // ============================================
+
+  app.post("/api/seed/job-requests", async (req, res) => {
+    try {
+      const { jobRequests, businessProfiles } = await import("@shared/schema");
+      const { db } = await import("./db");
+
+      // Get the business profile
+      const [profile] = await db.select().from(businessProfiles).limit(1);
+      if (!profile) {
+        return res.status(404).json({ error: "No business profile found" });
+      }
+
+      // Charlottesville area clusters with coordinates
+      const CLUSTERS = {
+        cville_north: { center: { lat: 38.0550, lng: -78.4700 }, jitter: 0.015 },
+        cville_uva: { center: { lat: 38.0336, lng: -78.5080 }, jitter: 0.012 },
+        cville_east: { center: { lat: 38.0300, lng: -78.4400 }, jitter: 0.010 },
+        hollymead: { center: { lat: 38.1100, lng: -78.4500 }, jitter: 0.020 },
+        crozet: { center: { lat: 38.0700, lng: -78.7000 }, jitter: 0.025 },
+        scottsville: { center: { lat: 37.8000, lng: -78.4900 }, jitter: 0.020 },
+        stanardsville: { center: { lat: 38.3000, lng: -78.4400 }, jitter: 0.015 },
+        ruckersville: { center: { lat: 38.2300, lng: -78.3700 }, jitter: 0.018 },
+      };
+
+      type ClusterKey = keyof typeof CLUSTERS;
+      type Service = "mowing" | "edging" | "blowing" | "cleanup" | "shrub_trim" | "mulch";
+
+      const SERVICE_SETS: Array<{
+        services: Service[];
+        frequency: string;
+        lotSqft: number | null;
+        lotConfidence: string;
+      }> = [
+        { services: ["mowing", "edging", "blowing"], frequency: "weekly", lotSqft: 6500, lotConfidence: "high" },
+        { services: ["mowing", "edging"], frequency: "weekly", lotSqft: 16000, lotConfidence: "high" },
+        { services: ["mowing"], frequency: "biweekly", lotSqft: 22000, lotConfidence: "medium" },
+        { services: ["mowing", "blowing"], frequency: "weekly", lotSqft: 9000, lotConfidence: "high" },
+        { services: ["cleanup"], frequency: "one_time", lotSqft: 20000, lotConfidence: "low" },
+        { services: ["shrub_trim"], frequency: "one_time", lotSqft: 14000, lotConfidence: "low" },
+        { services: ["mulch"], frequency: "one_time", lotSqft: 25000, lotConfidence: "medium" },
+        { services: ["mowing", "cleanup"], frequency: "monthly", lotSqft: 52000, lotConfidence: "medium" },
+      ];
+
+      function deriveRequirements(services: Service[], lotSqft: number | null) {
+        const requiredSkills = new Set<string>();
+        const requiredEquipment = new Set<string>();
+        let crewSizeMin = 1;
+
+        const has = (s: Service) => services.includes(s);
+
+        if (has("mowing")) {
+          requiredSkills.add("mow");
+          requiredEquipment.add("mower");
+          if (lotSqft && lotSqft > 30000) requiredEquipment.add("rider_mower");
+        }
+        if (has("edging")) {
+          requiredSkills.add("trim");
+          requiredEquipment.add("edger_or_trimmer");
+        }
+        if (has("blowing")) {
+          requiredSkills.add("cleanup");
+          requiredEquipment.add("blower");
+        }
+        if (has("cleanup")) {
+          requiredSkills.add("cleanup");
+          requiredEquipment.add("blower");
+          requiredEquipment.add("trailer");
+          crewSizeMin = Math.max(crewSizeMin, 2);
+        }
+        if (has("shrub_trim")) {
+          requiredSkills.add("shrub_trim");
+          requiredEquipment.add("hedge_trimmer");
+          crewSizeMin = Math.max(crewSizeMin, 2);
+        }
+        if (has("mulch")) {
+          requiredSkills.add("mulch");
+          requiredEquipment.add("trailer");
+          crewSizeMin = Math.max(crewSizeMin, 2);
+        }
+
+        const band =
+          lotSqft == null
+            ? "unknown"
+            : lotSqft <= 10000
+            ? "small"
+            : lotSqft <= 20000
+            ? "medium"
+            : lotSqft <= 43560
+            ? "large"
+            : "xlarge";
+
+        const base = {
+          small: { low: 35, high: 55 },
+          medium: { low: 50, high: 80 },
+          large: { low: 70, high: 110 },
+          xlarge: { low: 95, high: 160 },
+          unknown: { low: 60, high: 130 },
+        }[band];
+
+        let extraLow = 0;
+        let extraHigh = 0;
+        if (has("cleanup")) { extraLow += 40; extraHigh += 90; }
+        if (has("shrub_trim")) { extraLow += 25; extraHigh += 70; }
+        if (has("mulch")) { extraLow += 60; extraHigh += 140; }
+
+        return {
+          requiredSkills: [...requiredSkills],
+          requiredEquipment: [...requiredEquipment],
+          crewSizeMin,
+          laborLowMinutes: base.low + extraLow,
+          laborHighMinutes: base.high + extraHigh,
+        };
+      }
+
+      function clusterToZip(clusterKey: ClusterKey): string {
+        const zipMap: Record<ClusterKey, string> = {
+          cville_north: "22901",
+          cville_uva: "22903",
+          cville_east: "22911",
+          crozet: "22932",
+          scottsville: "24590",
+          hollymead: "22911",
+          stanardsville: "22973",
+          ruckersville: "22968",
+        };
+        return zipMap[clusterKey] || "22901";
+      }
+
+      const clusterKeys: ClusterKey[] = [
+        "cville_north", "cville_uva", "cville_east", "hollymead",
+        "crozet", "scottsville", "stanardsville", "ruckersville",
+      ];
+
+      const fakeNames = [
+        "Jamie Parker", "Casey Nguyen", "Taylor Reed", "Morgan Hill",
+        "Jordan Patel", "Riley Chen", "Avery Brooks", "Sam Wilson",
+      ];
+
+      const streets = ["Oak", "Maple", "Pine", "Cedar", "Ridge", "Park", "Grove", "Hill"];
+      const suffixes = ["St", "Ave", "Rd", "Ln", "Dr", "Ct"];
+      const phoneBase = 4345550200;
+
+      let created = 0;
+      for (let i = 0; i < 8; i++) {
+        const profile_data = SERVICE_SETS[i];
+        const clusterKey = clusterKeys[i % clusterKeys.length];
+        const cluster = CLUSTERS[clusterKey];
+        
+        // Jitter the coordinates
+        const lat = cluster.center.lat + (Math.random() - 0.5) * cluster.jitter * 2;
+        const lng = cluster.center.lng + (Math.random() - 0.5) * cluster.jitter * 2;
+        const zip = clusterToZip(clusterKey);
+
+        const req = deriveRequirements(profile_data.services, profile_data.lotSqft);
+
+        const addressNum = 120 + Math.floor(Math.random() * 850);
+        const street = streets[Math.floor(Math.random() * streets.length)];
+        const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+
+        const locality =
+          clusterKey === "crozet" ? "Crozet, VA"
+          : clusterKey === "scottsville" ? "Scottsville, VA"
+          : clusterKey === "stanardsville" ? "Stanardsville, VA"
+          : clusterKey === "ruckersville" ? "Ruckersville, VA"
+          : "Charlottesville, VA";
+
+        try {
+          await db.insert(jobRequests).values({
+            businessId: profile.id,
+            customerName: fakeNames[i],
+            customerPhone: `+1${phoneBase + i}`,
+            address: `${addressNum} ${street} ${suffix}, ${locality} ${zip}`,
+            lat,
+            lng,
+            zip,
+            servicesJson: profile_data.services,
+            frequency: profile_data.frequency,
+            lotAreaSqft: profile_data.lotSqft,
+            lotConfidence: profile_data.lotConfidence,
+            requiredSkillsJson: req.requiredSkills,
+            requiredEquipmentJson: req.requiredEquipment,
+            crewSizeMin: req.crewSizeMin,
+            laborLowMinutes: req.laborLowMinutes,
+            laborHighMinutes: req.laborHighMinutes,
+            status: "new",
+          });
+          created++;
+        } catch (e) {
+          console.log(`[Seed] JobRequest ${i} already exists or error:`, e);
+        }
+      }
+
+      console.log(`[Seed] Created ${created} clustered JobRequests for simulations`);
+
+      res.json({
+        success: true,
+        message: `Created ${created} clustered JobRequests`,
+        jobRequestsCreated: created,
+      });
+    } catch (error) {
+      console.error("[Seed] JobRequest error:", error);
+      res.status(500).json({ error: "Failed to seed job requests" });
+    }
+  });
+
+  // ============================================
   // Policy Profile Routes
   // ============================================
 
