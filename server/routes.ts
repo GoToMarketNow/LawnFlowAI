@@ -1633,21 +1633,37 @@ export async function registerRoutes(
       const jobs = await storage.getJobs();
       const quotes = jobs
         .filter((job) => job.estimatedPrice && job.estimatedPrice > 0)
-        .map((job) => ({
-          id: job.id,
-          customerName: job.customerName || "Unknown Customer",
-          customerPhone: job.customerPhone,
-          amount: job.estimatedPrice || 0,
-          status: job.status === "scheduled" || job.status === "completed" 
-            ? "accepted" 
-            : job.quoteApproved 
-              ? "accepted" 
-              : "draft",
-          services: job.services || [],
-          createdAt: job.createdAt,
-          sentAt: null,
-          expiresAt: null,
-        }));
+        .map((job) => {
+          let status: string = "draft";
+          if (job.status === "scheduled" || job.status === "completed") {
+            status = "accepted";
+          } else if ((job as any).quoteSentAt) {
+            status = (job as any).quoteApproved ? "accepted" : "sent";
+          } else if ((job as any).quoteNeedsApproval && !(job as any).quoteApproved) {
+            status = "awaiting_approval";
+          } else if ((job as any).quoteApproved) {
+            status = "draft";
+          }
+          
+          return {
+            id: job.id,
+            customerName: job.customerName || "Unknown Customer",
+            customerPhone: job.customerPhone,
+            customerAddress: job.address,
+            amount: job.estimatedPrice || 0,
+            amountLow: (job as any).estimatedPriceLow,
+            amountHigh: (job as any).estimatedPriceHigh,
+            status,
+            services: job.services || [],
+            frequency: (job as any).frequency,
+            lotSize: (job as any).lotSizeSqft,
+            confidence: (job as any).confidence,
+            createdAt: job.createdAt,
+            sentAt: (job as any).quoteSentAt,
+            approvedAt: (job as any).quoteApprovedAt,
+            expiresAt: null,
+          };
+        });
       res.json({ quotes });
     } catch (error) {
       console.error("Error fetching quotes:", error);
@@ -1658,10 +1674,194 @@ export async function registerRoutes(
   app.post("/api/quotes/:id/send", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      const job = await storage.getJob(id);
+      if (!job) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+      await storage.updateJob(id, { quoteSentAt: new Date() });
       res.json({ success: true, message: "Quote sent successfully" });
     } catch (error) {
       console.error("Error sending quote:", error);
       res.status(500).json({ error: "Failed to send quote" });
+    }
+  });
+
+  app.post("/api/quotes/:id/approve", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const user = (req as any).user;
+      
+      if (!user || (user.role !== "owner" && user.role !== "admin")) {
+        return res.status(403).json({ error: "Only owners/admins can approve quotes" });
+      }
+      
+      const job = await storage.getJob(id);
+      if (!job) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+      
+      await storage.updateJob(id, { 
+        quoteApproved: true,
+        quoteApprovedAt: new Date(),
+        quoteApprovedByUserId: user.id,
+      });
+      
+      res.json({ success: true, message: "Quote approved" });
+    } catch (error) {
+      console.error("Error approving quote:", error);
+      res.status(500).json({ error: "Failed to approve quote" });
+    }
+  });
+
+  app.get("/api/quotes/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const job = await storage.getJob(id);
+      if (!job) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+      
+      const quote = {
+        id: job.id,
+        customerName: job.customerName || "Unknown Customer",
+        customerPhone: job.customerPhone,
+        customerAddress: job.address,
+        amount: job.estimatedPrice || 0,
+        amountLow: job.estimatedPriceLow,
+        amountHigh: job.estimatedPriceHigh,
+        status: job.quoteSentAt 
+          ? (job.quoteApproved ? "accepted" : "sent")
+          : (job.quoteApproved ? "draft" : (job.quoteNeedsApproval ? "awaiting_approval" : "draft")),
+        services: job.services || [],
+        frequency: job.frequency,
+        lotSize: job.lotSizeSqft,
+        assumptions: job.assumptions || [],
+        customerMessage: job.customerMessagePreview,
+        confidence: job.confidence,
+        createdAt: job.createdAt,
+        createdByUserId: job.createdByUserId,
+        sentAt: job.quoteSentAt,
+        approvedAt: job.quoteApprovedAt,
+        approvedByUserId: job.quoteApprovedByUserId,
+        auditTrail: [
+          { id: 1, action: "Quote Created", createdAt: job.createdAt },
+          ...(job.quoteApprovedAt ? [{ id: 2, action: "Quote Approved", createdAt: job.quoteApprovedAt }] : []),
+          ...(job.quoteSentAt ? [{ id: 3, action: "Quote Sent", createdAt: job.quoteSentAt }] : []),
+        ],
+      };
+      
+      res.json(quote);
+    } catch (error) {
+      console.error("Error fetching quote:", error);
+      res.status(500).json({ error: "Failed to fetch quote" });
+    }
+  });
+
+  app.post("/api/quotes/quick", async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const { customerName, customerPhone, customerAddress, services, frequency, propertySize, notes } = req.body;
+      
+      if (!customerName) {
+        return res.status(400).json({ error: "Customer name is required" });
+      }
+      if (!services || services.length === 0) {
+        return res.status(400).json({ error: "At least one service is required" });
+      }
+
+      const isOwnerOrAdmin = user?.role === "owner" || user?.role === "admin";
+      
+      const lotSizeMap: Record<string, number> = {
+        xs: 3000,
+        small: 7500,
+        medium: 15000,
+        large: 30000,
+        xl: 35000,
+        xxl: 60000,
+        unknown: 10000,
+      };
+      const lotSizeSqft = lotSizeMap[propertySize] || 10000;
+      
+      const baseMinutes: Record<string, number> = {
+        mowing: 30,
+        cleanup: 60,
+        mulch: 90,
+        landscaping: 120,
+        irrigation: 45,
+        trimming: 30,
+        other: 45,
+      };
+      
+      const hourlyRate = 60;
+      let totalMinutesLow = 0;
+      let totalMinutesHigh = 0;
+      
+      for (const service of services) {
+        const base = baseMinutes[service] || 45;
+        const sizeMultiplier = lotSizeSqft / 10000;
+        totalMinutesLow += base * sizeMultiplier * 0.8;
+        totalMinutesHigh += base * sizeMultiplier * 1.3;
+      }
+      
+      const frequencyMultipliers: Record<string, number> = {
+        weekly: 0.85,
+        biweekly: 0.95,
+        monthly: 1.0,
+        one_time: 1.15,
+      };
+      const freqMult = frequencyMultipliers[frequency] || 1.0;
+      
+      const priceLow = Math.round((totalMinutesLow / 60) * hourlyRate * freqMult * 100);
+      const priceHigh = Math.round((totalMinutesHigh / 60) * hourlyRate * freqMult * 100);
+      const priceAvg = Math.round((priceLow + priceHigh) / 2);
+      
+      const job = await storage.createJob({
+        customerName,
+        customerPhone: customerPhone || null,
+        address: customerAddress || null,
+        services,
+        frequency: frequency || "one_time",
+        lotSizeSqft,
+        estimatedPrice: priceAvg,
+        estimatedPriceLow: priceLow,
+        estimatedPriceHigh: priceHigh,
+        status: "pending",
+        quoteNeedsApproval: !isOwnerOrAdmin,
+        quoteApproved: isOwnerOrAdmin,
+        createdByUserId: user?.id,
+        notes: notes || null,
+        confidence: propertySize === "unknown" ? "medium" : "high",
+        assumptions: propertySize === "unknown" 
+          ? ["Lot size estimated based on typical residential property"]
+          : [],
+      });
+      
+      if (!isOwnerOrAdmin) {
+        await storage.createPendingAction({
+          type: "quote_approval",
+          stage: "QUOTE_BUILD",
+          description: `New quote for ${customerName} requires approval`,
+          context: { jobId: job.id, amount: priceAvg, services },
+          status: "pending",
+        });
+      }
+      
+      res.json({ 
+        success: true, 
+        quote: {
+          id: job.id,
+          customerName,
+          amount: priceAvg,
+          amountLow: priceLow,
+          amountHigh: priceHigh,
+          status: isOwnerOrAdmin ? "draft" : "awaiting_approval",
+          services,
+        },
+        message: isOwnerOrAdmin ? "Quote created" : "Quote submitted for approval",
+      });
+    } catch (error) {
+      console.error("Error creating quick quote:", error);
+      res.status(500).json({ error: "Failed to create quote" });
     }
   });
 
