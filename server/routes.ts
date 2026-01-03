@@ -1465,6 +1465,47 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // Quotes Routes (stub)
+  // ============================================
+
+  app.get("/api/quotes", async (req, res) => {
+    try {
+      const jobs = await storage.getJobs();
+      const quotes = jobs
+        .filter((job) => job.estimatedPrice && job.estimatedPrice > 0)
+        .map((job) => ({
+          id: job.id,
+          customerName: job.customerName || "Unknown Customer",
+          customerPhone: job.customerPhone,
+          amount: job.estimatedPrice || 0,
+          status: job.status === "scheduled" || job.status === "completed" 
+            ? "accepted" 
+            : job.quoteApproved 
+              ? "accepted" 
+              : "draft",
+          services: job.services || [],
+          createdAt: job.createdAt,
+          sentAt: null,
+          expiresAt: null,
+        }));
+      res.json({ quotes });
+    } catch (error) {
+      console.error("Error fetching quotes:", error);
+      res.status(500).json({ error: "Failed to fetch quotes" });
+    }
+  });
+
+  app.post("/api/quotes/:id/send", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      res.json({ success: true, message: "Quote sent successfully" });
+    } catch (error) {
+      console.error("Error sending quote:", error);
+      res.status(500).json({ error: "Failed to send quote" });
+    }
+  });
+
+  // ============================================
   // Events Routes
   // ============================================
 

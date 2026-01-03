@@ -1,17 +1,15 @@
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
-  User,
-  Zap,
+  Inbox,
+  Briefcase,
   FileText,
-  Radio,
-  Settings,
-  CreditCard,
-  MapPin,
+  Calendar,
+  Users,
   Bot,
-  LayoutGrid,
-  DollarSign,
-  Mic,
+  Settings,
+  Zap,
 } from "lucide-react";
 import {
   Sidebar,
@@ -24,104 +22,40 @@ import {
   SidebarMenuItem,
   SidebarHeader,
   SidebarFooter,
+  SidebarMenuBadge,
 } from "@/components/ui/sidebar";
+import { useUserRole } from "@/components/role-gate";
+import { navigation, type UserRole } from "@/lib/ui/tokens";
+import { Badge } from "@/components/ui/badge";
+
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  LayoutDashboard,
+  Inbox,
+  Briefcase,
+  FileText,
+  Calendar,
+  Users,
+  Bot,
+  Settings,
+};
 
 interface AppSidebarProps {
   isOnboardingComplete: boolean;
 }
 
-const primaryNavItems = [
-  {
-    title: "Dashboard",
-    url: "/",
-    icon: LayoutDashboard,
-    requiresOnboarding: false,
-  },
-  {
-    title: "My Profile",
-    url: "/profile",
-    icon: User,
-    requiresOnboarding: false,
-  },
-];
-
-const operationsItems = [
-  {
-    title: "Ops Dashboard",
-    url: "/ops",
-    icon: LayoutGrid,
-    requiresOnboarding: true,
-  },
-  {
-    title: "Communications",
-    url: "/events",
-    icon: Radio,
-    requiresOnboarding: true,
-  },
-  {
-    title: "Quote Builder",
-    url: "/quote-builder",
-    icon: Mic,
-    requiresOnboarding: true,
-  },
-  {
-    title: "Pricing",
-    url: "/pricing",
-    icon: DollarSign,
-    requiresOnboarding: true,
-  },
-  {
-    title: "Agents",
-    url: "/agents",
-    icon: Bot,
-    requiresOnboarding: true,
-  },
-  {
-    title: "Views",
-    url: "/views",
-    icon: LayoutGrid,
-    requiresOnboarding: true,
-  },
-];
-
-const settingsItems = [
-  {
-    title: "Event Simulator",
-    url: "/simulator",
-    icon: Zap,
-    requiresOnboarding: true,
-  },
-  {
-    title: "Audit Log",
-    url: "/audit",
-    icon: FileText,
-    requiresOnboarding: true,
-  },
-  {
-    title: "Coverage Admin",
-    url: "/admin/coverage",
-    icon: MapPin,
-    requiresOnboarding: false,
-  },
-];
-
-const placeholderItems = [
-  {
-    title: "Settings",
-    url: "#",
-    icon: Settings,
-    placeholder: true,
-  },
-  {
-    title: "Billing",
-    url: "#",
-    icon: CreditCard,
-    placeholder: true,
-  },
-];
-
 export function AppSidebar({ isOnboardingComplete }: AppSidebarProps) {
   const [location] = useLocation();
+  const userRole = useUserRole();
+  
+  const { data: pendingActions } = useQuery<any[]>({
+    queryKey: ["/api/pending-actions"],
+    staleTime: 30000,
+    refetchInterval: 60000,
+  });
+  
+  const pendingCount = Array.isArray(pendingActions) 
+    ? pendingActions.filter(a => a.status === 'pending').length 
+    : 0;
 
   const isActive = (url: string) => {
     if (url === "/") {
@@ -129,6 +63,17 @@ export function AppSidebar({ isOnboardingComplete }: AppSidebarProps) {
     }
     return location === url || location.startsWith(url + "/");
   };
+
+  const canAccess = (roles: UserRole[]) => {
+    return roles.includes(userRole);
+  };
+
+  const filteredNavigation = navigation
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => canAccess(item.roles)),
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <Sidebar aria-label="Primary">
@@ -149,117 +94,68 @@ export function AppSidebar({ isOnboardingComplete }: AppSidebarProps) {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {primaryNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url)}
-                  >
-                    <Link
-                      href={item.url}
-                      data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Operations</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {operationsItems.map((item) => {
-                const disabled = item.requiresOnboarding && !isOnboardingComplete;
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive(item.url)}
-                      disabled={disabled}
-                      className={disabled ? "opacity-50 cursor-not-allowed" : ""}
-                    >
-                      {disabled ? (
-                        <span className="flex items-center gap-2">
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </span>
-                      ) : (
-                        <Link
-                          href={item.url}
-                          data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
-                        >
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </Link>
-                      )}
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Tools</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {settingsItems.map((item) => {
-                const disabled = item.requiresOnboarding && !isOnboardingComplete;
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive(item.url)}
-                      disabled={disabled}
-                      className={disabled ? "opacity-50 cursor-not-allowed" : ""}
-                    >
-                      {disabled ? (
-                        <span className="flex items-center gap-2">
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </span>
-                      ) : (
-                        <Link
-                          href={item.url}
-                          data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
-                        >
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </Link>
-                      )}
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-              {placeholderItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild={false}
-                    disabled
-                    className="opacity-50 cursor-not-allowed"
-                  >
-                    <item.icon className="h-4 w-4" />
-                    <span>{item.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {filteredNavigation.map((group) => (
+          <SidebarGroup key={group.id}>
+            {group.label !== "Core" && (
+              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            )}
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => {
+                  const Icon = iconMap[item.icon] || LayoutDashboard;
+                  const disabled = !isOnboardingComplete && item.id !== "dashboard";
+                  const showBadge = item.badge === "count" && pendingCount > 0;
+                  
+                  return (
+                    <SidebarMenuItem key={item.id}>
+                      <SidebarMenuButton
+                        asChild={!disabled}
+                        isActive={isActive(item.href)}
+                        disabled={disabled}
+                        className={disabled ? "opacity-50 cursor-not-allowed" : ""}
+                      >
+                        {disabled ? (
+                          <span className="flex items-center gap-2">
+                            <Icon className="h-4 w-4" />
+                            <span>{item.label}</span>
+                          </span>
+                        ) : (
+                          <Link
+                            href={item.href}
+                            data-testid={`link-nav-${item.id}`}
+                          >
+                            <Icon className="h-4 w-4" />
+                            <span>{item.label}</span>
+                            {showBadge && (
+                              <SidebarMenuBadge>
+                                <Badge 
+                                  variant="destructive" 
+                                  className="h-5 min-w-5 flex items-center justify-center text-xs px-1.5"
+                                >
+                                  {pendingCount > 99 ? "99+" : pendingCount}
+                                </Badge>
+                              </SidebarMenuBadge>
+                            )}
+                          </Link>
+                        )}
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">
-        <div className="text-xs text-muted-foreground">
-          MVP v1.0
+        <div className="flex items-center justify-between">
+          <div className="text-xs text-muted-foreground">
+            MVP v1.0
+          </div>
+          <Badge variant="outline" className="text-xs">
+            {userRole}
+          </Badge>
         </div>
       </SidebarFooter>
     </Sidebar>

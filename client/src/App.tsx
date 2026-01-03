@@ -10,6 +10,7 @@ import { UserMenu } from "@/components/user-menu";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import Dashboard from "@/pages/dashboard";
+import InboxPage from "@/pages/inbox";
 import ConversationsPage from "@/pages/conversations";
 import ConversationDetailPage from "@/pages/conversation-detail";
 import PendingActionsPage from "@/pages/pending-actions";
@@ -29,7 +30,11 @@ import ViewsPage from "@/pages/views";
 import SmsSessionsPage from "@/pages/sms-sessions";
 import PricingControlCenter from "@/pages/pricing-control-center";
 import QuoteBuilder from "@/pages/quote-builder";
+import QuotesPage from "@/pages/quotes";
 import OpsDashboard from "@/pages/ops-dashboard";
+import SchedulePage from "@/pages/schedule";
+import CustomersPage from "@/pages/customers";
+import SettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 import { Loader2, AlertCircle } from "lucide-react";
 
@@ -106,22 +111,28 @@ function AuthenticatedLayout() {
             <Switch>
               <Route path="/" component={Dashboard} />
               <Route path="/dashboard" component={Dashboard} />
+              <Route path="/inbox" component={InboxPage} />
+              <Route path="/jobs" component={JobsPage} />
+              <Route path="/quotes" component={QuotesPage} />
+              <Route path="/quote-builder" component={QuoteBuilder} />
+              <Route path="/schedule" component={SchedulePage} />
+              <Route path="/customers" component={CustomersPage} />
+              <Route path="/customers/:id" component={ConversationDetailPage} />
+              <Route path="/agents" component={AgentsPage} />
+              <Route path="/agents/:id" component={AgentDetailPage} />
+              <Route path="/settings" component={SettingsPage} />
+              <Route path="/profile" component={BusinessProfilePage} />
+              <Route path="/simulator" component={SimulatorPage} />
+              <Route path="/audit" component={AuditLogPage} />
+              <Route path="/pricing" component={PricingControlCenter} />
+              <Route path="/ops" component={OpsDashboard} />
+              <Route path="/admin/coverage" component={AdminCoveragePage} />
               <Route path="/conversations" component={ConversationsPage} />
               <Route path="/conversations/:id" component={ConversationDetailPage} />
               <Route path="/actions" component={PendingActionsPage} />
-              <Route path="/profile" component={BusinessProfilePage} />
-              <Route path="/simulator" component={SimulatorPage} />
-              <Route path="/jobs" component={JobsPage} />
-              <Route path="/audit" component={AuditLogPage} />
               <Route path="/events" component={EventsFeedPage} />
-              <Route path="/agents" component={AgentsPage} />
-              <Route path="/agents/:id" component={AgentDetailPage} />
               <Route path="/views" component={ViewsPage} />
               <Route path="/sms" component={SmsSessionsPage} />
-              <Route path="/pricing" component={PricingControlCenter} />
-              <Route path="/quote-builder" component={QuoteBuilder} />
-              <Route path="/ops" component={OpsDashboard} />
-              <Route path="/admin/coverage" component={AdminCoveragePage} />
               <Route component={NotFound} />
             </Switch>
           </main>

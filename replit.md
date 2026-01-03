@@ -12,11 +12,16 @@ LawnFlow AI is an MVP agentic add-on designed for landscaping and lawn care busi
 The system is built on a React + Vite frontend with Shadcn UI, an Express.js and TypeScript backend, and a PostgreSQL database utilizing Drizzle ORM. AI capabilities are powered by OpenAI via Replit AI Integrations.
 
 **UI/UX Decisions:**
-- Persistent navigation featuring Dashboard and My Profile.
-- User authentication with session management and auth-aware routing.
-- Mobile-responsive navigation.
-- Onboarding-aware navigation that gates features until setup is complete.
-- Interactive Service Area Builder with Google Maps integration.
+- Role-based navigation (OWNER/ADMIN, CREW_LEAD, STAFF) with conditional visibility
+- Unified Inbox for all pending approvals with SLA indicators (urgent/warning/normal)
+- Design tokens system (`client/src/lib/ui/tokens.ts`) for consistent styling
+- Agent lifecycle phases: Lead → Quote → Confirm → Schedule → Assign → Book → Post-job
+- Desktop-first responsive design with green primary color (142 76% 36%)
+- Key pages: Dashboard, Inbox, Jobs, Quotes, Schedule, Customers, Agents, Settings
+- RoleGate component for role-based conditional rendering
+- User authentication with session management and auth-aware routing
+- Onboarding-aware navigation that gates features until setup is complete
+- Interactive Service Area Builder with Google Maps integration
 
 **Technical Implementations & Feature Specifications:**
 - **Lead-to-Cash Orchestrator:** Expanded 10-stage deterministic workflow managing the full lead lifecycle:

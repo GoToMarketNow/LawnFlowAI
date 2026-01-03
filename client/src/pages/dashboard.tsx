@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import {
   Phone,
   MessageSquare,
@@ -9,13 +10,18 @@ import {
   CheckCircle2,
   Users,
   Briefcase,
+  Inbox,
+  ChevronRight,
+  AlertCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GrowthAdvisorWidget } from "@/components/growth-advisor-widget";
 import { MarginAlertTile } from "@/components/margin-alert-tile";
 import type { Conversation, PendingAction } from "@shared/schema";
+import { getSLALevel, slaLevels } from "@/lib/ui/tokens";
 
 interface Metrics {
   leadsRecovered: number;
@@ -117,14 +123,22 @@ function RecentConversationItem({ conversation }: { conversation: Conversation }
 }
 
 function PendingActionItem({ action }: { action: PendingAction }) {
+  const dueDate = new Date(new Date(action.createdAt).getTime() + 2 * 60 * 60 * 1000);
+  const slaLevel = getSLALevel(dueDate);
+  const slaConfig = slaLevels[slaLevel];
+  
   return (
     <div
       className="flex items-center justify-between gap-3 py-3 border-b border-border last:border-0"
       data-testid={`action-item-${action.id}`}
     >
       <div className="flex items-center gap-3">
-        <div className="h-9 w-9 rounded-full bg-yellow-500/10 flex items-center justify-center">
-          <Clock className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+        <div className={`h-9 w-9 rounded-full flex items-center justify-center ${slaConfig.bgColor}`}>
+          {slaLevel === "urgent" ? (
+            <AlertCircle className={`h-4 w-4 ${slaConfig.color}`} />
+          ) : (
+            <Clock className={`h-4 w-4 ${slaConfig.color}`} />
+          )}
         </div>
         <div>
           <p className="text-sm font-medium">{action.description}</p>
@@ -133,8 +147,8 @@ function PendingActionItem({ action }: { action: PendingAction }) {
           </p>
         </div>
       </div>
-      <Badge variant="outline" className="text-yellow-600 border-yellow-300 dark:border-yellow-600">
-        Pending
+      <Badge variant="outline" className={`${slaConfig.color} border-current`}>
+        {slaLevel === "urgent" ? "Urgent" : slaLevel === "warning" ? "Soon" : "Pending"}
       </Badge>
     </div>
   );
@@ -244,13 +258,16 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2">
-            <CardTitle className="text-lg font-medium">Actions Requiring Approval</CardTitle>
-            <Badge 
-              variant="secondary" 
-              className={(metrics?.pendingApprovals || 0) > 0 ? "bg-yellow-500/10 text-yellow-600" : ""}
-            >
-              {metrics?.pendingApprovals || 0} pending
-            </Badge>
+            <CardTitle className="text-lg font-medium flex items-center gap-2">
+              <Inbox className="h-5 w-5" />
+              Needs You
+            </CardTitle>
+            <Link href="/inbox">
+              <Button variant="ghost" size="sm" className="gap-1" data-testid="button-view-inbox">
+                View All
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </Link>
           </CardHeader>
           <CardContent>
             {loadingActions ? (
@@ -271,6 +288,13 @@ export default function Dashboard() {
                 {recentPendingActions.map((action) => (
                   <PendingActionItem key={action.id} action={action} />
                 ))}
+                {(pendingActions?.filter(a => a.status === "pending").length || 0) > 3 && (
+                  <Link href="/inbox">
+                    <Button variant="outline" className="w-full mt-3" data-testid="button-see-more-actions">
+                      See {(pendingActions?.filter(a => a.status === "pending").length || 0) - 3} more
+                    </Button>
+                  </Link>
+                )}
               </div>
             ) : (
               <div className="text-center py-8">
