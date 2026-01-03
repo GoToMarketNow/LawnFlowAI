@@ -40,6 +40,20 @@ import {
   getOrchestrationRun,
   getRunsForJobRequest,
 } from "./orchestrator/leadToCash";
+import { db } from "./db";
+import { 
+  orchestrationRuns, 
+  orchestrationSteps, 
+  jobRequests,
+  agentRuns,
+  agentRegistry,
+  reconciliationAlerts,
+  deadLetterQueue,
+  customerProfiles,
+  customerMemories,
+  scheduleItems,
+} from "@shared/schema";
+import { eq, desc, and, gte, sql, or, isNull, count, avg, lt, inArray } from "drizzle-orm";
 import {
   startOrchestrationInputSchema,
   opsApprovalInputSchema,
@@ -5898,6 +5912,423 @@ Return JSON format:
       embeddingsEnabled: isEmbeddingsAvailable(),
       embeddingsProvider: isEmbeddingsAvailable() ? "openai" : "disabled",
     });
+  });
+
+  // ============================================
+  // Dashboard API Endpoints
+  // ============================================
+
+  // GET /api/ops/inbox - Unified inbox merging waiting_ops runs, pending actions, and errors
+  app.get("/api/ops/inbox", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      const businessId = profile?.id || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 8, 20);
+
+      interface InboxItem {
+        id: string;
+        type: 'orchestration' | 'approval' | 'error';
+        title: string;
+        description: string;
+        stage?: string;
+        status: string;
+        priority: 'urgent' | 'warning' | 'normal';
+        createdAt: string;
+        dueAt?: string;
+        entityType?: string;
+        entityId?: number;
+        runId?: string;
+        actionType?: string;
+        ctaLabel: string;
+        ctaAction: string;
+      }
+
+      const items: InboxItem[] = [];
+      const now = new Date();
+
+      // 1. Get waiting_ops orchestration runs
+      try {
+        const waitingRuns = await db
+          .select()
+          .from(orchestrationRuns)
+          .where(
+            and(
+              eq(orchestrationRuns.status, "waiting_ops"),
+              or(eq(orchestrationRuns.businessId, businessId), isNull(orchestrationRuns.businessId))
+            )
+          )
+          .orderBy(desc(orchestrationRuns.createdAt))
+          .limit(limit);
+
+        for (const run of waitingRuns) {
+          const createdAt = new Date(run.createdAt);
+          const hoursSince = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+          
+          items.push({
+            id: `orch_${run.id}`,
+            type: 'orchestration',
+            title: `${run.currentStage?.replace(/_/g, ' ')} needs review`,
+            description: `Orchestration run waiting for approval`,
+            stage: run.currentStage,
+            status: run.status,
+            priority: hoursSince > 4 ? 'urgent' : hoursSince > 2 ? 'warning' : 'normal',
+            createdAt: run.createdAt.toISOString(),
+            entityType: run.primaryEntityType,
+            entityId: run.primaryEntityId,
+            runId: run.runId,
+            ctaLabel: 'Review',
+            ctaAction: `/api/orchestrator/l2c/run/${run.runId}/approve`,
+          });
+        }
+      } catch (e) {
+        console.warn("[Inbox] Could not fetch orchestration runs:", e);
+      }
+
+      // 2. Get pending actions
+      try {
+        const pendingActions = await storage.getPendingActions();
+        const pending = pendingActions.filter(a => a.status === "pending").slice(0, limit);
+
+        for (const action of pending) {
+          const createdAt = new Date(action.createdAt);
+          const hoursSince = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+          
+          items.push({
+            id: `action_${action.id}`,
+            type: 'approval',
+            title: action.description || 'Pending approval',
+            description: `${action.actionType?.replace(/_/g, ' ')} requires your review`,
+            status: action.status,
+            priority: hoursSince > 4 ? 'urgent' : hoursSince > 2 ? 'warning' : 'normal',
+            createdAt: action.createdAt.toISOString(),
+            entityId: action.id,
+            actionType: action.actionType,
+            ctaLabel: 'Approve',
+            ctaAction: `/api/pending-actions/${action.id}/approve`,
+          });
+        }
+      } catch (e) {
+        console.warn("[Inbox] Could not fetch pending actions:", e);
+      }
+
+      // 3. Get recent integration errors (from dead letter queue and reconciliation alerts)
+      try {
+        const errors = await db
+          .select()
+          .from(deadLetterQueue)
+          .where(eq(deadLetterQueue.status, "pending"))
+          .orderBy(desc(deadLetterQueue.createdAt))
+          .limit(5);
+
+        for (const error of errors) {
+          const createdAt = new Date(error.createdAt);
+          const hoursSince = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+          
+          items.push({
+            id: `dlq_${error.id}`,
+            type: 'error',
+            title: `Integration error: ${error.errorType}`,
+            description: error.errorMessage?.substring(0, 100) || 'Failed webhook or integration',
+            status: error.status,
+            priority: 'urgent',
+            createdAt: error.createdAt.toISOString(),
+            ctaLabel: 'Retry',
+            ctaAction: `/api/dlq/${error.id}/retry`,
+          });
+        }
+
+        // Also get reconciliation alerts
+        const alerts = await db
+          .select()
+          .from(reconciliationAlerts)
+          .where(eq(reconciliationAlerts.status, "open"))
+          .orderBy(desc(reconciliationAlerts.createdAt))
+          .limit(3);
+
+        for (const alert of alerts) {
+          items.push({
+            id: `recon_${alert.id}`,
+            type: 'error',
+            title: `Reconciliation: ${alert.alertType}`,
+            description: alert.details ? JSON.stringify(alert.details).substring(0, 100) : 'Needs review',
+            status: alert.status,
+            priority: 'warning',
+            createdAt: alert.createdAt.toISOString(),
+            entityId: alert.id,
+            ctaLabel: 'Review',
+            ctaAction: `/api/reconciliation/alerts/${alert.id}`,
+          });
+        }
+      } catch (e) {
+        console.warn("[Inbox] Could not fetch errors:", e);
+      }
+
+      // Sort by priority and createdAt
+      const priorityOrder = { urgent: 0, warning: 1, normal: 2 };
+      items.sort((a, b) => {
+        const pDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
+        if (pDiff !== 0) return pDiff;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+
+      res.json(items.slice(0, limit));
+    } catch (error: any) {
+      console.error("[Inbox] Error:", error);
+      res.json([]);
+    }
+  });
+
+  // GET /api/dashboard/today - Today's stats
+  app.get("/api/dashboard/today", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      const businessId = profile?.id || 1;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Scheduled jobs for today
+      let scheduledJobsToday = 0;
+      let crewUtilization = 0;
+      try {
+        const todaySchedule = await db
+          .select()
+          .from(scheduleItems)
+          .where(
+            and(
+              eq(scheduleItems.businessId, businessId),
+              gte(scheduleItems.scheduledDate, today)
+            )
+          );
+        scheduledJobsToday = todaySchedule.length;
+        
+        const crews = await storage.getCrews(businessId);
+        if (crews.length > 0) {
+          const totalCapacity = crews.reduce((sum, c) => sum + (c.dailyCapacityMinutes || 480), 0);
+          const usedCapacity = todaySchedule.reduce((sum, s) => sum + (s.estimatedDurationMinutes || 60), 0);
+          crewUtilization = totalCapacity > 0 ? Math.round((usedCapacity / totalCapacity) * 100) : 0;
+        }
+      } catch (e) {
+        console.warn("[Dashboard] Could not fetch schedule:", e);
+      }
+
+      // Pending quotes
+      let pendingQuotes = 0;
+      try {
+        const quotes = await storage.getPendingQuoteProposals(businessId);
+        pendingQuotes = quotes.length;
+      } catch (e) {
+        console.warn("[Dashboard] Could not fetch quotes:", e);
+      }
+
+      // Unread messages (approximation from conversations updated recently)
+      let unreadMessages = 0;
+      try {
+        const conversations = await storage.getConversations();
+        unreadMessages = conversations.filter(c => 
+          c.status === "active" && 
+          new Date(c.updatedAt).getTime() > Date.now() - 24 * 60 * 60 * 1000
+        ).length;
+      } catch (e) {
+        console.warn("[Dashboard] Could not fetch messages:", e);
+      }
+
+      res.json({
+        scheduledJobsToday,
+        crewUtilization,
+        pendingQuotes,
+        unreadMessages,
+      });
+    } catch (error: any) {
+      console.error("[Dashboard] Error:", error);
+      res.json({ scheduledJobsToday: 0, crewUtilization: 0, pendingQuotes: 0, unreadMessages: 0 });
+    }
+  });
+
+  // GET /api/dashboard/agent-activity - Recent agent runs and orchestration steps
+  app.get("/api/dashboard/agent-activity", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      const businessId = profile?.id || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
+
+      interface ActivityItem {
+        id: number;
+        type: 'step' | 'agent_run';
+        agentName?: string;
+        stage?: string;
+        status: string;
+        isError: boolean;
+        isStuck: boolean;
+        durationMs?: number;
+        createdAt: string;
+        message?: string;
+      }
+
+      const activities: ActivityItem[] = [];
+
+      // Get recent orchestration steps
+      try {
+        const steps = await db
+          .select({
+            step: orchestrationSteps,
+            run: orchestrationRuns,
+          })
+          .from(orchestrationSteps)
+          .innerJoin(orchestrationRuns, eq(orchestrationSteps.orchestrationRunId, orchestrationRuns.id))
+          .where(or(eq(orchestrationRuns.businessId, businessId), isNull(orchestrationRuns.businessId)))
+          .orderBy(desc(orchestrationSteps.startedAt))
+          .limit(limit);
+
+        for (const { step, run } of steps) {
+          const decision = step.decisionJson as any;
+          const isError = decision?.advance === false && decision?.error;
+          const isStuck = !step.completedAt && 
+            new Date(step.startedAt).getTime() < Date.now() - 30 * 60 * 1000;
+
+          activities.push({
+            id: step.id,
+            type: 'step',
+            stage: step.stage,
+            status: step.completedAt ? 'completed' : 'running',
+            isError: !!isError,
+            isStuck: !!isStuck,
+            durationMs: step.completedAt 
+              ? new Date(step.completedAt).getTime() - new Date(step.startedAt).getTime()
+              : undefined,
+            createdAt: step.startedAt.toISOString(),
+            message: decision?.notes || decision?.nextStage,
+          });
+        }
+      } catch (e) {
+        console.warn("[Dashboard] Could not fetch orchestration steps:", e);
+      }
+
+      // Get recent agent runs
+      try {
+        const runs = await db
+          .select({
+            run: agentRuns,
+            agent: agentRegistry,
+          })
+          .from(agentRuns)
+          .innerJoin(agentRegistry, eq(agentRuns.agentId, agentRegistry.id))
+          .where(or(eq(agentRuns.businessId, businessId), isNull(agentRuns.businessId)))
+          .orderBy(desc(agentRuns.createdAt))
+          .limit(limit);
+
+        for (const { run, agent } of runs) {
+          activities.push({
+            id: run.id,
+            type: 'agent_run',
+            agentName: agent.displayName,
+            status: run.status,
+            isError: run.status === 'failed',
+            isStuck: run.status === 'running' && 
+              new Date(run.createdAt).getTime() < Date.now() - 15 * 60 * 1000,
+            durationMs: run.durationMs || undefined,
+            createdAt: run.createdAt.toISOString(),
+            message: run.errorMessage || undefined,
+          });
+        }
+      } catch (e) {
+        console.warn("[Dashboard] Could not fetch agent runs:", e);
+      }
+
+      // Sort by createdAt descending
+      activities.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      res.json(activities.slice(0, limit));
+    } catch (error: any) {
+      console.error("[Dashboard] Error:", error);
+      res.json([]);
+    }
+  });
+
+  // GET /api/dashboard/customer-health - Customer health metrics
+  app.get("/api/dashboard/customer-health", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      const businessId = profile?.id || 1;
+
+      let npsAverage: number | null = null;
+      let lowSentimentCount = 0;
+      const lowSentimentCustomers: Array<{id: number; name?: string; sentiment?: string}> = [];
+
+      // Check if customer profiles exist
+      try {
+        const customers = await db
+          .select()
+          .from(customerProfiles)
+          .where(eq(customerProfiles.tenantId, String(businessId)))
+          .limit(100);
+
+        if (customers.length > 0) {
+          // Calculate NPS from memories
+          const npsMemories = await db
+            .select()
+            .from(customerMemories)
+            .where(
+              and(
+                inArray(customerMemories.customerId, customers.map(c => c.id)),
+                eq(customerMemories.category, "outcome"),
+                sql`${customerMemories.metadata}->>'nps' IS NOT NULL`
+              )
+            )
+            .limit(100);
+
+          if (npsMemories.length > 0) {
+            const scores = npsMemories
+              .map(m => (m.metadata as any)?.nps)
+              .filter((n): n is number => typeof n === 'number');
+            if (scores.length > 0) {
+              npsAverage = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+            }
+          }
+
+          // Find low sentiment customers
+          const sentimentMemories = await db
+            .select({
+              memory: customerMemories,
+              customer: customerProfiles,
+            })
+            .from(customerMemories)
+            .innerJoin(customerProfiles, eq(customerMemories.customerId, customerProfiles.id))
+            .where(
+              and(
+                inArray(customerMemories.customerId, customers.map(c => c.id)),
+                eq(customerMemories.category, "outcome"),
+                or(
+                  sql`${customerMemories.metadata}->>'sentiment' = 'negative'`,
+                  sql`${customerMemories.metadata}->>'sentiment' = 'frustrated'`
+                )
+              )
+            )
+            .orderBy(desc(customerMemories.createdAt))
+            .limit(5);
+
+          lowSentimentCount = sentimentMemories.length;
+          for (const { customer, memory } of sentimentMemories) {
+            lowSentimentCustomers.push({
+              id: customer.id,
+              name: customer.name || undefined,
+              sentiment: (memory.metadata as any)?.sentiment,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("[Dashboard] Could not fetch customer health:", e);
+      }
+
+      res.json({
+        npsAverage,
+        lowSentimentCount,
+        lowSentimentCustomers,
+        hasData: npsAverage !== null || lowSentimentCount > 0,
+      });
+    } catch (error: any) {
+      console.error("[Dashboard] Error:", error);
+      res.json({ npsAverage: null, lowSentimentCount: 0, lowSentimentCustomers: [], hasData: false });
+    }
   });
 
   return httpServer;
