@@ -53,7 +53,7 @@ import {
   customerMemories,
   scheduleItems,
 } from "@shared/schema";
-import { eq, desc, and, gte, sql, or, isNull, count, avg, lt, inArray } from "drizzle-orm";
+import { eq, desc, and, sql, or, isNull } from "drizzle-orm";
 import {
   startOrchestrationInputSchema,
   opsApprovalInputSchema,
@@ -6090,15 +6090,19 @@ Return JSON format:
       let scheduledJobsToday = 0;
       let crewUtilization = 0;
       try {
-        const todaySchedule = await db
+        // Get all schedule items for this business and filter in JS
+        const allSchedule = await db
           .select()
           .from(scheduleItems)
-          .where(
-            and(
-              eq(scheduleItems.businessId, businessId),
-              gte(scheduleItems.scheduledDate, today)
-            )
-          );
+          .where(eq(scheduleItems.businessId, businessId));
+        
+        // Filter for today and future
+        const todaySchedule = allSchedule.filter(s => {
+          if (!s.scheduledDate) return false;
+          const schedDate = new Date(s.scheduledDate);
+          schedDate.setHours(0, 0, 0, 0);
+          return schedDate >= today;
+        });
         scheduledJobsToday = todaySchedule.length;
         
         const crews = await storage.getCrews(businessId);
@@ -6259,60 +6263,48 @@ Return JSON format:
         const customers = await db
           .select()
           .from(customerProfiles)
-          .where(eq(customerProfiles.tenantId, String(businessId)))
+          .where(eq(customerProfiles.businessId, businessId))
           .limit(100);
 
         if (customers.length > 0) {
-          // Calculate NPS from memories
-          const npsMemories = await db
+          const customerIds = new Set(customers.map(c => c.id));
+          const customerMap = new Map(customers.map(c => [c.id, c]));
+          
+          // Get all outcome memories for these customers
+          const allMemories = await db
             .select()
             .from(customerMemories)
-            .where(
-              and(
-                inArray(customerMemories.customerId, customers.map(c => c.id)),
-                eq(customerMemories.category, "outcome"),
-                sql`${customerMemories.metadata}->>'nps' IS NOT NULL`
-              )
-            )
-            .limit(100);
+            .where(eq(customerMemories.category, "outcome"))
+            .orderBy(desc(customerMemories.createdAt))
+            .limit(200);
 
-          if (npsMemories.length > 0) {
-            const scores = npsMemories
-              .map(m => (m.metadata as any)?.nps)
-              .filter((n): n is number => typeof n === 'number');
-            if (scores.length > 0) {
-              npsAverage = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-            }
+          // Filter to only customers in our tenant and calculate NPS
+          const tenantMemories = allMemories.filter(m => customerIds.has(m.customerId));
+          
+          const npsScores = tenantMemories
+            .map(m => (m.metadata as any)?.nps)
+            .filter((n): n is number => typeof n === 'number');
+          
+          if (npsScores.length > 0) {
+            npsAverage = Math.round(npsScores.reduce((a, b) => a + b, 0) / npsScores.length);
           }
 
           // Find low sentiment customers
-          const sentimentMemories = await db
-            .select({
-              memory: customerMemories,
-              customer: customerProfiles,
-            })
-            .from(customerMemories)
-            .innerJoin(customerProfiles, eq(customerMemories.customerId, customerProfiles.id))
-            .where(
-              and(
-                inArray(customerMemories.customerId, customers.map(c => c.id)),
-                eq(customerMemories.category, "outcome"),
-                or(
-                  sql`${customerMemories.metadata}->>'sentiment' = 'negative'`,
-                  sql`${customerMemories.metadata}->>'sentiment' = 'frustrated'`
-                )
-              )
-            )
-            .orderBy(desc(customerMemories.createdAt))
-            .limit(5);
+          const lowSentimentMemories = tenantMemories.filter(m => {
+            const sentiment = (m.metadata as any)?.sentiment;
+            return sentiment === 'negative' || sentiment === 'frustrated';
+          }).slice(0, 5);
 
-          lowSentimentCount = sentimentMemories.length;
-          for (const { customer, memory } of sentimentMemories) {
-            lowSentimentCustomers.push({
-              id: customer.id,
-              name: customer.name || undefined,
-              sentiment: (memory.metadata as any)?.sentiment,
-            });
+          lowSentimentCount = lowSentimentMemories.length;
+          for (const memory of lowSentimentMemories) {
+            const customer = customerMap.get(memory.customerId);
+            if (customer) {
+              lowSentimentCustomers.push({
+                id: customer.id,
+                name: customer.name || undefined,
+                sentiment: (memory.metadata as any)?.sentiment,
+              });
+            }
           }
         }
       } catch (e) {

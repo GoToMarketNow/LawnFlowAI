@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   Calendar,
@@ -16,8 +16,6 @@ import {
   MessageSquare,
   FileText,
   AlertTriangle,
-  RefreshCw,
-  Eye,
   ThumbsUp,
   Zap,
   Heart,
@@ -28,11 +26,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { GrowthAdvisorWidget } from "@/components/growth-advisor-widget";
 import { MarginAlertTile } from "@/components/margin-alert-tile";
-import { getSLALevel, slaLevels } from "@/lib/ui/tokens";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { slaLevels } from "@/lib/ui/tokens";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 
