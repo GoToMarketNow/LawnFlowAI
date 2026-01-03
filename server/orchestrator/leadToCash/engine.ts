@@ -19,13 +19,26 @@ import {
   OrchestrationContextSchema,
 } from "@shared/orchestrator/contracts";
 import { runLeadIntakeAgent } from "./agents/leadIntake";
-import { runPropertyResolverAgent } from "./agents/propertyResolver";
 import { runQuoteBuildAgent } from "./agents/quoteBuild";
 import { runQuoteConfirmAgent } from "./agents/quoteConfirm";
 import { runScheduleProposeAgent } from "./agents/schedulePropose";
-import { runCrewAssignAgent } from "./agents/crewAssign";
+import { runSimulationRunAgent } from "./agents/simulationRun";
+import { runFeasibilityCheckAgent } from "./agents/feasibilityCheck";
+import { runMarginValidateAgent } from "./agents/marginValidate";
+import { runCrewLockAgent } from "./agents/crewLock";
+import { runDispatchReadyAgent } from "./agents/dispatchReady";
 import { runJobBookAgent } from "./agents/jobBook";
 import { log } from "./logger";
+
+// Property resolver stub for LEAD_INTAKE
+async function runPropertyResolverAgent(jobRequest: JobRequest, context: OrchestrationContext) {
+  return {
+    lat: jobRequest.lat || context.lat,
+    lng: jobRequest.lng || context.lng,
+    zip: jobRequest.zip || context.zip,
+    lotAreaSqft: jobRequest.lotAreaSqft || context.lotAreaSqft,
+  };
+}
 
 // ============================================
 // Stage ordering and transitions
@@ -36,7 +49,11 @@ const STAGE_ORDER: OrchestrationStage[] = [
   "QUOTE_BUILD",
   "QUOTE_CONFIRM",
   "SCHEDULE_PROPOSE",
-  "CREW_ASSIGN",
+  "SIMULATION_RUN",
+  "FEASIBILITY_CHECK",
+  "MARGIN_VALIDATE",
+  "CREW_LOCK",
+  "DISPATCH_READY",
   "JOB_BOOKED",
 ];
 
@@ -425,10 +442,10 @@ async function executeStage(
       if (context.selectedWindow) {
         decision = {
           advance: true,
-          nextStage: "CREW_ASSIGN",
+          nextStage: "SIMULATION_RUN",
           confidence: "high",
           waitReason: "none",
-          notes: [`Customer selected window: ${context.selectedWindow}`],
+          notes: [`Customer selected window: ${JSON.stringify(context.selectedWindow)}`],
         };
         output = { schedule: { selectedWindow: context.selectedWindow, proposedWindows: context.proposedWindows || [] } };
         break;
@@ -452,33 +469,150 @@ async function executeStage(
       break;
     }
 
-    case "CREW_ASSIGN": {
-      actions.push("crewAssignAgent");
+    case "SIMULATION_RUN": {
+      actions.push("simulationRunAgent");
       
-      const crewResult = await runCrewAssignAgent(jobRequest, context);
-      output = { crew: crewResult };
+      const simResult = await runSimulationRunAgent(jobRequest, context);
+      output = { simulation: simResult };
       
-      if (crewResult.selectedOption) {
+      updatedContext = {
+        ...updatedContext,
+        simulationBatchId: simResult.simulationBatchId,
+        simulationRankedOptions: simResult.rankedOptions,
+        topRecommendation: simResult.topRecommendation,
+      };
+      
+      // Exit criteria: at least one ranked option exists
+      const canAdvance = simResult.rankedOptions.length > 0;
+      
+      decision = {
+        advance: canAdvance,
+        nextStage: canAdvance ? "FEASIBILITY_CHECK" : undefined,
+        confidence: simResult.confidence,
+        waitReason: canAdvance ? "none" : "ops_approval",
+        notes: [`Found ${simResult.rankedOptions.length} crew options, top score: ${simResult.topRecommendation?.totalScore || 0}`],
+      };
+      break;
+    }
+
+    case "FEASIBILITY_CHECK": {
+      actions.push("feasibilityCheckAgent");
+      
+      const feasResult = await runFeasibilityCheckAgent(jobRequest, context);
+      output = { feasibility: feasResult };
+      
+      updatedContext = {
+        ...updatedContext,
+        feasibilityResult: {
+          feasible: feasResult.feasible,
+          blockers: feasResult.blockers,
+          skillsMissing: feasResult.skillsMissing,
+          equipmentMissing: feasResult.equipmentMissing,
+        },
+      };
+      
+      // Exit criteria: feasible with no critical blockers
+      const canAdvance = feasResult.feasible;
+      
+      decision = {
+        advance: canAdvance,
+        nextStage: canAdvance ? "MARGIN_VALIDATE" : undefined,
+        confidence: feasResult.confidence,
+        waitReason: canAdvance ? "none" : "ops_approval",
+        notes: feasResult.blockers.length > 0 
+          ? [`Blockers: ${feasResult.blockers.join(", ")}`]
+          : ["Feasibility passed"],
+      };
+      break;
+    }
+
+    case "MARGIN_VALIDATE": {
+      actions.push("marginValidateAgent");
+      
+      const marginResult = await runMarginValidateAgent(jobRequest, context);
+      output = { margin: marginResult };
+      
+      updatedContext = {
+        ...updatedContext,
+        marginResult: {
+          marginScore: marginResult.marginScore,
+          marginPercent: marginResult.marginPercent,
+          estimatedCost: marginResult.estimatedCost,
+          estimatedRevenue: marginResult.estimatedRevenue,
+          meetsThreshold: marginResult.meetsThreshold,
+          warnings: marginResult.warnings,
+        },
+      };
+      
+      // Exit criteria: margin meets threshold OR ops approval
+      const canAdvance = marginResult.meetsThreshold;
+      
+      decision = {
+        advance: canAdvance,
+        nextStage: canAdvance ? "CREW_LOCK" : undefined,
+        confidence: marginResult.confidence,
+        waitReason: canAdvance ? "none" : "ops_approval",
+        notes: [`Margin score: ${marginResult.marginScore.toFixed(1)}, meets threshold: ${marginResult.meetsThreshold}`],
+      };
+      break;
+    }
+
+    case "CREW_LOCK": {
+      actions.push("crewLockAgent");
+      
+      const lockResult = await runCrewLockAgent(jobRequest, context);
+      output = { crewLock: lockResult };
+      
+      if (lockResult.locked) {
         updatedContext = {
           ...updatedContext,
-          selectedCrewId: crewResult.selectedOption.crewId,
+          selectedCrewIdNumeric: lockResult.crewId,
+          selectedCrewName: lockResult.crewName,
+          proposedStartISO: lockResult.proposedStartISO,
+          decisionId: lockResult.decisionId,
+          crewLockApprovalMode: lockResult.approvalMode,
         };
       }
       
-      // High confidence can auto-advance, medium needs ops approval
-      const canAutoAdvance = 
-        crewResult.mode === "auto_assign" && 
-        crewResult.confidence === "high" &&
-        crewResult.selectedOption;
+      // Exit criteria: crew is locked (auto or ops approved)
+      const canAdvance = lockResult.locked;
       
       decision = {
-        advance: canAutoAdvance,
-        nextStage: canAutoAdvance ? "JOB_BOOKED" : undefined,
-        confidence: crewResult.confidence,
-        waitReason: canAutoAdvance ? "none" : "ops_approval",
-        notes: crewResult.topOptions.length > 0 
-          ? [`Top option: Crew ${crewResult.topOptions[0].crewId} with score ${crewResult.topOptions[0].totalScore}`]
-          : ["No crew options available"],
+        advance: canAdvance,
+        nextStage: canAdvance ? "DISPATCH_READY" : undefined,
+        confidence: lockResult.confidence,
+        waitReason: canAdvance ? "none" : "ops_approval",
+        notes: [`${lockResult.approvalMode}: ${lockResult.lockReason}`],
+      };
+      break;
+    }
+
+    case "DISPATCH_READY": {
+      actions.push("dispatchReadyAgent");
+      
+      const dispatchResult = await runDispatchReadyAgent(jobRequest, context);
+      output = { dispatch: dispatchResult };
+      
+      updatedContext = {
+        ...updatedContext,
+        dispatchTaskId: dispatchResult.dispatchTaskId,
+        routeSequence: dispatchResult.routeSequence,
+        estimatedTravelMinutes: dispatchResult.estimatedTravelMinutes,
+        scheduledStartISO: dispatchResult.scheduledStartISO,
+        scheduledEndISO: dispatchResult.scheduledEndISO,
+        dispatchStatus: dispatchResult.dispatchStatus,
+        crewLeaderNotified: dispatchResult.notificationSent,
+      };
+      
+      // Exit criteria: dispatch task created and queued
+      const canAdvance = dispatchResult.dispatchStatus === "queued";
+      
+      decision = {
+        advance: canAdvance,
+        nextStage: canAdvance ? "JOB_BOOKED" : undefined,
+        confidence: dispatchResult.confidence,
+        waitReason: "none",
+        notes: [`Dispatch task ${dispatchResult.dispatchTaskId} queued, route sequence: ${dispatchResult.routeSequence}`],
       };
       break;
     }
@@ -716,10 +850,61 @@ export async function handleOpsApproval(
   // Update context with approval data if provided
   let updatedContext = run.contextJson as OrchestrationContext;
   if (approvalData) {
-    if (stage === "CREW_ASSIGN" && approvalData.selectedCrewId) {
+    if (stage === "SIMULATION_RUN" && approvalData.selectedCrewId) {
+      // For manual simulation approval, build a synthetic topRecommendation
+      const crewId = Number(approvalData.selectedCrewId);
+      const crewName = String(approvalData.selectedCrewName || `Crew ${crewId}`);
+      const proposedStartISO = String(approvalData.proposedStartISO || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString());
+      
       updatedContext = {
         ...updatedContext,
+        selectedCrewIdNumeric: crewId,
+        topRecommendation: {
+          crewId,
+          crewName,
+          proposedStartISO,
+          travelMinutes: Number(approvalData.travelMinutes || 15),
+          skillMatchScore: 100,
+          equipmentMatchScore: 100,
+          distanceScore: 100,
+          marginScore: Number(approvalData.marginScore || 80),
+          riskScore: Number(approvalData.riskScore || 10),
+          totalScore: Number(approvalData.totalScore || 80),
+          reasons: ["Manual ops approval"],
+        },
+      };
+    }
+    if (stage === "CREW_LOCK" && approvalData.selectedCrewId) {
+      updatedContext = {
+        ...updatedContext,
+        selectedCrewIdNumeric: Number(approvalData.selectedCrewId),
         selectedCrewId: String(approvalData.selectedCrewId),
+      };
+    }
+    if (stage === "MARGIN_VALIDATE") {
+      // For margin override, mark as meeting threshold
+      updatedContext = {
+        ...updatedContext,
+        marginResult: {
+          marginScore: Number(approvalData.marginScore || 75),
+          marginPercent: Number(approvalData.marginPercent || 40),
+          estimatedCost: Number(approvalData.estimatedCost || 0),
+          estimatedRevenue: Number(approvalData.estimatedRevenue || 0),
+          meetsThreshold: true, // Manual approval overrides threshold
+          warnings: ["Manually approved"],
+        },
+      };
+    }
+    if (stage === "FEASIBILITY_CHECK") {
+      // For feasibility override, mark as feasible
+      updatedContext = {
+        ...updatedContext,
+        feasibilityResult: {
+          feasible: true, // Manual approval overrides
+          blockers: [],
+          skillsMissing: [],
+          equipmentMissing: [],
+        },
       };
     }
     if (stage === "SCHEDULE_PROPOSE" && approvalData.selectedWindow) {

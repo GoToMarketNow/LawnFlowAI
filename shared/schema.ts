@@ -2207,12 +2207,17 @@ export const approveInputSchema = z.object({
 // ============================================
 
 // Orchestration Stages - fixed lifecycle ordering
+// Post-quote stages integrate with crew intelligence, simulation, feasibility, margin, and dispatch systems
 export const OrchestrationStages = [
   "LEAD_INTAKE",
   "QUOTE_BUILD", 
   "QUOTE_CONFIRM",
   "SCHEDULE_PROPOSE",
-  "CREW_ASSIGN",
+  "SIMULATION_RUN",      // Run crew simulations to find best assignment
+  "FEASIBILITY_CHECK",   // Verify job is feasible for selected crew
+  "MARGIN_VALIDATE",     // Ensure margin meets acceptance criteria
+  "CREW_LOCK",           // Lock crew assignment, create decision record
+  "DISPATCH_READY",      // Calculate route, assign schedule slot, queue dispatch
   "JOB_BOOKED"
 ] as const;
 export type OrchestrationStage = typeof OrchestrationStages[number];

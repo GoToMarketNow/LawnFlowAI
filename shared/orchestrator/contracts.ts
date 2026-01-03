@@ -86,7 +86,118 @@ export const ScheduleSelectResultSchema = z.object({
 export type ScheduleSelectResult = z.infer<typeof ScheduleSelectResultSchema>;
 
 // ============================================
-// Stage 5: CREW_ASSIGN
+// Stage 5: SIMULATION_RUN
+// ============================================
+
+export const SimulationCrewOptionSchema = z.object({
+  crewId: z.number(),
+  crewName: z.string(),
+  proposedStartISO: z.string(),
+  travelMinutes: z.number(),
+  skillMatchScore: z.number(),
+  equipmentMatchScore: z.number(),
+  distanceScore: z.number(),
+  marginScore: z.number(),
+  riskScore: z.number(),
+  totalScore: z.number(),
+  reasons: z.array(z.string()),
+});
+export type SimulationCrewOption = z.infer<typeof SimulationCrewOptionSchema>;
+
+export const SimulationRunResultSchema = z.object({
+  simulationBatchId: z.string(),
+  eligibleCrewCount: z.number(),
+  rankedOptions: z.array(SimulationCrewOptionSchema),
+  topRecommendation: SimulationCrewOptionSchema.optional(),
+  confidence: ConfidenceSchema,
+});
+export type SimulationRunResult = z.infer<typeof SimulationRunResultSchema>;
+
+// ============================================
+// Stage 6: FEASIBILITY_CHECK
+// ============================================
+
+export const FeasibilityCheckResultSchema = z.object({
+  feasible: z.boolean(),
+  crewId: z.number(),
+  crewName: z.string(),
+  skillsMatched: z.array(z.string()),
+  skillsMissing: z.array(z.string()),
+  equipmentMatched: z.array(z.string()),
+  equipmentMissing: z.array(z.string()),
+  withinServiceRadius: z.boolean(),
+  hasCapacity: z.boolean(),
+  blockers: z.array(z.string()),
+  confidence: ConfidenceSchema,
+});
+export type FeasibilityCheckResult = z.infer<typeof FeasibilityCheckResultSchema>;
+
+// ============================================
+// Stage 7: MARGIN_VALIDATE
+// ============================================
+
+export const MarginValidateResultSchema = z.object({
+  marginScore: z.number(), // 0-100
+  estimatedCost: z.number(),
+  estimatedRevenue: z.number(),
+  marginPercent: z.number(),
+  meetsThreshold: z.boolean(), // marginScore >= 70
+  travelCostDelta: z.number(),
+  laborCost: z.number(),
+  warnings: z.array(z.string()),
+  confidence: ConfidenceSchema,
+});
+export type MarginValidateResult = z.infer<typeof MarginValidateResultSchema>;
+
+// ============================================
+// Stage 8: CREW_LOCK
+// ============================================
+
+export const CrewLockResultSchema = z.object({
+  locked: z.boolean(),
+  crewId: z.number(),
+  crewName: z.string(),
+  proposedStartISO: z.string(),
+  decisionId: z.number().optional(), // Reference to assignmentDecisions table
+  approvalMode: z.enum(["auto_approved", "ops_required"]),
+  lockReason: z.string(),
+  confidence: ConfidenceSchema,
+});
+export type CrewLockResult = z.infer<typeof CrewLockResultSchema>;
+
+// ============================================
+// Stage 9: DISPATCH_READY
+// ============================================
+
+export const DispatchReadyResultSchema = z.object({
+  dispatchTaskId: z.string(),
+  crewId: z.number(),
+  crewLeaderId: z.number().optional(),
+  scheduledStartISO: z.string(),
+  scheduledEndISO: z.string(),
+  routeSequence: z.number(), // Position in day's route
+  estimatedTravelMinutes: z.number(),
+  dispatchStatus: z.enum(["queued", "notified", "acknowledged"]),
+  notificationSent: z.boolean(),
+  confidence: ConfidenceSchema,
+});
+export type DispatchReadyResult = z.infer<typeof DispatchReadyResultSchema>;
+
+// ============================================
+// Stage 10: JOB_BOOKED
+// ============================================
+
+export const JobBookedResultSchema = z.object({
+  writeback: z.enum(["success", "failed"]),
+  externalProvider: z.literal("jobber"),
+  externalId: z.string().optional(),
+  confirmationSent: z.boolean(),
+  confidence: ConfidenceSchema,
+});
+export type JobBookedResult = z.infer<typeof JobBookedResultSchema>;
+
+// ============================================
+// Legacy CREW_ASSIGN (kept for backward compatibility)
 // ============================================
 
 export const CrewOptionSchema = z.object({
@@ -111,19 +222,6 @@ export const CrewAssignResultSchema = z.object({
   confidence: ConfidenceSchema,
 });
 export type CrewAssignResult = z.infer<typeof CrewAssignResultSchema>;
-
-// ============================================
-// Stage 6: JOB_BOOKED
-// ============================================
-
-export const JobBookedResultSchema = z.object({
-  writeback: z.enum(["success", "failed"]),
-  externalProvider: z.literal("jobber"),
-  externalId: z.string().optional(),
-  confirmationSent: z.boolean(),
-  confidence: ConfidenceSchema,
-});
-export type JobBookedResult = z.infer<typeof JobBookedResultSchema>;
 
 // ============================================
 // Orchestrator Decision Schema
@@ -186,9 +284,55 @@ export const OrchestrationContextSchema = z.object({
   proposedWindows: z.array(TimeWindowSchema).optional(),
   selectedWindow: TimeWindowSchema.optional(),
   
-  // Crew assignment
-  selectedCrewId: z.string().optional(),
+  // ============================================
+  // Simulation & Crew Intelligence
+  // ============================================
+  simulationBatchId: z.string().optional(),
+  simulationRankedOptions: z.array(SimulationCrewOptionSchema).optional(),
+  topRecommendation: SimulationCrewOptionSchema.optional(),
+  
+  // ============================================
+  // Feasibility Check
+  // ============================================
+  feasibilityResult: z.object({
+    feasible: z.boolean(),
+    blockers: z.array(z.string()),
+    skillsMissing: z.array(z.string()),
+    equipmentMissing: z.array(z.string()),
+  }).optional(),
+  
+  // ============================================
+  // Margin Validation
+  // ============================================
+  marginResult: z.object({
+    marginScore: z.number(),
+    marginPercent: z.number(),
+    estimatedCost: z.number(),
+    estimatedRevenue: z.number(),
+    meetsThreshold: z.boolean(),
+    warnings: z.array(z.string()),
+  }).optional(),
+  
+  // ============================================
+  // Crew Lock / Assignment
+  // ============================================
+  selectedCrewId: z.union([z.string(), z.number()]).optional(),
   selectedCrewName: z.string().optional(),
+  selectedCrewIdNumeric: z.number().optional(), // Numeric crew ID for DB references
+  proposedStartISO: z.string().optional(),
+  decisionId: z.number().optional(), // Reference to assignmentDecisions
+  crewLockApprovalMode: z.enum(["auto_approved", "ops_required"]).optional(),
+  
+  // ============================================
+  // Dispatch
+  // ============================================
+  dispatchTaskId: z.string().optional(),
+  routeSequence: z.number().optional(),
+  estimatedTravelMinutes: z.number().optional(),
+  scheduledStartISO: z.string().optional(),
+  scheduledEndISO: z.string().optional(),
+  dispatchStatus: z.enum(["queued", "notified", "acknowledged"]).optional(),
+  crewLeaderNotified: z.boolean().optional(),
   
   // External references
   externalJobId: z.string().optional(),

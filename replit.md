@@ -19,8 +19,20 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
 - Interactive Service Area Builder with Google Maps integration.
 
 **Technical Implementations & Feature Specifications:**
-- **Orchestration Engine:** Event-driven workflow execution with idempotency, handling events from missed calls to job completion. It uses an AI-powered supervisor for plan generation and a runner for sequential step execution and tool calls.
-- **AI Agents:** Specialized agents for intake, quoting, and scheduling.
+- **Lead-to-Cash Orchestrator:** Expanded 10-stage deterministic workflow managing the full lead lifecycle:
+  1. LEAD_INTAKE - Customer/property data collection with AI-powered parsing
+  2. QUOTE_BUILD - Automated price calculation based on services, lot size, frequency
+  3. QUOTE_CONFIRM - Customer response parsing (accept/decline/modify/question)
+  4. SCHEDULE_PROPOSE - Time window generation and customer selection
+  5. SIMULATION_RUN - Crew simulations via getEligibleCrews() and runSimulations()
+  6. FEASIBILITY_CHECK - Job feasibility validation via evaluateFeasibility()
+  7. MARGIN_VALIDATE - Margin scoring with 70% threshold via computeMarginScore()
+  8. CREW_LOCK - Auto-approval (score ≥80, margin ≥70) or ops queue, creates decision records
+  9. DISPATCH_READY - Schedule item creation, route sequencing, dispatch task generation
+  10. JOB_BOOKED - Jobber writeback and customer confirmation
+  
+  Features human-in-the-loop approvals at any stage with seamless resumption after customer responses or operator overrides.
+- **AI Agents:** Specialized agents for intake, quoting, scheduling, simulation, feasibility, margin, crew lock, and dispatch.
 - **Tool Interfaces:** Strictly validated tools for communication (SMS), FSM integration (lead/job creation, availability), approvals (human-in-loop), and auditing.
 - **Policy System:** A tiered automation policy system (Owner Operator, SMB, Commercial) with configurable rules for message sending, quoting, job booking, and confidence thresholds. Includes checks for service area and do-not-serve rules.
 - **Lot Size Resolver:** FREE-FIRST lot size resolution with multi-tier caching (geocode, parcel) and ArcGIS integration to provide accurate property data for quoting.
