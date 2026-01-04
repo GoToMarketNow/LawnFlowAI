@@ -2271,6 +2271,57 @@ export const timeOffRequests = pgTable("time_off_requests", {
   dateIdx: index("time_off_date_idx").on(table.startDate, table.endDate),
 }));
 
+// Service Zones - Geographic areas where crews operate
+export const serviceZones = pgTable("service_zones", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  
+  // Zone boundary - stored as GeoJSON polygon or bounding box
+  // For MVP, using simple bounding box (min/max lat/lng)
+  minLat: doublePrecision("min_lat"),
+  maxLat: doublePrecision("max_lat"),
+  minLng: doublePrecision("min_lng"),
+  maxLng: doublePrecision("max_lng"),
+  
+  // Alternative: center point + radius for circular zones
+  centerLat: doublePrecision("center_lat"),
+  centerLng: doublePrecision("center_lng"),
+  radiusMiles: doublePrecision("radius_miles"),
+  
+  // Zone metadata
+  color: text("color").default("#22c55e"), // Display color on map
+  priority: integer("priority").default(0), // Higher priority zones get preference
+  isActive: boolean("is_active").notNull().default(true),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("service_zone_business_idx").on(table.businessId),
+  activeIdx: index("service_zone_active_idx").on(table.isActive),
+}));
+
+// Crew Zone Assignments - Links crews to their service zones
+export const crewZoneAssignments = pgTable("crew_zone_assignments", {
+  id: serial("id").primaryKey(),
+  crewId: integer("crew_id").references(() => crews.id).notNull(),
+  zoneId: integer("zone_id").references(() => serviceZones.id).notNull(),
+  
+  // Assignment priority within this zone (for routing decisions)
+  priority: integer("priority").default(0),
+  
+  // Whether this is a primary or backup zone for the crew
+  isPrimary: boolean("is_primary").notNull().default(true),
+  
+  assignedAt: timestamp("assigned_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  assignedBy: integer("assigned_by").references(() => users.id),
+}, (table) => ({
+  crewIdx: index("crew_zone_crew_idx").on(table.crewId),
+  zoneIdx: index("crew_zone_zone_idx").on(table.zoneId),
+  uniqueAssignment: uniqueIndex("crew_zone_unique_idx").on(table.crewId, table.zoneId),
+}));
+
 // Insert schemas for Skills & Equipment
 export const insertSkillSchema = createInsertSchema(skills).omit({
   id: true,
@@ -2307,6 +2358,18 @@ export const insertTimeOffRequestSchema = createInsertSchema(timeOffRequests).om
   approvedAt: true,
 });
 
+// Insert schemas for Service Zones
+export const insertServiceZoneSchema = createInsertSchema(serviceZones).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCrewZoneAssignmentSchema = createInsertSchema(crewZoneAssignments).omit({
+  id: true,
+  assignedAt: true,
+});
+
 // Types for Skills & Equipment
 export type Skill = typeof skills.$inferSelect;
 export type InsertSkill = z.infer<typeof insertSkillSchema>;
@@ -2325,6 +2388,13 @@ export type InsertCrewAvailability = z.infer<typeof insertCrewAvailabilitySchema
 
 export type TimeOffRequest = typeof timeOffRequests.$inferSelect;
 export type InsertTimeOffRequest = z.infer<typeof insertTimeOffRequestSchema>;
+
+// Types for Service Zones
+export type ServiceZone = typeof serviceZones.$inferSelect;
+export type InsertServiceZone = z.infer<typeof insertServiceZoneSchema>;
+
+export type CrewZoneAssignment = typeof crewZoneAssignments.$inferSelect;
+export type InsertCrewZoneAssignment = z.infer<typeof insertCrewZoneAssignmentSchema>;
 
 // Extended types with relations
 export type SkillWithCrews = Skill & { crewCount: number };
