@@ -90,6 +90,16 @@ export const navigation: NavGroup[] = [
         shortcut: 'g c',
         description: 'Customer database',
       },
+      { 
+        id: 'crews', 
+        label: 'Crews', 
+        href: '/operations/crews', 
+        icon: 'Users', 
+        roles: ['OWNER', 'ADMIN', 'CREW_LEAD'],
+        shortcut: 'g r',
+        description: 'Crew management',
+        readOnly: true,
+      },
     ],
   },
   {

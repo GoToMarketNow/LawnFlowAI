@@ -51,6 +51,7 @@ import LearningDashboard from "@/pages/learning";
 import CommsStudio from "@/pages/comms-studio";
 import SchedulePage from "@/pages/schedule";
 import CustomersPage from "@/pages/customers";
+import CrewsPage from "@/pages/crews";
 import SettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 import { Loader2, AlertCircle } from "lucide-react";
@@ -207,6 +208,8 @@ function AuthenticatedLayout() {
                   <Route path="/schedule" component={SchedulePage} />
                   <Route path="/customers" component={CustomersPage} />
                   <Route path="/customers/:id" component={ConversationDetailPage} />
+                  <Route path="/operations/crews" component={CrewsPage} />
+                  <Route path="/operations/crews/:id" component={CrewsPage} />
                   <Route path="/agents" component={AgentsPage} />
                   <Route path="/agents/:id" component={AgentDetailPage} />
                   <Route path="/settings" component={SettingsPage} />
