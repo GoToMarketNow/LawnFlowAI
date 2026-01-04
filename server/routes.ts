@@ -2279,6 +2279,284 @@ export async function registerRoutes(
     }
   });
 
+  // Twilio SMS delivery status webhook
+  app.post("/api/webhooks/twilio/status", async (req, res) => {
+    try {
+      const { MessageSid, MessageStatus, To, ErrorCode, ErrorMessage } = req.body;
+      
+      if (!MessageSid || !MessageStatus) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      
+      // Validate Twilio signature in production
+      const signature = req.headers["x-twilio-signature"] as string | undefined;
+      const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+      
+      const isValid = await twilioConnector.validateSignature(signature, url, req.body);
+      if (!isValid) {
+        console.warn("[Twilio Status] Invalid signature, rejecting webhook");
+        return res.status(401).json({ error: "Invalid signature" });
+      }
+      
+      const status = await twilioConnector.handleDeliveryStatus({
+        MessageSid,
+        MessageStatus,
+        To,
+        ErrorCode,
+        ErrorMessage,
+      });
+      
+      console.log(`[Twilio Status] ${MessageSid}: ${MessageStatus}`);
+      
+      res.status(200).json({ acknowledged: true, status: status.status });
+    } catch (error) {
+      console.error("Error handling Twilio status webhook:", error);
+      res.status(500).json({ error: "Status processing failed" });
+    }
+  });
+
+  // Twilio message queue stats endpoint
+  app.get("/api/twilio/queue-stats", async (req, res) => {
+    try {
+      const stats = twilioConnector.getQueueStats();
+      const recentMessages = twilioConnector.getRecentMessages(20);
+      const isConfigured = await twilioConnector.isRealTwilioConfigured();
+      
+      res.json({
+        configured: isConfigured,
+        messagingServiceReady: twilioConnector.isMessagingServiceReady(),
+        stats,
+        recentMessages: recentMessages.map(m => ({
+          sid: m.sid,
+          to: m.to.slice(0, -4).replace(/\d/g, '*') + m.to.slice(-4),
+          status: m.status,
+          createdAt: m.createdAt,
+          updatedAt: m.updatedAt,
+        })),
+      });
+    } catch (error: any) {
+      console.error("[Twilio] Error getting queue stats:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================
+  // Jobber OAuth Flow Routes
+  // ============================================
+  
+  // In-memory OAuth state store with expiration (production should use Redis/DB)
+  const oauthStateStore: Map<string, { businessId: number; userId: number; expiresAt: number }> = new Map();
+  
+  // Cleanup expired states periodically
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, value] of oauthStateStore.entries()) {
+      if (value.expiresAt < now) {
+        oauthStateStore.delete(key);
+      }
+    }
+  }, 60 * 1000); // Clean every minute
+
+  app.get("/api/jobber/oauth/authorize", (req, res) => {
+    // Require authentication
+    if (!req.isAuthenticated?.() || !(req.user as any)?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    const clientId = process.env.JOBBER_CLIENT_ID;
+    const redirectUri = process.env.JOBBER_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/jobber/oauth/callback`;
+    
+    if (!clientId) {
+      return res.status(500).json({ error: "JOBBER_CLIENT_ID not configured" });
+    }
+    
+    const scopes = [
+      "read_clients", "write_clients",
+      "read_jobs", "write_jobs",
+      "read_quotes", "write_quotes",
+      "read_invoices", "write_invoices",
+      "read_properties", "write_properties",
+      "read_visits", "write_visits",
+      "read_users",
+      "read_webhooks", "write_webhooks",
+    ].join(" ");
+    
+    // Generate cryptographically secure state token
+    const stateNonce = require('crypto').randomBytes(32).toString('hex');
+    const businessId = (req.user as any).businessId;
+    const userId = (req.user as any).id;
+    
+    // Store state with 10 minute expiration
+    oauthStateStore.set(stateNonce, {
+      businessId,
+      userId,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    });
+    
+    const authUrl = new URL("https://api.getjobber.com/api/oauth/authorize");
+    authUrl.searchParams.set("client_id", clientId);
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("scope", scopes);
+    authUrl.searchParams.set("state", stateNonce);
+    
+    res.json({ 
+      authorizationUrl: authUrl.toString(),
+      redirectUri,
+    });
+  });
+
+  app.get("/api/jobber/oauth/callback", async (req, res) => {
+    const { code, state, error } = req.query;
+    
+    if (error) {
+      console.error("[Jobber OAuth] Authorization denied:", error);
+      return res.redirect(`/settings?jobber_error=${encodeURIComponent(error as string)}`);
+    }
+    
+    if (!code) {
+      return res.redirect("/settings?jobber_error=no_code");
+    }
+    
+    if (!state || typeof state !== 'string') {
+      console.error("[Jobber OAuth] Missing state parameter");
+      return res.redirect("/settings?jobber_error=invalid_state");
+    }
+    
+    // Validate state against stored nonce
+    const storedState = oauthStateStore.get(state);
+    if (!storedState) {
+      console.error("[Jobber OAuth] Invalid or expired state token");
+      return res.redirect("/settings?jobber_error=invalid_state");
+    }
+    
+    if (storedState.expiresAt < Date.now()) {
+      oauthStateStore.delete(state);
+      console.error("[Jobber OAuth] State token expired");
+      return res.redirect("/settings?jobber_error=state_expired");
+    }
+    
+    // Remove used state (single-use)
+    oauthStateStore.delete(state);
+    const { businessId } = storedState;
+    
+    try {
+      const clientId = process.env.JOBBER_CLIENT_ID;
+      const clientSecret = process.env.JOBBER_CLIENT_SECRET;
+      const redirectUri = process.env.JOBBER_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/jobber/oauth/callback`;
+      
+      // Exchange code for tokens
+      const tokenResponse = await fetch("https://api.getjobber.com/api/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: redirectUri,
+          code: code as string,
+        }),
+      });
+      
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        throw new Error(`Token exchange failed: ${tokenResponse.status} ${errorText}`);
+      }
+      
+      const tokenData = await tokenResponse.json();
+      
+      // Get account info from Jobber
+      const accountResponse = await fetch("https://api.getjobber.com/api/graphql", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${tokenData.access_token}`,
+          "X-JOBBER-GRAPHQL-VERSION": "2024-06-24",
+        },
+        body: JSON.stringify({
+          query: `query { account { id name } }`,
+        }),
+      });
+      
+      let accountId = tokenData.resource_owner_id || `unknown_${Date.now()}`;
+      if (accountResponse.ok) {
+        const accountData = await accountResponse.json();
+        if (accountData.data?.account?.id) {
+          accountId = accountData.data.account.id;
+        }
+      }
+      
+      // Save to database
+      const { saveJobberAccount } = await import("./connectors/jobber-client");
+      await saveJobberAccount({
+        jobberAccountId: accountId,
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
+        expiresIn: tokenData.expires_in,
+        scopes: tokenData.scope?.split(" "),
+        businessId,
+      });
+      
+      console.log(`[Jobber OAuth] Successfully connected account ${accountId} to business ${businessId}`);
+      
+      res.redirect("/settings?jobber_connected=true");
+    } catch (error: any) {
+      console.error("[Jobber OAuth] Error exchanging code:", error);
+      res.redirect(`/settings?jobber_error=${encodeURIComponent(error.message)}`);
+    }
+  });
+
+  app.delete("/api/jobber/oauth/disconnect", async (req, res) => {
+    try {
+      const businessId = (req.user as any)?.businessId || 1;
+      const { jobberAccounts } = await import("@shared/schema");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+      
+      await db.update(jobberAccounts)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(eq(jobberAccounts.businessId, businessId));
+      
+      res.json({ success: true, message: "Jobber account disconnected" });
+    } catch (error: any) {
+      console.error("[Jobber OAuth] Error disconnecting:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/jobber/status", async (req, res) => {
+    try {
+      const businessId = (req.user as any)?.businessId || 1;
+      const { jobberAccounts } = await import("@shared/schema");
+      const { db } = await import("./db");
+      const { eq, and } = await import("drizzle-orm");
+      
+      const [account] = await db.select({
+        id: jobberAccounts.id,
+        jobberAccountId: jobberAccounts.jobberAccountId,
+        isActive: jobberAccounts.isActive,
+        tokenExpiresAt: jobberAccounts.tokenExpiresAt,
+        createdAt: jobberAccounts.createdAt,
+      })
+      .from(jobberAccounts)
+      .where(and(
+        eq(jobberAccounts.businessId, businessId),
+        eq(jobberAccounts.isActive, true)
+      ))
+      .limit(1);
+      
+      res.json({
+        connected: !!account,
+        accountId: account?.jobberAccountId,
+        tokenValid: account ? new Date(account.tokenExpiresAt) > new Date() : false,
+        connectedAt: account?.createdAt,
+      });
+    } catch (error: any) {
+      console.error("[Jobber] Error checking status:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ============================================
   // Jobber Webhook Routes
   // ============================================

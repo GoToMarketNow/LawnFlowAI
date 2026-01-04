@@ -41,7 +41,15 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
 - **Tool Interfaces:** Strictly validated tools for communication (SMS), FSM integration (lead/job creation, availability), approvals (human-in-loop), and auditing.
 - **Policy System:** A tiered automation policy system (Owner Operator, SMB, Commercial) with configurable rules for message sending, quoting, job booking, and confidence thresholds. Includes checks for service area and do-not-serve rules.
 - **Lot Size Resolver:** FREE-FIRST lot size resolution with multi-tier caching (geocode, parcel) and ArcGIS integration to provide accurate property data for quoting.
-- **Jobber Integration:** Asynchronous webhook processing for Jobber events, GraphQL API integration for data enrichment, OAuth token management, and idempotent webhook handling. Includes a Quote-to-Job Orchestrator for syncing approved quote changes to jobs based on a configurable rules engine.
+- **Jobber Integration:** Full production-ready FSM connector:
+  - OAuth 2.0 flow with CSRF protection (cryptographically secure state nonces, 10-minute expiration, single-use validation)
+  - GraphQL API client with automatic token refresh, rate limit handling, and retry logic
+  - Production mutations: createJob, createQuote, updateQuote, updateJobStatus, scheduleVisit, createClient, createProperty
+  - FSM abstraction layer (`server/connectors/jobber-fsm.ts`) with 5-minute client caching
+  - Graceful fallback to mock for non-connected businesses
+  - Webhook processing with signature validation and idempotent handling
+  - Quote-to-Job Orchestrator for syncing approved quote changes to jobs
+  - API endpoints: /api/jobber/oauth/authorize, /api/jobber/oauth/callback, /api/jobber/status, /webhooks/jobber
 - **Dispatch & Routing Worker:** Intelligent route planning and crew dispatch with event-driven and nightly modes. Employs a greedy route optimization algorithm using Haversine distance. Manages crew rosters, equipment capabilities, and applies plans to Jobber.
 - **Route Optimizer:** Multi-agent job assignment system with crew management, job request tracking, and intelligent simulation-based scheduling. Features:
   - Crew management with home base location, service radius, daily capacity, skills, and equipment
@@ -94,6 +102,15 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
 - **OpenAI:** Used for AI-powered agents and orchestration (via Replit AI Integrations).
 - **PostgreSQL:** Primary database.
 - **Google Maps API:** For the interactive Service Area Builder (requires `VITE_GOOGLE_MAPS_API_KEY`).
-- **Twilio:** For real SMS capabilities (requires `TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY`, `TWILIO_API_KEY_SECRET`, `TWILIO_MESSAGING_SERVICE_SID`). Falls back to mock SMS if not configured.
+- **Twilio:** Production-ready SMS connector with:
+  - Replit Twilio Integration support with fallback to environment variables
+  - API Key authentication (preferred) and Auth Token fallback
+  - Retry logic with p-retry (3 attempts, exponential backoff)
+  - Comprehensive audit logging for all SMS operations
+  - OTP delivery via Messaging Service SID
+  - Webhook signature validation using X-Twilio-Signature
+  - Message queue tracking (in-memory, 1000 message limit) with delivery status updates
+  - Mock mode fallback when credentials unavailable
+  - API endpoints: /api/webhooks/twilio/sms, /api/webhooks/twilio/status, /api/twilio/queue-stats
 - **Jobber:** Integration for webhooks, GraphQL API access, and OAuth for field service management (requires `JOBBER_CLIENT_ID`, `JOBBER_CLIENT_SECRET`, `JOBBER_REDIRECT_URI`).
 - **ArcGIS:** Integrated into the Lot Size Resolver for parcel data and county sources.

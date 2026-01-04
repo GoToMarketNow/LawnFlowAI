@@ -13,6 +13,40 @@ export interface SMSResponse {
   success: boolean;
   sid?: string;
   error?: string;
+  status?: string;
+  dateCreated?: Date;
+}
+
+export interface DeliveryStatus {
+  sid: string;
+  status: 'queued' | 'sending' | 'sent' | 'delivered' | 'undelivered' | 'failed';
+  to: string;
+  errorCode?: string;
+  errorMessage?: string;
+  dateUpdated: Date;
+}
+
+// In-memory message queue for tracking delivery status
+const messageQueue: Map<string, {
+  sid: string;
+  to: string;
+  body: string;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+  retryCount: number;
+  errorCode?: string;
+  errorMessage?: string;
+}> = new Map();
+
+// Clean up old messages from queue (keep last 1000)
+function cleanupMessageQueue() {
+  if (messageQueue.size > 1000) {
+    const entries = Array.from(messageQueue.entries())
+      .sort((a, b) => b[1].createdAt.getTime() - a[1].createdAt.getTime());
+    const toDelete = entries.slice(1000);
+    toDelete.forEach(([sid]) => messageQueue.delete(sid));
+  }
 }
 
 interface TwilioCredentials {
@@ -229,6 +263,9 @@ class TwilioConnector {
         }
       );
 
+      // Track message in queue
+      this.trackMessage(result.sid, to, body, result.status);
+
       await audit.logEvent({
         action: "twilio.sendSms.success",
         actor: "system",
@@ -238,6 +275,8 @@ class TwilioConnector {
       return {
         success: true,
         sid: result.sid,
+        status: result.status,
+        dateCreated: result.dateCreated,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -339,6 +378,78 @@ class TwilioConnector {
 
   isMessagingServiceReady(): boolean {
     return !!this.messagingServiceSid;
+  }
+
+  // Track message in queue
+  private trackMessage(sid: string, to: string, body: string, status: string = 'queued') {
+    messageQueue.set(sid, {
+      sid,
+      to,
+      body: body.substring(0, 160),
+      status,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      retryCount: 0,
+    });
+    cleanupMessageQueue();
+  }
+
+  // Update delivery status from webhook
+  async handleDeliveryStatus(payload: {
+    MessageSid: string;
+    MessageStatus: string;
+    To?: string;
+    ErrorCode?: string;
+    ErrorMessage?: string;
+  }): Promise<DeliveryStatus> {
+    const { MessageSid, MessageStatus, To, ErrorCode, ErrorMessage } = payload;
+    
+    const existing = messageQueue.get(MessageSid);
+    if (existing) {
+      existing.status = MessageStatus;
+      existing.updatedAt = new Date();
+      if (ErrorCode) existing.errorCode = ErrorCode;
+      if (ErrorMessage) existing.errorMessage = ErrorMessage;
+      messageQueue.set(MessageSid, existing);
+    }
+
+    await audit.logEvent({
+      action: "twilio.deliveryStatus",
+      actor: "system",
+      payload: { sid: MessageSid, status: MessageStatus, errorCode: ErrorCode },
+    });
+
+    return {
+      sid: MessageSid,
+      status: MessageStatus as DeliveryStatus['status'],
+      to: To || existing?.to || '',
+      errorCode: ErrorCode,
+      errorMessage: ErrorMessage,
+      dateUpdated: new Date(),
+    };
+  }
+
+  // Get message status from queue
+  getMessageStatus(sid: string): typeof messageQueue extends Map<string, infer V> ? V : never | null {
+    return messageQueue.get(sid) || null;
+  }
+
+  // Get all recent messages
+  getRecentMessages(limit: number = 50): Array<typeof messageQueue extends Map<string, infer V> ? V : never> {
+    return Array.from(messageQueue.values())
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
+  }
+
+  // Get queue stats
+  getQueueStats(): { total: number; pending: number; delivered: number; failed: number } {
+    const messages = Array.from(messageQueue.values());
+    return {
+      total: messages.length,
+      pending: messages.filter(m => ['queued', 'sending', 'sent'].includes(m.status)).length,
+      delivered: messages.filter(m => m.status === 'delivered').length,
+      failed: messages.filter(m => ['undelivered', 'failed'].includes(m.status)).length,
+    };
   }
 
   async sendOtpSMS(to: string, otp: string): Promise<SMSResponse> {

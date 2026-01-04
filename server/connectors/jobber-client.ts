@@ -232,6 +232,253 @@ export class JobberClient {
     }
   }
 
+  async createJob(input: {
+    clientId: string;
+    propertyId?: string;
+    title: string;
+    instructions?: string;
+    jobTypeId?: string;
+    startDate?: string;
+    endDate?: string;
+    lineItems: Array<{
+      name: string;
+      description?: string;
+      quantity: number;
+      unitPrice: number;
+    }>;
+  }) {
+    const mutation = `
+      mutation CreateJob($input: JobCreateInput!) {
+        jobCreate(input: $input) {
+          job {
+            id
+            jobNumber
+            title
+            jobStatus
+            client { id name }
+            property { id street city }
+            amounts { total }
+          }
+          userErrors { message path }
+        }
+      }
+    `;
+    
+    const lineItems = input.lineItems.map(li => ({
+      name: li.name,
+      description: li.description || '',
+      quantity: li.quantity.toString(),
+      unitCost: (li.unitPrice / 100).toString(),
+    }));
+
+    const variables: any = {
+      input: {
+        clientId: input.clientId,
+        title: input.title,
+        lineItems,
+      },
+    };
+
+    if (input.propertyId) {
+      variables.input.propertyId = input.propertyId;
+    }
+    if (input.instructions) {
+      variables.input.instructions = input.instructions;
+    }
+    if (input.jobTypeId) {
+      variables.input.jobTypeId = input.jobTypeId;
+    }
+    if (input.startDate) {
+      variables.input.startAt = input.startDate;
+    }
+    if (input.endDate) {
+      variables.input.endAt = input.endDate;
+    }
+
+    return this.query<{ jobCreate: { job: any; userErrors: Array<{ message: string; path: string[] }> } }>(
+      mutation,
+      variables
+    );
+  }
+
+  async updateQuote(quoteId: string, updates: {
+    title?: string;
+    message?: string;
+    lineItems?: Array<{
+      name: string;
+      description?: string;
+      quantity: number;
+      unitPrice: number;
+    }>;
+  }) {
+    const mutation = `
+      mutation UpdateQuote($quoteId: EncodedId!, $input: QuoteEditInput!) {
+        quoteEdit(quoteId: $quoteId, input: $input) {
+          quote {
+            id
+            quoteNumber
+            quoteStatus
+            title
+            amounts { total }
+          }
+          userErrors { message path }
+        }
+      }
+    `;
+
+    const input: any = {};
+    if (updates.title) input.title = updates.title;
+    if (updates.message) input.message = updates.message;
+    if (updates.lineItems) {
+      input.lineItems = updates.lineItems.map(li => ({
+        name: li.name,
+        description: li.description || '',
+        quantity: li.quantity.toString(),
+        unitCost: (li.unitPrice / 100).toString(),
+      }));
+    }
+
+    return this.query<{ quoteEdit: { quote: any; userErrors: Array<{ message: string; path: string[] }> } }>(
+      mutation,
+      { quoteId, input }
+    );
+  }
+
+  async updateJobStatus(jobId: string, status: 'ACTIVE' | 'COMPLETE' | 'ARCHIVED') {
+    const mutation = `
+      mutation UpdateJobStatus($jobId: EncodedId!, $status: JobStatus!) {
+        jobEdit(jobId: $jobId, jobStatus: $status) {
+          job {
+            id
+            jobStatus
+          }
+          userErrors { message path }
+        }
+      }
+    `;
+    return this.query<{ jobEdit: { job: any; userErrors: Array<{ message: string; path: string[] }> } }>(
+      mutation,
+      { jobId, status }
+    );
+  }
+
+  async scheduleVisit(input: {
+    jobId: string;
+    title?: string;
+    startAt: string;
+    endAt: string;
+    assignedUserIds?: string[];
+    instructions?: string;
+  }) {
+    const mutation = `
+      mutation ScheduleVisit($input: VisitCreateInput!) {
+        visitCreate(input: $input) {
+          visit {
+            id
+            title
+            startAt
+            endAt
+            status
+          }
+          userErrors { message path }
+        }
+      }
+    `;
+
+    const variables: any = {
+      input: {
+        jobId: input.jobId,
+        startAt: input.startAt,
+        endAt: input.endAt,
+      },
+    };
+
+    if (input.title) variables.input.title = input.title;
+    if (input.instructions) variables.input.instructions = input.instructions;
+    if (input.assignedUserIds?.length) variables.input.assignedUserIds = input.assignedUserIds;
+
+    return this.query<{ visitCreate: { visit: any; userErrors: Array<{ message: string; path: string[] }> } }>(
+      mutation,
+      variables
+    );
+  }
+
+  async createClient(input: {
+    firstName: string;
+    lastName?: string;
+    companyName?: string;
+    email?: string;
+    phone?: string;
+    billingAddress?: {
+      street?: string;
+      city?: string;
+      province?: string;
+      postalCode?: string;
+      country?: string;
+    };
+  }) {
+    const mutation = `
+      mutation CreateClient($input: ClientCreateInput!) {
+        clientCreate(input: $input) {
+          client {
+            id
+            name
+            firstName
+            lastName
+            companyName
+          }
+          userErrors { message path }
+        }
+      }
+    `;
+
+    const variables: any = {
+      input: {
+        firstName: input.firstName,
+      },
+    };
+
+    if (input.lastName) variables.input.lastName = input.lastName;
+    if (input.companyName) variables.input.companyName = input.companyName;
+    if (input.email) variables.input.emails = [{ address: input.email, primary: true }];
+    if (input.phone) variables.input.phones = [{ number: input.phone, primary: true }];
+    if (input.billingAddress) variables.input.billingAddress = input.billingAddress;
+
+    return this.query<{ clientCreate: { client: any; userErrors: Array<{ message: string; path: string[] }> } }>(
+      mutation,
+      variables
+    );
+  }
+
+  async createProperty(input: {
+    clientId: string;
+    street: string;
+    city: string;
+    province?: string;
+    postalCode?: string;
+    country?: string;
+  }) {
+    const mutation = `
+      mutation CreateProperty($input: PropertyCreateInput!) {
+        propertyCreate(input: $input) {
+          property {
+            id
+            street
+            city
+            province
+            postalCode
+          }
+          userErrors { message path }
+        }
+      }
+    `;
+
+    return this.query<{ propertyCreate: { property: any; userErrors: Array<{ message: string; path: string[] }> } }>(
+      mutation,
+      { input }
+    );
+  }
+
   async createQuote(input: {
     clientId: string;
     propertyId?: string;
