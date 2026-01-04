@@ -1,0 +1,715 @@
+{
+  "generatedAt": "2026-01-04T20:55:54.135Z",
+  "appVersion": "1.0.0-mvp",
+  "totalScreenshots": 23,
+  "byStage": {
+    "LEAD": 4,
+    "QUALIFY": 2,
+    "QUOTE": 2,
+    "SCHEDULE": 2,
+    "SERVICE_DELIVERY": 4,
+    "INVOICE_COLLECT": 2,
+    "ONGOING_COMMS": 2,
+    "AGENT_DIRECTORY": 2,
+    "SETTINGS": 3
+  },
+  "byPersona": {
+    "owner_admin": 20,
+    "crew_lead": 2,
+    "crew_member": 1
+  },
+  "entries": [
+    {
+      "id": "dashboard_overview",
+      "journeyStage": "LEAD",
+      "persona": "owner_admin",
+      "route": "/dashboard",
+      "screenTitle": "Dashboard Overview",
+      "descriptionShort": "At-a-glance business health and pending actions.",
+      "descriptionLong": "The dashboard provides owners with immediate visibility into key business metrics \nincluding leads recovered, jobs booked, hours saved, and revenue generated. \nPending actions requiring human approval are prominently displayed for quick action.\nAI agents summarize daily performance and surface recommendations.\n",
+      "agentsInvolved": [
+        "OrchestratorAgent",
+        "MetricsAgent"
+      ],
+      "valueDrivers": [
+        "less_admin",
+        "higher_profit"
+      ],
+      "inputs": [
+        "business profile",
+        "active leads",
+        "scheduled jobs"
+      ],
+      "outputs": [
+        "ROI metrics",
+        "pending approvals count",
+        "agent activity summary"
+      ],
+      "escalationOrApproval": "Displays count of items needing owner review",
+      "imagePath": "screenshots/dashboard_overview.png",
+      "capturedAt": "2026-01-04T20:53:39.752Z",
+      "status": "captured"
+    },
+    {
+      "id": "inbox_unified",
+      "journeyStage": "LEAD",
+      "persona": "owner_admin",
+      "route": "/inbox",
+      "screenTitle": "Unified Inbox",
+      "descriptionShort": "All pending approvals in one place with SLA indicators.",
+      "descriptionLong": "The unified inbox consolidates all items requiring human review across the entire\nlead-to-cash workflow. Items are prioritized by urgency with visual SLA indicators\n(red=urgent, yellow=warning, green=normal). Owners can approve, edit, or reject\ndirectly from this view with minimal clicks.\n",
+      "agentsInvolved": [
+        "InboundLeadAgent",
+        "ApprovalQueueAgent"
+      ],
+      "valueDrivers": [
+        "less_admin",
+        "happier_customers"
+      ],
+      "inputs": [
+        "pending quotes",
+        "pending schedules",
+        "pending crew assignments"
+      ],
+      "outputs": [
+        "approved actions",
+        "rejection reasons",
+        "edit overrides"
+      ],
+      "escalationOrApproval": "All items here are already escalated awaiting human decision",
+      "imagePath": "screenshots/inbox_unified.png",
+      "capturedAt": "2026-01-04T20:53:52.556Z",
+      "status": "captured"
+    },
+    {
+      "id": "conversations_list",
+      "journeyStage": "LEAD",
+      "persona": "owner_admin",
+      "route": "/conversations",
+      "screenTitle": "Customer Conversations",
+      "descriptionShort": "All customer SMS threads with AI handling status.",
+      "descriptionLong": "View all customer conversations organized by status (active, pending, completed).\nEach thread shows the AI agent's current handling state, last message preview,\nand any escalation flags. Owners can jump into any conversation to review\nthe full thread or take over from the AI.\n",
+      "agentsInvolved": [
+        "SMSAgent",
+        "InboundLeadAgent"
+      ],
+      "valueDrivers": [
+        "happier_customers",
+        "less_admin"
+      ],
+      "inputs": [
+        "inbound SMS",
+        "missed calls",
+        "web leads"
+      ],
+      "outputs": [
+        "conversation status",
+        "agent recommendations",
+        "next actions"
+      ],
+      "escalationOrApproval": "Escalates when customer intent is unclear or requests human",
+      "imagePath": "screenshots/conversations_list.png",
+      "capturedAt": "2026-01-04T20:54:05.656Z",
+      "status": "captured"
+    },
+    {
+      "id": "conversation_detail",
+      "journeyStage": "LEAD",
+      "persona": "owner_admin",
+      "route": "/conversations",
+      "screenTitle": "Conversation Thread Detail",
+      "descriptionShort": "Full SMS thread with AI annotations and actions.",
+      "descriptionLong": "Deep dive into a specific customer conversation showing the complete message\nhistory with AI agent annotations. Each message shows intent classification,\nsuggested responses, and action buttons. The agent's reasoning is visible\nto help owners understand and override decisions when needed.\n",
+      "agentsInvolved": [
+        "SMSAgent",
+        "IntentParsingAgent"
+      ],
+      "valueDrivers": [
+        "happier_customers",
+        "less_admin"
+      ],
+      "inputs": [
+        "customer messages",
+        "property info",
+        "service history"
+      ],
+      "outputs": [
+        "classified intent",
+        "suggested reply",
+        "quote trigger"
+      ],
+      "escalationOrApproval": "Manual takeover available at any point",
+      "imagePath": "screenshots/conversation_detail.png",
+      "capturedAt": "2026-01-04T20:54:18.534Z",
+      "status": "captured"
+    },
+    {
+      "id": "leads_list",
+      "journeyStage": "QUALIFY",
+      "persona": "owner_admin",
+      "route": "/leads",
+      "screenTitle": "Leads Management",
+      "descriptionShort": "All leads with qualification status and next steps.",
+      "descriptionLong": "Comprehensive lead management showing all prospects with their qualification\nstatus, source (SMS, web, call), property details, and AI-recommended next\naction. Leads are scored by the qualification agent based on service fit,\nlocation coverage, and estimated value.\n",
+      "agentsInvolved": [
+        "LeadQualificationAgent",
+        "PropertyLookupAgent"
+      ],
+      "valueDrivers": [
+        "less_admin",
+        "more_lawns"
+      ],
+      "inputs": [
+        "lead source",
+        "customer contact",
+        "service request"
+      ],
+      "outputs": [
+        "qualification score",
+        "coverage status",
+        "recommended action"
+      ],
+      "escalationOrApproval": "Escalates leads with low confidence or out-of-area requests",
+      "imagePath": "screenshots/leads_list.png",
+      "capturedAt": "2026-01-04T20:54:31.403Z",
+      "status": "captured"
+    },
+    {
+      "id": "service_area_map",
+      "journeyStage": "QUALIFY",
+      "persona": "owner_admin",
+      "route": "/settings",
+      "screenTitle": "Service Area Configuration",
+      "descriptionShort": "Interactive map defining where the business operates.",
+      "descriptionLong": "The service area builder uses Google Maps to let owners draw their coverage\nzones visually. Properties are automatically validated against these zones\nduring lead intake. The AI uses this data to reject or flag out-of-area\nrequests before they consume valuable time.\n",
+      "agentsInvolved": [
+        "CoverageValidationAgent"
+      ],
+      "valueDrivers": [
+        "more_lawns",
+        "productive_crews"
+      ],
+      "inputs": [
+        "business address",
+        "coverage radius",
+        "exclusion zones"
+      ],
+      "outputs": [
+        "coverage validation",
+        "travel time estimates",
+        "zone alerts"
+      ],
+      "escalationOrApproval": "Out-of-area leads automatically flagged for manual review",
+      "imagePath": "screenshots/service_area_map.png",
+      "capturedAt": "2026-01-04T20:54:44.585Z",
+      "status": "captured"
+    },
+    {
+      "id": "quotes_list",
+      "journeyStage": "QUOTE",
+      "persona": "owner_admin",
+      "route": "/quotes",
+      "screenTitle": "Quotes Management",
+      "descriptionShort": "All quotes with status, value, and customer response.",
+      "descriptionLong": "Central quote management showing all estimates with their status (draft, sent,\naccepted, declined), calculated value, and customer response timeline. The\nAI agent tracks quote performance to improve future pricing recommendations\nand identify patterns in customer acceptance rates.\n",
+      "agentsInvolved": [
+        "QuoteBuildAgent",
+        "PricingEngine"
+      ],
+      "valueDrivers": [
+        "higher_profit",
+        "less_admin"
+      ],
+      "inputs": [
+        "service request",
+        "property data",
+        "pricing rules"
+      ],
+      "outputs": [
+        "quote amount",
+        "margin estimate",
+        "competitive position"
+      ],
+      "escalationOrApproval": "Quotes above threshold or with unusual parameters need approval",
+      "imagePath": "screenshots/quotes_list.png",
+      "capturedAt": "2026-01-04T20:54:57.962Z",
+      "status": "captured"
+    },
+    {
+      "id": "quote_builder",
+      "journeyStage": "QUOTE",
+      "persona": "owner_admin",
+      "route": "/quotes",
+      "screenTitle": "Quote Builder",
+      "descriptionShort": "AI-assisted quote creation with pricing recommendations.",
+      "descriptionLong": "The quote builder uses property data (lot size, complexity, access) combined\nwith service type and frequency to generate pricing recommendations. The AI\nexplains its reasoning and shows comparable quotes from similar properties.\nOwners can adjust any line item with the AI learning from these edits.\n",
+      "agentsInvolved": [
+        "QuoteBuildAgent",
+        "LotSizeResolver"
+      ],
+      "valueDrivers": [
+        "higher_profit",
+        "less_admin"
+      ],
+      "inputs": [
+        "lot size",
+        "service type",
+        "frequency",
+        "special conditions"
+      ],
+      "outputs": [
+        "line items",
+        "total price",
+        "margin calculation",
+        "confidence score"
+      ],
+      "escalationOrApproval": "Low-confidence quotes flagged for manual pricing review",
+      "imagePath": "screenshots/quote_builder.png",
+      "capturedAt": "2026-01-04T20:55:11.286Z",
+      "status": "captured"
+    },
+    {
+      "id": "schedule_calendar",
+      "journeyStage": "SCHEDULE",
+      "persona": "owner_admin",
+      "route": "/schedule",
+      "screenTitle": "Master Schedule Calendar",
+      "descriptionShort": "Visual calendar showing all scheduled jobs and crew assignments.",
+      "descriptionLong": "The master schedule provides a calendar view of all upcoming jobs with crew\nassignments color-coded. The AI optimizes routes daily and suggests schedule\nadjustments when new jobs are added. Drag-and-drop rescheduling triggers\nautomatic customer notifications and route recalculation.\n",
+      "agentsInvolved": [
+        "ScheduleProposalAgent",
+        "RouteOptimizer"
+      ],
+      "valueDrivers": [
+        "productive_crews",
+        "less_admin"
+      ],
+      "inputs": [
+        "accepted quotes",
+        "crew availability",
+        "service areas"
+      ],
+      "outputs": [
+        "crew assignments",
+        "optimized routes",
+        "customer confirmations"
+      ],
+      "escalationOrApproval": "Schedule conflicts or overloaded days flagged for review",
+      "imagePath": "screenshots/schedule_calendar.png",
+      "capturedAt": "2026-01-04T20:55:24.256Z",
+      "status": "captured"
+    },
+    {
+      "id": "crew_assignment",
+      "journeyStage": "SCHEDULE",
+      "persona": "owner_admin",
+      "route": "/crews",
+      "screenTitle": "Crew Management",
+      "descriptionShort": "Manage crews, skills, equipment, and daily capacity.",
+      "descriptionLong": "Crew management shows all crews with their home base, skills, equipment,\nand current utilization. The AI runs simulations to recommend optimal\njob assignments based on distance, equipment match, and margin impact.\nSkills and certifications are tracked to ensure proper job matching.\n",
+      "agentsInvolved": [
+        "CrewIntelligenceAgent",
+        "SimulationEngine"
+      ],
+      "valueDrivers": [
+        "productive_crews",
+        "higher_profit"
+      ],
+      "inputs": [
+        "crew profiles",
+        "equipment inventory",
+        "skill certifications"
+      ],
+      "outputs": [
+        "utilization metrics",
+        "assignment recommendations",
+        "capacity alerts"
+      ],
+      "escalationOrApproval": "Overbooked crews or skill mismatches require owner approval",
+      "imagePath": "screenshots/crew_assignment.png",
+      "capturedAt": "2026-01-04T20:55:37.037Z",
+      "status": "captured"
+    },
+    {
+      "id": "jobs_list",
+      "journeyStage": "SERVICE_DELIVERY",
+      "persona": "owner_admin",
+      "route": "/jobs",
+      "screenTitle": "Jobs Overview",
+      "descriptionShort": "All jobs with status, crew, and completion progress.",
+      "descriptionLong": "Comprehensive job tracking showing all scheduled, in-progress, and completed\nwork. Real-time status updates from crews flow through here with the AI\ndetecting anomalies like delayed starts or extended durations. Customer\ncommunication is automated based on job status changes.\n",
+      "agentsInvolved": [
+        "DispatchAgent",
+        "JobTrackingAgent"
+      ],
+      "valueDrivers": [
+        "productive_crews",
+        "happier_customers"
+      ],
+      "inputs": [
+        "scheduled jobs",
+        "crew status updates",
+        "completion reports"
+      ],
+      "outputs": [
+        "job status",
+        "duration tracking",
+        "customer notifications"
+      ],
+      "escalationOrApproval": "Jobs running significantly over time trigger alerts",
+      "imagePath": "screenshots/jobs_list.png",
+      "capturedAt": "2026-01-04T20:55:50.215Z",
+      "status": "captured"
+    },
+    {
+      "id": "crew_today_view",
+      "journeyStage": "SERVICE_DELIVERY",
+      "persona": "crew_lead",
+      "route": "/dashboard",
+      "screenTitle": "Today's Jobs (Crew View)",
+      "descriptionShort": "Crew lead sees today's route and job details.",
+      "descriptionLong": "The crew lead dashboard focuses on today's work with jobs listed in\noptimized route order. Each job shows address, scope notes, special\ninstructions, and equipment needed. One-tap navigation and job start/complete\nbuttons streamline field operations.\n",
+      "agentsInvolved": [
+        "DispatchAgent",
+        "NavigationAgent"
+      ],
+      "valueDrivers": [
+        "productive_crews"
+      ],
+      "inputs": [
+        "assigned jobs",
+        "route sequence",
+        "customer notes"
+      ],
+      "outputs": [
+        "navigation links",
+        "job status updates",
+        "completion forms"
+      ],
+      "escalationOrApproval": "Crew can flag issues or request owner support",
+      "imagePath": "screenshots/crew_today_view_placeholder.png",
+      "capturedAt": "2026-01-04T20:55:54.070Z",
+      "status": "placeholder"
+    },
+    {
+      "id": "job_detail_crew",
+      "journeyStage": "SERVICE_DELIVERY",
+      "persona": "crew_lead",
+      "route": "/jobs",
+      "screenTitle": "Job Detail (Crew)",
+      "descriptionShort": "Detailed job scope, notes, and completion checklist.",
+      "descriptionLong": "Deep job detail view for crews showing full service scope, property notes,\ncustomer preferences, and any special instructions from the AI or owner.\nBefore/after photo capture and completion notes feed back into the system\nfor invoicing and quality tracking.\n",
+      "agentsInvolved": [
+        "JobTrackingAgent"
+      ],
+      "valueDrivers": [
+        "productive_crews",
+        "happier_customers"
+      ],
+      "inputs": [
+        "job scope",
+        "property history",
+        "customer preferences"
+      ],
+      "outputs": [
+        "completion status",
+        "photos",
+        "notes",
+        "time tracking"
+      ],
+      "escalationOrApproval": "Issues or change requests escalate to owner",
+      "imagePath": "screenshots/job_detail_crew_placeholder.png",
+      "capturedAt": "2026-01-04T20:55:54.071Z",
+      "status": "placeholder"
+    },
+    {
+      "id": "invoicing_ready",
+      "journeyStage": "INVOICE_COLLECT",
+      "persona": "owner_admin",
+      "route": "/jobs",
+      "screenTitle": "Ready to Invoice",
+      "descriptionShort": "Completed jobs ready for invoicing and collection.",
+      "descriptionLong": "Jobs marked complete are automatically queued for invoicing. The AI\nvalidates actual work against the quoted scope, flags discrepancies,\nand generates invoices for approval. Payment links can be sent via\nSMS or email with automatic follow-up reminders.\n",
+      "agentsInvolved": [
+        "InvoiceAgent",
+        "ReconciliationWorker"
+      ],
+      "valueDrivers": [
+        "higher_profit",
+        "less_admin"
+      ],
+      "inputs": [
+        "completed jobs",
+        "time logs",
+        "scope changes"
+      ],
+      "outputs": [
+        "invoice drafts",
+        "payment requests",
+        "collection status"
+      ],
+      "escalationOrApproval": "Scope changes or discrepancies need owner approval before invoicing",
+      "imagePath": "screenshots/invoicing_ready_placeholder.png",
+      "capturedAt": "2026-01-04T20:55:54.073Z",
+      "status": "placeholder"
+    },
+    {
+      "id": "customers_list",
+      "journeyStage": "ONGOING_COMMS",
+      "persona": "owner_admin",
+      "route": "/customers",
+      "screenTitle": "Customer Management",
+      "descriptionShort": "All customers with service history and renewal status.",
+      "descriptionLong": "Customer relationship management showing all clients with their properties,\nservice history, and AI-detected opportunities. The renewal agent identifies\ncustomers due for repeat service while the upsell agent suggests seasonal\nadd-ons based on property characteristics and past purchases.\n",
+      "agentsInvolved": [
+        "RenewalAgent",
+        "UpsellAgent"
+      ],
+      "valueDrivers": [
+        "happier_customers",
+        "more_lawns"
+      ],
+      "inputs": [
+        "customer profiles",
+        "service history",
+        "seasonal calendar"
+      ],
+      "outputs": [
+        "renewal reminders",
+        "upsell suggestions",
+        "review requests"
+      ],
+      "escalationOrApproval": "High-value renewals may be flagged for personal outreach",
+      "imagePath": "screenshots/customers_list_placeholder.png",
+      "capturedAt": "2026-01-04T20:55:54.074Z",
+      "status": "placeholder"
+    },
+    {
+      "id": "review_request",
+      "journeyStage": "ONGOING_COMMS",
+      "persona": "owner_admin",
+      "route": "/conversations",
+      "screenTitle": "Review Request Automation",
+      "descriptionShort": "Automated review requests after service completion.",
+      "descriptionLong": "After job completion, the AI sends appropriately timed review requests\nvia SMS. The message is personalized based on the service performed\nand customer history. Positive responses can trigger referral requests\nwhile negative feedback routes to owner for immediate attention.\n",
+      "agentsInvolved": [
+        "ReviewRequestAgent",
+        "SMSAgent"
+      ],
+      "valueDrivers": [
+        "happier_customers",
+        "more_lawns"
+      ],
+      "inputs": [
+        "completed job",
+        "customer satisfaction signals",
+        "timing rules"
+      ],
+      "outputs": [
+        "review request sent",
+        "response tracking",
+        "rating aggregation"
+      ],
+      "escalationOrApproval": "Negative feedback immediately escalates to owner",
+      "imagePath": "screenshots/review_request_placeholder.png",
+      "capturedAt": "2026-01-04T20:55:54.084Z",
+      "status": "placeholder"
+    },
+    {
+      "id": "agents_directory",
+      "journeyStage": "AGENT_DIRECTORY",
+      "persona": "owner_admin",
+      "route": "/agents",
+      "screenTitle": "AI Agents Directory",
+      "descriptionShort": "Catalog of all AI agents with capabilities and status.",
+      "descriptionLong": "The agents directory provides visibility into all AI agents powering\nLawnFlow. Each agent shows its purpose, current activity level, success\nmetrics, and configuration options. Owners can enable/disable specific\nagents and adjust automation thresholds without code changes.\n",
+      "agentsInvolved": [
+        "All"
+      ],
+      "valueDrivers": [
+        "less_admin"
+      ],
+      "inputs": [
+        "agent configurations",
+        "activity logs",
+        "performance metrics"
+      ],
+      "outputs": [
+        "agent status",
+        "automation levels",
+        "kill switches"
+      ],
+      "escalationOrApproval": "Agents can be disabled instantly via kill switch",
+      "imagePath": "screenshots/agents_directory_placeholder.png",
+      "capturedAt": "2026-01-04T20:55:54.086Z",
+      "status": "placeholder"
+    },
+    {
+      "id": "agent_detail",
+      "journeyStage": "AGENT_DIRECTORY",
+      "persona": "owner_admin",
+      "route": "/agents",
+      "screenTitle": "Agent Detail & Configuration",
+      "descriptionShort": "Deep dive into individual agent performance and settings.",
+      "descriptionLong": "Detailed view of a specific agent showing recent activity, success rate,\ncommon escalation reasons, and configurable parameters. Owners can adjust\nconfidence thresholds, approval requirements, and message templates\nwithout developer involvement.\n",
+      "agentsInvolved": [
+        "ConfiguredAgent"
+      ],
+      "valueDrivers": [
+        "less_admin"
+      ],
+      "inputs": [
+        "agent metrics",
+        "decision history",
+        "configuration options"
+      ],
+      "outputs": [
+        "updated thresholds",
+        "template changes",
+        "enable/disable state"
+      ],
+      "escalationOrApproval": "Configuration changes take effect immediately",
+      "imagePath": "screenshots/agent_detail_placeholder.png",
+      "capturedAt": "2026-01-04T20:55:54.097Z",
+      "status": "placeholder"
+    },
+    {
+      "id": "business_profile",
+      "journeyStage": "SETTINGS",
+      "persona": "owner_admin",
+      "route": "/settings",
+      "screenTitle": "Business Profile",
+      "descriptionShort": "Core business information and branding.",
+      "descriptionLong": "Business profile configuration including company name, contact info,\nservice area, operating hours, and branding. This information flows\nthrough to all customer communications and agent behaviors. Changes\nhere immediately update how AI represents the business.\n",
+      "agentsInvolved": [
+        "ConfigurationAgent"
+      ],
+      "valueDrivers": [
+        "less_admin"
+      ],
+      "inputs": [
+        "business details",
+        "contact info",
+        "branding assets"
+      ],
+      "outputs": [
+        "profile updates",
+        "agent context refresh"
+      ],
+      "escalationOrApproval": "N/A - owner-only configuration",
+      "imagePath": "screenshots/business_profile_placeholder.png",
+      "capturedAt": "2026-01-04T20:55:54.103Z",
+      "status": "placeholder"
+    },
+    {
+      "id": "policy_configuration",
+      "journeyStage": "SETTINGS",
+      "persona": "owner_admin",
+      "route": "/settings",
+      "screenTitle": "Automation Policies",
+      "descriptionShort": "Configure automation levels and approval thresholds.",
+      "descriptionLong": "The policy system lets owners choose their automation comfort level\nacross a spectrum from \"always ask me\" to \"fully autonomous.\" Tiered\npresets (Owner Operator, SMB, Commercial) provide sensible defaults\nwhile individual rules can be customized per workflow stage.\n",
+      "agentsInvolved": [
+        "PolicyEngine"
+      ],
+      "valueDrivers": [
+        "less_admin",
+        "higher_profit"
+      ],
+      "inputs": [
+        "automation preferences",
+        "approval thresholds",
+        "risk tolerance"
+      ],
+      "outputs": [
+        "policy configuration",
+        "agent behavior changes"
+      ],
+      "escalationOrApproval": "Policy changes are owner-only",
+      "imagePath": "screenshots/policy_configuration_placeholder.png",
+      "capturedAt": "2026-01-04T20:55:54.110Z",
+      "status": "placeholder"
+    },
+    {
+      "id": "learning_dashboard",
+      "journeyStage": "SETTINGS",
+      "persona": "owner_admin",
+      "route": "/learning",
+      "screenTitle": "Learning System Dashboard",
+      "descriptionShort": "AI learning metrics and policy improvement suggestions.",
+      "descriptionLong": "The learning dashboard shows how AI decisions are performing over time.\nWhen owners consistently override AI recommendations, the system detects\npatterns and suggests policy adjustments. Kill switches provide immediate\ncontrol while suggestions offer gradual refinement.\n",
+      "agentsInvolved": [
+        "LearningAgent",
+        "PolicyTuner"
+      ],
+      "valueDrivers": [
+        "higher_profit",
+        "less_admin"
+      ],
+      "inputs": [
+        "decision logs",
+        "human overrides",
+        "outcome tracking"
+      ],
+      "outputs": [
+        "performance metrics",
+        "policy suggestions",
+        "kill switch controls"
+      ],
+      "escalationOrApproval": "Suggestions require explicit owner approval to apply",
+      "imagePath": "screenshots/learning_dashboard_placeholder.png",
+      "capturedAt": "2026-01-04T20:55:54.122Z",
+      "status": "placeholder"
+    },
+    {
+      "id": "mobile_crew_app",
+      "journeyStage": "SERVICE_DELIVERY",
+      "persona": "crew_member",
+      "route": "/not-implemented",
+      "screenTitle": "Mobile Crew App (Planned)",
+      "descriptionShort": "Native mobile app for field crews (not yet built).",
+      "descriptionLong": "[NOT IMPLEMENTED] A dedicated mobile experience optimized for field\ncrews with offline support, GPS tracking, and simplified job interaction.\nThis represents the vision for Phase 2 development.\n",
+      "agentsInvolved": [
+        "MobileAgent"
+      ],
+      "valueDrivers": [
+        "productive_crews"
+      ],
+      "inputs": [
+        "N/A"
+      ],
+      "outputs": [
+        "N/A"
+      ],
+      "escalationOrApproval": "N/A",
+      "imagePath": "screenshots/mobile_crew_app_placeholder.png",
+      "capturedAt": "2026-01-04T20:55:54.123Z",
+      "status": "not_implemented"
+    },
+    {
+      "id": "payment_processing",
+      "journeyStage": "INVOICE_COLLECT",
+      "persona": "owner_admin",
+      "route": "/not-implemented",
+      "screenTitle": "Payment Processing (Planned)",
+      "descriptionShort": "Integrated payment collection (not yet built).",
+      "descriptionLong": "[NOT IMPLEMENTED] Direct payment collection via Stripe integration\nwith automatic reconciliation and receipt generation. Currently\ninvoicing syncs to Jobber where payments are processed.\n",
+      "agentsInvolved": [
+        "PaymentAgent"
+      ],
+      "valueDrivers": [
+        "higher_profit"
+      ],
+      "inputs": [
+        "N/A"
+      ],
+      "outputs": [
+        "N/A"
+      ],
+      "escalationOrApproval": "N/A",
+      "imagePath": "screenshots/payment_processing_placeholder.png",
+      "capturedAt": "2026-01-04T20:55:54.123Z",
+      "status": "not_implemented"
+    }
+  ]
+}

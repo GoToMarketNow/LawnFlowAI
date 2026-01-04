@@ -410,4 +410,77 @@ export function registerAuthRoutes(app: Express): void {
       twilioStatus,
     });
   });
+
+  // ============================================
+  // DEV LOGIN BYPASS (for screenshot automation)
+  // ============================================
+  // This endpoint allows bypassing the normal auth flow in development
+  // ONLY enabled when NODE_ENV !== 'production'
+  
+  if (process.env.NODE_ENV !== "production") {
+    app.get("/dev/login", async (req: Request, res: Response) => {
+      try {
+        const email = req.query.email as string;
+        
+        if (!email) {
+          return res.status(400).send("Missing email parameter. Usage: /dev/login?email=owner@demo.com");
+        }
+
+        // Try to find existing user by email
+        let user = await storage.getUserByEmail(email);
+        
+        // If user doesn't exist, create a demo user
+        if (!user) {
+          // Determine role based on email
+          let role: 'OWNER' | 'ADMIN' | 'CREW_LEAD' | 'STAFF' = 'OWNER';
+          if (email.includes('crewlead')) {
+            role = 'CREW_LEAD';
+          } else if (email.includes('crew') || email.includes('staff')) {
+            role = 'STAFF';
+          } else if (email.includes('admin')) {
+            role = 'ADMIN';
+          }
+
+          // Create the demo user
+          const passwordHash = await bcrypt.hash('demo123', SALT_ROUNDS);
+          user = await storage.createUser({
+            email,
+            passwordHash,
+            phoneE164: `+1555${Date.now().toString().slice(-7)}`,
+          });
+
+          // Mark phone as verified for demo users
+          await storage.updateUser(user.id, {
+            phoneVerifiedAt: new Date(),
+            role,
+          });
+          
+          // Refresh user data
+          user = await storage.getUserById(user.id);
+        }
+
+        if (!user) {
+          return res.status(500).send("Failed to create demo user");
+        }
+
+        // Set session
+        req.session.userId = user.id;
+        req.session.email = user.email;
+
+        await audit.logEvent({
+          action: "auth.devLogin",
+          actor: "system",
+          payload: { userId: user.id, email },
+        });
+
+        // Redirect to dashboard
+        res.redirect("/dashboard");
+      } catch (error) {
+        console.error("Dev login error:", error);
+        res.status(500).send("Dev login failed: " + (error instanceof Error ? error.message : "Unknown error"));
+      }
+    });
+
+    console.log("[Auth] DEV LOGIN ENABLED: /dev/login?email=<email>");
+  }
 }

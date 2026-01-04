@@ -114,3 +114,12 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
   - API endpoints: /api/webhooks/twilio/sms, /api/webhooks/twilio/status, /api/twilio/queue-stats
 - **Jobber:** Integration for webhooks, GraphQL API access, and OAuth for field service management (requires `JOBBER_CLIENT_ID`, `JOBBER_CLIENT_SECRET`, `JOBBER_REDIRECT_URI`).
 - **ArcGIS:** Integrated into the Lot Size Resolver for parcel data and county sources.
+- **Playwright:** Screenshot export tool for Figma-ready documentation packages with:
+  - YAML-driven screenshot plan (`tools/screenshots/screenshot-plan.yaml`) covering 23+ screens across 3 personas
+  - System Chromium via Nix with container stability flags (single-process, no-sandbox, disable-gpu)
+  - Periodic browser restart for stability in containerized environments (every 5 captures)
+  - PII redaction via CSS injection (phone: ***-***-****, email: ***@***.com, names/addresses: blur)
+  - Dev login bypass (`/dev/login?email=<email>`) for automated persona switching
+  - Manifest generation in JSON and Markdown formats with journey stage metadata
+  - ZIP packaging for Figma import (`exports/lawnflow-figma-pack-*.zip`)
+  - Run command: `npx tsx tools/screenshots/run.ts`
