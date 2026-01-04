@@ -52,8 +52,14 @@ import {
   customerProfiles,
   customerMemories,
   scheduleItems,
+  decisionLogs,
+  humanActionLogs,
+  outcomeLogs,
+  policyVersions,
+  policyTuningSuggestions,
+  killSwitches,
 } from "@shared/schema";
-import { eq, desc, and, sql, or, isNull } from "drizzle-orm";
+import { eq, desc, and, sql, or, isNull, gte } from "drizzle-orm";
 import {
   startOrchestrationInputSchema,
   opsApprovalInputSchema,
@@ -7007,6 +7013,382 @@ Return JSON format:
       res.json({ success: true, count: agents.length, agents });
     } catch (error: any) {
       console.error("[Agents] Error seeding agents:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ==================== LEARNING SYSTEM ROUTES ====================
+  
+  // Seed learning system (reason codes + initial policy)
+  app.post("/api/learning/seed", async (req, res) => {
+    try {
+      const businessId = (req.user as any)?.businessId || 1;
+      const { seedLearningSystem } = await import("./lib/learning/seed");
+      const result = await seedLearningSystem(businessId);
+      res.json({ success: true, ...result });
+    } catch (error: any) {
+      console.error("[Learning] Error seeding learning system:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // GET /api/learning/reason-codes - Get reason codes for a decision type
+  app.get("/api/learning/reason-codes", async (req, res) => {
+    try {
+      const businessId = (req.user as any)?.businessId || 1;
+      const decisionType = req.query.decisionType as string || "";
+      const { getReasonCodesForDecision } = await import("./lib/learning/seed");
+      const codes = await getReasonCodesForDecision(businessId, decisionType);
+      res.json(codes);
+    } catch (error: any) {
+      console.error("[Learning] Error fetching reason codes:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // GET /api/learning/active-policy - Get current active policy
+  app.get("/api/learning/active-policy", async (req, res) => {
+    try {
+      const businessId = (req.user as any)?.businessId || 1;
+      const { getActivePolicy } = await import("./lib/learning/seed");
+      const policy = await getActivePolicy(businessId);
+      if (!policy) {
+        return res.status(404).json({ error: "No active policy found" });
+      }
+      res.json(policy);
+    } catch (error: any) {
+      console.error("[Learning] Error fetching active policy:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // POST /api/learning/decision - Log an AI decision
+  app.post("/api/learning/decision", async (req, res) => {
+    try {
+      const businessId = (req.user as any)?.businessId || 1;
+      const { logDecision } = await import("./lib/learning");
+      const decisionId = await logDecision({ ...req.body, businessId });
+      res.json({ success: true, decisionId });
+    } catch (error: any) {
+      console.error("[Learning] Error logging decision:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // POST /api/learning/human-action - Log a human action on a decision
+  app.post("/api/learning/human-action", async (req, res) => {
+    try {
+      const businessId = (req.user as any)?.businessId || 1;
+      const userId = (req.user as any)?.id || 1;
+      const role = (req.user as any)?.role || "OWNER";
+      const { logHumanAction } = await import("./lib/learning");
+      const humanActionId = await logHumanAction({ 
+        ...req.body, 
+        businessId, 
+        userId,
+        role 
+      });
+      res.json({ success: true, humanActionId });
+    } catch (error: any) {
+      console.error("[Learning] Error logging human action:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // POST /api/learning/outcome - Log an outcome event
+  app.post("/api/learning/outcome", async (req, res) => {
+    try {
+      const businessId = (req.user as any)?.businessId || 1;
+      const { logOutcome } = await import("./lib/learning");
+      const outcomeId = await logOutcome({ ...req.body, businessId });
+      res.json({ success: true, outcomeId });
+    } catch (error: any) {
+      console.error("[Learning] Error logging outcome:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // GET /api/learning/decisions - Query decision logs
+  app.get("/api/learning/decisions", async (req, res) => {
+    try {
+      const businessId = (req.user as any)?.businessId || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const decisionType = req.query.decisionType as string;
+      
+      let query = db.select().from(decisionLogs).where(eq(decisionLogs.businessId, businessId));
+      
+      if (decisionType) {
+        query = db.select().from(decisionLogs).where(
+          and(eq(decisionLogs.businessId, businessId), eq(decisionLogs.decisionType, decisionType as any))
+        );
+      }
+      
+      const decisions = await query.orderBy(desc(decisionLogs.createdAt)).limit(limit);
+      res.json(decisions);
+    } catch (error: any) {
+      console.error("[Learning] Error fetching decisions:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // GET /api/learning/human-actions - Query human action logs
+  app.get("/api/learning/human-actions", async (req, res) => {
+    try {
+      const businessId = (req.user as any)?.businessId || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+      
+      const actions = await db.select()
+        .from(humanActionLogs)
+        .where(eq(humanActionLogs.businessId, businessId))
+        .orderBy(desc(humanActionLogs.createdAt))
+        .limit(limit);
+      res.json(actions);
+    } catch (error: any) {
+      console.error("[Learning] Error fetching human actions:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // GET /api/learning/outcomes - Query outcome logs
+  app.get("/api/learning/outcomes", async (req, res) => {
+    try {
+      const businessId = (req.user as any)?.businessId || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+      
+      const outcomes = await db.select()
+        .from(outcomeLogs)
+        .where(eq(outcomeLogs.businessId, businessId))
+        .orderBy(desc(outcomeLogs.occurredAt))
+        .limit(limit);
+      res.json(outcomes);
+    } catch (error: any) {
+      console.error("[Learning] Error fetching outcomes:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // GET /api/learning/metrics - Aggregate metrics for learning dashboard
+  app.get("/api/learning/metrics", async (req, res) => {
+    try {
+      const businessId = (req.user as any)?.businessId || 1;
+      const daysBack = parseInt(req.query.days as string) || 30;
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - daysBack);
+      
+      // Get decision counts by type
+      const decisions = await db.select()
+        .from(decisionLogs)
+        .where(and(
+          eq(decisionLogs.businessId, businessId),
+          gte(decisionLogs.createdAt, cutoff)
+        ));
+      
+      const humanActions = await db.select()
+        .from(humanActionLogs)
+        .where(and(
+          eq(humanActionLogs.businessId, businessId),
+          gte(humanActionLogs.createdAt, cutoff)
+        ));
+      
+      const outcomes = await db.select()
+        .from(outcomeLogs)
+        .where(and(
+          eq(outcomeLogs.businessId, businessId),
+          gte(outcomeLogs.occurredAt, cutoff)
+        ));
+      
+      // Compute metrics
+      const totalDecisions = decisions.length;
+      const approvedCount = humanActions.filter(a => a.actionType === "approve").length;
+      const editedCount = humanActions.filter(a => a.actionType === "edit").length;
+      const rejectedCount = humanActions.filter(a => a.actionType === "reject").length;
+      const overrideRate = totalDecisions > 0 ? ((editedCount + rejectedCount) / totalDecisions * 100) : 0;
+      
+      const avgTimeToAction = humanActions.length > 0
+        ? Math.round(humanActions.reduce((sum, a) => sum + (a.timeToActionSeconds || 0), 0) / humanActions.length)
+        : 0;
+      
+      // Confidence distribution
+      const highConfidence = decisions.filter(d => d.confidence === "high").length;
+      const mediumConfidence = decisions.filter(d => d.confidence === "medium").length;
+      const lowConfidence = decisions.filter(d => d.confidence === "low").length;
+      
+      // Reason code frequency
+      const reasonCodeCounts: Record<string, number> = {};
+      for (const action of humanActions) {
+        const codes = action.reasonCodesJson as string[] || [];
+        for (const code of codes) {
+          reasonCodeCounts[code] = (reasonCodeCounts[code] || 0) + 1;
+        }
+      }
+      const topReasonCodes = Object.entries(reasonCodeCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([code, count]) => ({ code, count }));
+      
+      // Outcome breakdown
+      const outcomeCounts: Record<string, number> = {};
+      for (const outcome of outcomes) {
+        outcomeCounts[outcome.outcomeType] = (outcomeCounts[outcome.outcomeType] || 0) + 1;
+      }
+      
+      res.json({
+        period: { days: daysBack, cutoff: cutoff.toISOString() },
+        decisions: {
+          total: totalDecisions,
+          byConfidence: { high: highConfidence, medium: mediumConfidence, low: lowConfidence },
+        },
+        humanActions: {
+          total: humanActions.length,
+          approved: approvedCount,
+          edited: editedCount,
+          rejected: rejectedCount,
+          overrideRate: Math.round(overrideRate * 10) / 10,
+          avgTimeToActionSeconds: avgTimeToAction,
+        },
+        outcomes: outcomeCounts,
+        topReasonCodes,
+      });
+    } catch (error: any) {
+      console.error("[Learning] Error fetching metrics:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // GET /api/learning/policy-versions - List all policy versions
+  app.get("/api/learning/policy-versions", async (req, res) => {
+    try {
+      const businessId = (req.user as any)?.businessId || 1;
+      const versions = await db.select()
+        .from(policyVersions)
+        .where(eq(policyVersions.businessId, businessId))
+        .orderBy(desc(policyVersions.createdAt));
+      res.json(versions);
+    } catch (error: any) {
+      console.error("[Learning] Error fetching policy versions:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // GET /api/learning/suggestions - List tuning suggestions
+  app.get("/api/learning/suggestions", async (req, res) => {
+    try {
+      const businessId = (req.user as any)?.businessId || 1;
+      const status = req.query.status as string;
+      
+      let query = db.select()
+        .from(policyTuningSuggestions)
+        .where(eq(policyTuningSuggestions.businessId, businessId));
+      
+      if (status) {
+        query = db.select()
+          .from(policyTuningSuggestions)
+          .where(and(
+            eq(policyTuningSuggestions.businessId, businessId),
+            eq(policyTuningSuggestions.status, status as any)
+          ));
+      }
+      
+      const suggestions = await query.orderBy(desc(policyTuningSuggestions.createdAt));
+      res.json(suggestions);
+    } catch (error: any) {
+      console.error("[Learning] Error fetching suggestions:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // PATCH /api/learning/suggestions/:id - Update suggestion status
+  app.patch("/api/learning/suggestions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = (req.user as any)?.id || 1;
+      const { status } = req.body;
+      
+      if (!["approved", "rejected"].includes(status)) {
+        return res.status(400).json({ error: "Status must be 'approved' or 'rejected'" });
+      }
+      
+      const [updated] = await db.update(policyTuningSuggestions)
+        .set({ 
+          status, 
+          reviewedByUserId: userId,
+          reviewedAt: new Date()
+        })
+        .where(eq(policyTuningSuggestions.id, id))
+        .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ error: "Suggestion not found" });
+      }
+      
+      res.json(updated);
+    } catch (error: any) {
+      console.error("[Learning] Error updating suggestion:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // GET /api/learning/kill-switches - List kill switches
+  app.get("/api/learning/kill-switches", async (req, res) => {
+    try {
+      const businessId = (req.user as any)?.businessId || 1;
+      const switches = await db.select()
+        .from(killSwitches)
+        .where(eq(killSwitches.businessId, businessId))
+        .orderBy(desc(killSwitches.createdAt));
+      res.json(switches);
+    } catch (error: any) {
+      console.error("[Learning] Error fetching kill switches:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // POST /api/learning/kill-switches - Create a kill switch
+  app.post("/api/learning/kill-switches", async (req, res) => {
+    try {
+      const businessId = (req.user as any)?.businessId || 1;
+      const userId = (req.user as any)?.id || 1;
+      const { scope, scopeId, reason, expiresAt } = req.body;
+      
+      if (!scope || !["global", "agent", "stage", "decision_type"].includes(scope)) {
+        return res.status(400).json({ error: "Invalid scope" });
+      }
+      
+      const [created] = await db.insert(killSwitches).values({
+        businessId,
+        scope,
+        scopeId: scopeId || null,
+        isActive: true,
+        reason: reason || null,
+        createdByUserId: userId,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+      }).returning();
+      
+      res.json(created);
+    } catch (error: any) {
+      console.error("[Learning] Error creating kill switch:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // PATCH /api/learning/kill-switches/:id - Toggle kill switch
+  app.patch("/api/learning/kill-switches/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { isActive } = req.body;
+      
+      const [updated] = await db.update(killSwitches)
+        .set({ isActive: Boolean(isActive) })
+        .where(eq(killSwitches.id, id))
+        .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ error: "Kill switch not found" });
+      }
+      
+      res.json(updated);
+    } catch (error: any) {
+      console.error("[Learning] Error updating kill switch:", error);
       res.status(500).json({ error: error.message });
     }
   });
