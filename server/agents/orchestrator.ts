@@ -6,10 +6,13 @@
  * - Enforces RBAC for decision creation and approval
  * - Handles status transitions
  * - Triggers writeback to external systems (Jobber)
+ * - Logs decisions to the learning system for policy tuning
+ * - Respects kill switches to pause automation
  */
 
 import { storage } from "../storage";
 import type { AssignmentDecision, AssignmentSimulation, User } from "@shared/schema";
+import { logDecision, checkKillSwitch } from "../lib/learning";
 
 export type UserRole = "owner" | "admin" | "crew_lead" | "staff";
 
@@ -125,6 +128,7 @@ function generateSelectionRationale(
 /**
  * Create a decision from a selected simulation
  * Enforces RBAC: CREW_LEAD can create draft, OWNER/ADMIN can create and approve
+ * Logs decision to learning system for policy tuning
  */
 export async function createDecision(
   businessId: number,
@@ -132,6 +136,22 @@ export async function createDecision(
   simulationId: number,
   userId: number
 ): Promise<CreateDecisionResult> {
+  // Check kill switch before proceeding
+  const killSwitchResult = await checkKillSwitch({
+    businessId,
+    agentType: "optimizer_orchestrator",
+    stage: "CREW_LOCK",
+    decisionType: "crew_assignment",
+  });
+  
+  if (killSwitchResult.blocked) {
+    console.log(`[Orchestrator] Blocked by kill switch: ${killSwitchResult.reason}`);
+    return { 
+      success: false, 
+      error: `Automation paused: ${killSwitchResult.reason}` 
+    };
+  }
+
   const user = await storage.getUserById(userId);
   if (!user) {
     return { success: false, error: "User not found" };
@@ -202,6 +222,39 @@ export async function createDecision(
 
   await storage.updateJobRequest(jobRequestId, { status: "recommended" });
 
+  // Log decision to learning system
+  try {
+    const decisionLogId = await logDecision({
+      businessId,
+      jobRequestId,
+      decisionType: "crew_assignment",
+      stage: "CREW_LOCK",
+      agentName: "optimizer_orchestrator",
+      agentVersion: "1.0.0",
+      inputsSnapshot: {
+        jobRequestId,
+        simulationId,
+        allSimulationsCount: alternativesCount,
+        selectedCrewId: crew.id,
+        proposedDate: simulation.proposedDate,
+      },
+      recommendedAction: {
+        action: "assign_crew",
+        crewId: crew.id,
+        crewName: crew.name,
+        proposedDate: simulation.proposedDate,
+        totalScore: simulation.totalScore,
+        marginScore: simulation.marginScore,
+        riskScore: simulation.riskScore,
+      },
+      confidence: simulation.totalScore >= 160 ? "high" : simulation.totalScore >= 100 ? "medium" : "low",
+      reasons: [reasoningJson.selectionRationale],
+    });
+    console.log(`[Orchestrator] Decision logged to learning system with ID ${decisionLogId}`);
+  } catch (err) {
+    console.error(`[Orchestrator] Failed to log decision to learning system:`, err);
+  }
+
   console.log(`[Orchestrator] Decision ${decision.id} created by user ${userId} (${userRole}) for job ${jobRequestId}`);
 
   return {
@@ -214,6 +267,7 @@ export async function createDecision(
 /**
  * Approve a decision and trigger writeback
  * Enforces RBAC: Only OWNER/ADMIN can approve (or CREW_LEAD if flag enabled)
+ * Checks kill switches before automated writeback
  */
 export async function approveDecision(
   decisionId: number,
@@ -237,6 +291,23 @@ export async function approveDecision(
   const decision = await storage.getDecision(decisionId);
   if (!decision) {
     return { success: false, writebackTriggered: false, error: "Decision not found" };
+  }
+
+  // Check kill switch before proceeding with approval
+  const killSwitchResult = await checkKillSwitch({
+    businessId: decision.businessId,
+    agentType: "optimizer_orchestrator",
+    stage: "DISPATCH_READY",
+    decisionType: "crew_assignment",
+  });
+  
+  if (killSwitchResult.blocked) {
+    console.log(`[Orchestrator] Approval blocked by kill switch: ${killSwitchResult.reason}`);
+    return { 
+      success: false, 
+      writebackTriggered: false,
+      error: `Automation paused: ${killSwitchResult.reason}` 
+    };
   }
 
   if (decision.status === "approved" || decision.status === "written_back") {
