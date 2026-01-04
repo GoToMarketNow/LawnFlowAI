@@ -272,10 +272,14 @@ export interface IStorage {
   getCrew(id: number): Promise<Crew | undefined>;
   createCrew(crew: InsertCrew): Promise<Crew>;
   updateCrew(id: number, updates: Partial<InsertCrew>): Promise<Crew>;
+  deleteCrew(id: number): Promise<boolean>;
   
   // Route Optimizer - Crew Members
   getCrewMembers(crewId: number): Promise<CrewMember[]>;
-  createCrewMember(member: InsertCrewMember): Promise<CrewMember>;
+  addCrewMember(member: InsertCrewMember): Promise<CrewMember>;
+  updateCrewMember(id: number, updates: Partial<InsertCrewMember>): Promise<CrewMember | null>;
+  removeCrewMember(id: number): Promise<CrewMember | null>;
+  setCrewLeader(crewId: number, memberId: number): Promise<void>;
   
   // Route Optimizer - Job Requests
   getJobRequests(businessId: number): Promise<JobRequest[]>;
@@ -1323,17 +1327,67 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async deleteCrew(id: number): Promise<boolean> {
+    await db
+      .update(crewMembers)
+      .set({ isActive: false, endAt: new Date() })
+      .where(eq(crewMembers.crewId, id));
+    
+    const [crew] = await db
+      .update(crews)
+      .set({ status: "INACTIVE", isActive: false, updatedAt: new Date() })
+      .where(eq(crews.id, id))
+      .returning();
+    
+    return !!crew;
+  }
+
   // Route Optimizer - Crew Members
   async getCrewMembers(crewId: number): Promise<CrewMember[]> {
     return db
       .select()
       .from(crewMembers)
-      .where(eq(crewMembers.crewId, crewId));
+      .where(and(eq(crewMembers.crewId, crewId), eq(crewMembers.isActive, true)));
   }
 
-  async createCrewMember(member: InsertCrewMember): Promise<CrewMember> {
-    const [created] = await db.insert(crewMembers).values(member).returning();
+  async addCrewMember(member: InsertCrewMember): Promise<CrewMember> {
+    const [created] = await db.insert(crewMembers).values({
+      ...member,
+      role: member.role ?? "MEMBER",
+      isActive: true,
+      startAt: new Date(),
+    }).returning();
     return created;
+  }
+
+  async updateCrewMember(id: number, updates: Partial<InsertCrewMember>): Promise<CrewMember | null> {
+    const [updated] = await db
+      .update(crewMembers)
+      .set(updates)
+      .where(eq(crewMembers.id, id))
+      .returning();
+    return updated ?? null;
+  }
+
+  async removeCrewMember(id: number): Promise<CrewMember | null> {
+    const [updated] = await db
+      .update(crewMembers)
+      .set({ isActive: false, endAt: new Date() })
+      .where(eq(crewMembers.id, id))
+      .returning();
+    return updated ?? null;
+  }
+
+  async setCrewLeader(crewId: number, memberId: number): Promise<void> {
+    await db
+      .update(crewMembers)
+      .set({ role: "MEMBER" })
+      .where(and(eq(crewMembers.crewId, crewId), eq(crewMembers.role, "LEADER")));
+    
+    await db
+      .update(crewMembers)
+      .set({ role: "LEADER" })
+      .where(eq(crewMembers.id, memberId));
   }
 
   // Route Optimizer - Job Requests

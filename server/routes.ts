@@ -6165,6 +6165,116 @@ Return JSON format:
     }
   });
 
+  app.delete("/api/ops/crews/:id", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can delete crews" });
+      }
+      const crewId = parseInt(req.params.id);
+      const result = await storage.deleteCrew(crewId);
+      if (!result) {
+        return res.status(404).json({ error: "Crew not found" });
+      }
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Optimizer] Error deleting crew:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Crew Members API ---
+  app.get("/api/ops/crews/:id/members", async (req, res) => {
+    try {
+      const crewId = parseInt(req.params.id);
+      const members = await storage.getCrewMembers(crewId);
+      res.json(members);
+    } catch (error: any) {
+      console.error("[Optimizer] Error fetching crew members:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ops/crews/:id/members", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can add crew members" });
+      }
+      const crewId = parseInt(req.params.id);
+      const { displayName, userId, role: memberRole } = req.body;
+      if (!displayName) {
+        return res.status(400).json({ error: "displayName required" });
+      }
+      const member = await storage.addCrewMember({
+        crewId,
+        displayName,
+        userId: userId || null,
+        role: memberRole || "MEMBER",
+      });
+      res.json(member);
+    } catch (error: any) {
+      console.error("[Optimizer] Error adding crew member:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/ops/crews/:crewId/members/:memberId", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can update crew members" });
+      }
+      const memberId = parseInt(req.params.memberId);
+      const updates = req.body;
+      const member = await storage.updateCrewMember(memberId, updates);
+      if (!member) {
+        return res.status(404).json({ error: "Member not found" });
+      }
+      res.json(member);
+    } catch (error: any) {
+      console.error("[Optimizer] Error updating crew member:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/ops/crews/:crewId/members/:memberId", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can remove crew members" });
+      }
+      const memberId = parseInt(req.params.memberId);
+      const member = await storage.removeCrewMember(memberId);
+      if (!member) {
+        return res.status(404).json({ error: "Member not found" });
+      }
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Optimizer] Error removing crew member:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ops/crews/:crewId/leader", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can set crew leader" });
+      }
+      const crewId = parseInt(req.params.crewId);
+      const { memberId } = req.body;
+      if (!memberId) {
+        return res.status(400).json({ error: "memberId required" });
+      }
+      await storage.setCrewLeader(crewId, memberId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Optimizer] Error setting crew leader:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // --- Ops API: Job Requests ---
   app.get("/api/ops/jobs", async (req, res) => {
     try {
