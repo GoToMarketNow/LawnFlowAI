@@ -1,0 +1,214 @@
+You are a senior full-stack engineer working in Replit on LawnFlow.ai.
+
+I DO NOT want an in-app screenshot service or UI.
+I want an EXPORTABLE ARTIFACT created from the product that includes:
+- A curated set of screenshots at key journey points (Lead → Quote → Schedule → Service → Ongoing Comms)
+- A manifest file with written descriptions per screenshot (editable)
+- A single ZIP output I can upload into Figma/FigJam as product context
+
+Build this as a repo tool / script that I can run locally in Replit.
+
+================================================================================
+1) OUTPUTS (WHAT TO GENERATE)
+================================================================================
+
+When I run:
+  npm run screenshots
+
+Produce:
+  /exports/lawnflow-figma-pack-YYYYMMDD.zip
+Containing:
+  /screenshots/*.png
+  manifest.json
+  manifest.md
+  (optional) storyboard.pdf (nice-to-have, skip if time)
+
+The manifest must include for each screenshot:
+- id
+- journeyStage (enum)
+- persona (enum)
+- route
+- screenTitle
+- descriptionShort (1–2 lines)
+- descriptionLong (5–10 lines)
+- agentsInvolved (list)
+- valueDrivers (flags): happier_customers, productive_crews, higher_profit, less_admin, more_lawns
+- inputs (key points)
+- outputs (key points)
+- escalationOrApproval (what triggers human-in-loop)
+- imagePath
+
+================================================================================
+2) APPROACH (NO IN-APP UI)
+================================================================================
+
+Use Playwright to automate the browser and capture screenshots.
+
+- Create a “Screenshot Runner” script that:
+  1) Boots the app (or assumes it is running at BASE_URL)
+  2) Logs in as each persona (Owner/Admin, Crew Lead, Crew Member)
+  3) Navigates through a pre-defined list of routes (journey checkpoints)
+  4) Waits for key selectors to ensure pages are loaded
+  5) Captures screenshots of the main content area only (not browser chrome)
+  6) Writes/updates manifest.json + manifest.md
+  7) Zips everything into the Figma pack
+
+IMPORTANT:
+- Do not depend on production data.
+- Seed a small demo dataset (already exists) OR add a script to seed it before screenshots.
+
+================================================================================
+3) CONFIG-DRIVEN (SO I CAN EDIT WHAT GETS SHOT)
+================================================================================
+
+Create a config file:
+  /tools/screenshots/screenshot-plan.yaml
+
+It defines all screenshots to capture, grouped by journey stage and persona.
+
+Example structure:
+- id: lead_inbox_owner
+  journeyStage: LEAD
+  persona: OWNER_ADMIN
+  route: /leads
+  screenTitle: "Leads Inbox"
+  waitFor: "[data-testid='leads-inbox']"
+  agentsInvolved: ["InboundLeadAgent", "SMSSequencerAgent"]
+  valueDrivers: ["less_admin", "happier_customers"]
+  descriptionShort: "All new leads in one place."
+  descriptionLong: "Owners see new inbound requests, status, and the agent’s next-step recommendation..."
+  inputs: ["lead message", "service address"]
+  outputs: ["qualification status", "next action", "handoff options"]
+  escalationOrApproval: "Escalates when intent is unclear or customer requests a call."
+
+Make the YAML editable, and the script should:
+- Use YAML values if present
+- If descriptions are blank, auto-fill placeholders and mark them as TODO in manifest.md
+
+================================================================================
+4) JOURNEY CHECKPOINTS (WHAT TO CAPTURE)
+================================================================================
+
+Define at minimum these stages, with screens for each relevant persona:
+
+LEAD
+- New lead arrives (SMS thread view)
+- Leads inbox list (Owner/Admin)
+- Lead detail (agent summary + next action)
+- Click-to-call / human escalation point
+
+QUALIFY
+- Qualification dialog / questions asked (SMS or web)
+- Property lookup/coverage validation (map or zip coverage)
+- Feasibility decision (accept/decline lead)
+
+QUOTE
+- Quote builder (range + assumptions)
+- Quote approval (Owner/Admin escalation state)
+- Quote sent confirmation (customer view in thread)
+
+SCHEDULE
+- Schedule proposal (time windows)
+- Crew availability / assignment recommendation
+- Booking confirmation + calendar sync indication (if present)
+
+SERVICE DELIVERY
+- Crew view: today’s jobs
+- Job details for crew lead (scope, notes, equipment)
+- Job completion / before-after notes
+
+INVOICE / COLLECT (if present in MVP)
+- Invoice generated or “ready to invoice” state
+- Payment link sent via SMS/email (if present)
+
+ONGOING COMMS / RETENTION
+- Automated follow-up message
+- Review request
+- Repeat service reminder / upsell suggestion
+
+AGENT DIRECTORY (IMPORTANT FOR FIGMA CONTEXT)
+- Agent directory list / grouping screen OR a generated “Agent Catalog” page (static export if no UI)
+
+If some screens don’t exist in UI yet, still include placeholders in the manifest and create a “Not Implemented” entry so Figma understands the intended flow.
+
+================================================================================
+5) PERSONAS (HOW TO LOG IN)
+================================================================================
+
+Create 3 test users (seed):
+- owner_admin@demo.com / password
+- crew_lead@demo.com / password
+- crew_member@demo.com / password
+
+The Playwright runner should:
+- log in via the real auth flow if possible
+- if auth is complex, add a DEV-only bypass:
+    /dev/login?as=owner_admin
+  guarded by NODE_ENV !== 'production'
+
+================================================================================
+6) IMPLEMENTATION DETAILS
+================================================================================
+
+Tech:
+- Playwright for screenshots
+- js-yaml to parse YAML
+- archiver (or zip-lib) to create ZIP
+- fs-extra for file ops
+
+Where to capture:
+- Screenshot the main app container only: #app-main or [data-testid='app-main']
+- Ensure consistent viewport: 1440x900
+- Wait for fonts/layout: page.waitForLoadState('networkidle') + waitFor selector
+
+PII safety:
+- Add a “redaction mode” query param:
+    ?redact=1
+  In redact mode, apply CSS to mask emails/phones/names in demo data (simple black bars).
+- Use it in all screenshot routes.
+
+================================================================================
+7) COMMANDS TO ADD
+================================================================================
+
+Package scripts:
+- "screenshots": "node tools/screenshots/run.js"
+- "seed:demo": "node tools/seed/demo.js"
+- "screenshots:full": "npm run seed:demo && npm run screenshots"
+
+================================================================================
+8) DELIVERABLES (FILES TO CREATE)
+================================================================================
+
+/tools/screenshots/
+  run.ts (or run.js)
+  plan-loader.ts
+  capture.ts
+  redact.ts (optional helper)
+  pack.ts (zip builder)
+  screenshot-plan.yaml
+
+/tools/seed/
+  demo.ts
+
+/exports/
+  (generated zips)
+
+/README_SCREENSHOTS.md
+  - how to run
+  - how to edit YAML plan
+  - how to upload to Figma/FigJam
+
+================================================================================
+9) ACCEPTANCE CRITERIA
+================================================================================
+
+- Running "npm run screenshots:full" produces a ZIP with:
+  - 20–40 screenshots (minimum 20)
+  - manifest.json + manifest.md
+- Screenshots cover Lead-to-Cash + ongoing comms
+- Includes all personas and agent mapping
+- Redaction mode prevents visible PII
+- Manifest is easy to edit and re-run
+
+Now implement this end-to-end in the repo with clean code and minimal dependencies.
