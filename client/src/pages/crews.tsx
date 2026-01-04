@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useUserRole } from "@/components/role-gate";
 import {
   Dialog,
   DialogContent,
@@ -55,6 +56,8 @@ type CrewWithMembers = Crew & {
 export default function CrewsPage() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
+  const userRole = useUserRole();
+  const canEdit = userRole === "OWNER" || userRole === "ADMIN";
   const [searchTerm, setSearchTerm] = useState("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -145,13 +148,15 @@ export default function CrewsPage() {
           >
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button 
-            onClick={() => setShowCreateDialog(true)}
-            data-testid="button-create-crew"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Crew
-          </Button>
+          {canEdit && (
+            <Button 
+              onClick={() => setShowCreateDialog(true)}
+              data-testid="button-create-crew"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Crew
+            </Button>
+          )}
         </div>
       </div>
 
@@ -323,28 +328,32 @@ export default function CrewsPage() {
                             <Eye className="h-4 w-4 mr-2" />
                             View Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/operations/crews/${crew.id}?edit=true`);
-                            }}
-                            data-testid={`menu-edit-${crew.id}`}
-                          >
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit Crew
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            className="text-destructive focus:text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedCrew(crew);
-                              setShowDeleteDialog(true);
-                            }}
-                            data-testid={`menu-delete-${crew.id}`}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete Crew
-                          </DropdownMenuItem>
+                          {canEdit && (
+                            <DropdownMenuItem 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/operations/crews/${crew.id}?edit=true`);
+                              }}
+                              data-testid={`menu-edit-${crew.id}`}
+                            >
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit Crew
+                            </DropdownMenuItem>
+                          )}
+                          {canEdit && (
+                            <DropdownMenuItem 
+                              className="text-destructive focus:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedCrew(crew);
+                                setShowDeleteDialog(true);
+                              }}
+                              data-testid={`menu-delete-${crew.id}`}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete Crew
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

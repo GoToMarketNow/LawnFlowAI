@@ -5,8 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useUserRole } from "@/components/role-gate";
 import {
   Dialog,
   DialogContent,
@@ -63,6 +63,8 @@ type CrewWithMembers = Crew & {
 export default function CrewDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
+  const userRole = useUserRole();
+  const canEdit = userRole === "OWNER" || userRole === "ADMIN";
   const [showAddMemberDialog, setShowAddMemberDialog] = useState(false);
   const [showRemoveMemberDialog, setShowRemoveMemberDialog] = useState(false);
   const [selectedMember, setSelectedMember] = useState<CrewMember | null>(null);
@@ -193,13 +195,15 @@ export default function CrewDetailPage() {
           >
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button 
-            onClick={() => setShowAddMemberDialog(true)}
-            data-testid="button-add-member"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Member
-          </Button>
+          {canEdit && (
+            <Button 
+              onClick={() => setShowAddMemberDialog(true)}
+              data-testid="button-add-member"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Member
+            </Button>
+          )}
         </div>
       </div>
 
@@ -298,16 +302,18 @@ export default function CrewDetailPage() {
               <Users className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
               <h3 className="mt-4 text-lg font-medium">No members yet</h3>
               <p className="mt-2 text-sm text-muted-foreground">
-                Add team members to this crew to get started
+                {canEdit ? "Add team members to this crew to get started" : "No members assigned to this crew yet"}
               </p>
-              <Button 
-                className="mt-4" 
-                onClick={() => setShowAddMemberDialog(true)}
-                data-testid="button-add-first-member"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Member
-              </Button>
+              {canEdit && (
+                <Button 
+                  className="mt-4" 
+                  onClick={() => setShowAddMemberDialog(true)}
+                  data-testid="button-add-first-member"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Member
+                </Button>
+              )}
             </div>
           ) : (
             <Table>
@@ -362,35 +368,37 @@ export default function CrewDetailPage() {
                       {member.startAt ? format(new Date(member.startAt), "MMM d, yyyy") : "N/A"}
                     </TableCell>
                     <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" data-testid={`button-menu-${member.id}`}>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {crew.leader?.id !== member.id && (
+                      {canEdit && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" data-testid={`button-menu-${member.id}`}>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {crew.leader?.id !== member.id && (
+                              <DropdownMenuItem 
+                                onClick={() => setLeaderMutation.mutate(member.id)}
+                                data-testid={`menu-set-leader-${member.id}`}
+                              >
+                                <Crown className="h-4 w-4 mr-2" />
+                                Set as Leader
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem 
-                              onClick={() => setLeaderMutation.mutate(member.id)}
-                              data-testid={`menu-set-leader-${member.id}`}
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => {
+                                setSelectedMember(member);
+                                setShowRemoveMemberDialog(true);
+                              }}
+                              data-testid={`menu-remove-${member.id}`}
                             >
-                              <Crown className="h-4 w-4 mr-2" />
-                              Set as Leader
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Remove from Crew
                             </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem 
-                            className="text-destructive focus:text-destructive"
-                            onClick={() => {
-                              setSelectedMember(member);
-                              setShowRemoveMemberDialog(true);
-                            }}
-                            data-testid={`menu-remove-${member.id}`}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Remove from Crew
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

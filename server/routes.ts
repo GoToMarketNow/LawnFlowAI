@@ -6100,6 +6100,23 @@ Return JSON format:
   // Route Optimizer API
   // ============================================
 
+  // --- Users API ---
+  app.get("/api/users", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can list users" });
+      }
+      const profile = await storage.getBusinessProfile();
+      const businessId = profile?.id;
+      const allUsers = await storage.getUsers(businessId);
+      res.json(allUsers);
+    } catch (error: any) {
+      console.error("[Users] Error listing users:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // --- Ops API: Crews ---
   app.get("/api/ops/crews", async (req, res) => {
     try {

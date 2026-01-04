@@ -776,6 +776,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   // User Authentication
+  async getUsers(businessId?: number): Promise<User[]> {
+    if (businessId) {
+      return db.select().from(users).where(eq(users.businessId, businessId));
+    }
+    return db.select().from(users);
+  }
+
   async getUserById(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
     return user;
