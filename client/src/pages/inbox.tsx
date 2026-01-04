@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { 
   FileText, 
@@ -31,8 +32,18 @@ import {
   Filter,
   RefreshCw,
   AlertCircle,
+  Edit,
+  GitCompare,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+
+interface ReasonCode {
+  id: number;
+  code: string;
+  label: string;
+  category: string;
+  description: string | null;
+}
 
 interface InboxItem {
   id: string;
@@ -141,6 +152,12 @@ export default function InboxPage() {
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
   const listRef = useRef<HTMLDivElement>(null);
 
+  // Feedback state for reject/edit actions
+  const [showFeedbackPanel, setShowFeedbackPanel] = useState(false);
+  const [feedbackAction, setFeedbackAction] = useState<"reject" | "edit" | null>(null);
+  const [selectedReasonCode, setSelectedReasonCode] = useState<string>("");
+  const [feedbackNotes, setFeedbackNotes] = useState("");
+
   const buildQueryParams = () => {
     const params = new URLSearchParams();
     params.set("limit", "50");
@@ -168,6 +185,12 @@ export default function InboxPage() {
     enabled: !!selectedItem,
   });
 
+  // Fetch reason codes for feedback selection
+  const { data: reasonCodes = [], isLoading: isLoadingReasonCodes } = useQuery<ReasonCode[]>({
+    queryKey: ["/api/learning/reason-codes"],
+    enabled: showFeedbackPanel,
+  });
+
   const resolveMutation = useMutation({
     mutationFn: async ({ itemId, action, payload }: { itemId: string; action: string; payload?: any }) => {
       const res = await apiRequest("POST", "/api/ops/inbox/resolve", { itemId, action, payload });
@@ -182,6 +205,11 @@ export default function InboxPage() {
       setDrawerOpen(false);
       setSelectedItem(null);
       setRequestInfoMessage("");
+      // Reset feedback panel state
+      setShowFeedbackPanel(false);
+      setFeedbackAction(null);
+      setSelectedReasonCode("");
+      setFeedbackNotes("");
     },
     onError: (error: Error) => {
       toast({
@@ -201,8 +229,45 @@ export default function InboxPage() {
     resolveMutation.mutate({ itemId: item.id, action: "approve" });
   };
 
-  const handleReject = (item: InboxItem) => {
-    resolveMutation.mutate({ itemId: item.id, action: "reject" });
+  const handleStartReject = () => {
+    setShowFeedbackPanel(true);
+    setFeedbackAction("reject");
+    setSelectedReasonCode("");
+    setFeedbackNotes("");
+  };
+
+  const handleStartEdit = () => {
+    setShowFeedbackPanel(true);
+    setFeedbackAction("edit");
+    setSelectedReasonCode("");
+    setFeedbackNotes("");
+  };
+
+  const handleCancelFeedback = () => {
+    setShowFeedbackPanel(false);
+    setFeedbackAction(null);
+    setSelectedReasonCode("");
+    setFeedbackNotes("");
+  };
+
+  const handleSubmitFeedback = (item: InboxItem) => {
+    if (!selectedReasonCode) {
+      toast({
+        title: "Reason required",
+        description: "Please select a reason for your action",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    resolveMutation.mutate({ 
+      itemId: item.id, 
+      action: feedbackAction === "reject" ? "reject" : "edit",
+      payload: { 
+        reasonCode: selectedReasonCode,
+        notes: feedbackNotes.trim() || undefined,
+      },
+    });
   };
 
   const handleRequestInfo = (item: InboxItem) => {
@@ -508,63 +573,183 @@ export default function InboxPage() {
             <div className="space-y-3">
               <h4 className="text-sm font-medium">Actions</h4>
               
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  onClick={() => handleApprove(selectedItem)}
-                  disabled={resolveMutation.isPending}
-                  data-testid="button-drawer-approve"
-                >
-                  {resolveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Approve
-                </Button>
+              {!showFeedbackPanel ? (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={() => handleApprove(selectedItem)}
+                      disabled={resolveMutation.isPending}
+                      data-testid="button-drawer-approve"
+                    >
+                      {resolveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Approve
+                    </Button>
 
-                {selectedItem.category !== "error" && (
-                  <Button
-                    variant="outline"
-                    onClick={() => handleReject(selectedItem)}
-                    disabled={resolveMutation.isPending}
-                    data-testid="button-drawer-reject"
-                  >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Reject
-                  </Button>
-                )}
+                    {selectedItem.category !== "error" && (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={handleStartEdit}
+                          disabled={resolveMutation.isPending}
+                          data-testid="button-drawer-edit"
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit
+                        </Button>
 
-                {selectedItem.category === "error" && (
-                  <Button
-                    variant="outline"
-                    onClick={() => handleRetry(selectedItem)}
-                    disabled={resolveMutation.isPending}
-                    data-testid="button-drawer-retry"
-                  >
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Retry
-                  </Button>
-                )}
-              </div>
+                        <Button
+                          variant="outline"
+                          onClick={handleStartReject}
+                          disabled={resolveMutation.isPending}
+                          data-testid="button-drawer-reject"
+                        >
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Reject
+                        </Button>
+                      </>
+                    )}
 
-              {selectedItem.category === "orchestration" && selectedItem.customerPhone && (
-                <div className="space-y-2">
-                  <h5 className="text-sm font-medium">Request More Info</h5>
-                  <Textarea
-                    placeholder="Enter message to send to customer..."
-                    value={requestInfoMessage}
-                    onChange={(e) => setRequestInfoMessage(e.target.value)}
-                    className="text-sm"
-                    data-testid="textarea-request-info"
-                  />
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleRequestInfo(selectedItem)}
-                    disabled={resolveMutation.isPending || !requestInfoMessage.trim()}
-                    data-testid="button-send-request-info"
-                  >
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    Send Message
-                  </Button>
-                </div>
+                    {selectedItem.category === "error" && (
+                      <Button
+                        variant="outline"
+                        onClick={() => handleRetry(selectedItem)}
+                        disabled={resolveMutation.isPending}
+                        data-testid="button-drawer-retry"
+                      >
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Retry
+                      </Button>
+                    )}
+                  </div>
+
+                  {selectedItem.category === "orchestration" && selectedItem.customerPhone && (
+                    <div className="space-y-2">
+                      <h5 className="text-sm font-medium">Request More Info</h5>
+                      <Textarea
+                        placeholder="Enter message to send to customer..."
+                        value={requestInfoMessage}
+                        onChange={(e) => setRequestInfoMessage(e.target.value)}
+                        className="text-sm"
+                        data-testid="textarea-request-info"
+                      />
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleRequestInfo(selectedItem)}
+                        disabled={resolveMutation.isPending || !requestInfoMessage.trim()}
+                        data-testid="button-send-request-info"
+                      >
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Send Message
+                      </Button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <Card data-testid="feedback-panel">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <GitCompare className="h-4 w-4" />
+                      {feedbackAction === "reject" ? "Reject with Feedback" : "Edit with Feedback"}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {selectedItem.contextJson && (
+                      <div className="space-y-2" data-testid="ai-recommendation-preview">
+                        <Label>AI Recommendation</Label>
+                        <div className="text-sm bg-muted/50 rounded-md p-3 space-y-1">
+                          {selectedItem.quoteRange && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Quote:</span>
+                              <span>{formatCurrency(selectedItem.quoteRange.min)} - {formatCurrency(selectedItem.quoteRange.max)}</span>
+                            </div>
+                          )}
+                          {selectedItem.crewRecommendations && selectedItem.crewRecommendations[0] && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Crew:</span>
+                              <span>{selectedItem.crewRecommendations[0].name}</span>
+                            </div>
+                          )}
+                          {selectedItem.scheduleWindows && selectedItem.scheduleWindows[0] && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Schedule:</span>
+                              <span>{selectedItem.scheduleWindows[0]}</span>
+                            </div>
+                          )}
+                          {selectedItem.confidence && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Confidence:</span>
+                              <Badge variant="outline" className="text-xs">{selectedItem.confidence}</Badge>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label htmlFor="reason-code">Reason (required)</Label>
+                      {isLoadingReasonCodes ? (
+                        <Skeleton className="h-9 w-full" data-testid="loading-reason-codes" />
+                      ) : reasonCodes.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">
+                          No reason codes available. 
+                          <a href="/learning" target="_blank" className="text-primary underline ml-1">
+                            Configure in Learning
+                          </a>
+                        </div>
+                      ) : (
+                        <Select
+                          value={selectedReasonCode}
+                          onValueChange={setSelectedReasonCode}
+                        >
+                          <SelectTrigger id="reason-code" data-testid="select-reason-code">
+                            <SelectValue placeholder="Select a reason..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {reasonCodes.map((code) => (
+                              <SelectItem key={code.id} value={code.code} data-testid={`reason-option-${code.code}`}>
+                                {code.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="feedback-notes">Additional Notes (optional)</Label>
+                      <Textarea
+                        id="feedback-notes"
+                        placeholder="Add context about your decision..."
+                        value={feedbackNotes}
+                        onChange={(e) => setFeedbackNotes(e.target.value)}
+                        className="text-sm"
+                        data-testid="textarea-feedback-notes"
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCancelFeedback}
+                        data-testid="button-cancel-feedback"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleSubmitFeedback(selectedItem)}
+                        disabled={resolveMutation.isPending || !selectedReasonCode}
+                        data-testid="button-submit-feedback"
+                      >
+                        {resolveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        {feedbackAction === "reject" ? "Confirm Reject" : "Confirm Edit"}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
             </div>
 
