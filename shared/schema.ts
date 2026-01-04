@@ -2621,3 +2621,402 @@ export const AgentDomains = [
   "fsm"
 ] as const;
 export type AgentDomain = typeof AgentDomains[number];
+
+// ============================================
+// LEARNING SYSTEM - Feedback Loop Architecture
+// ============================================
+
+// Enums for Learning System
+export const DecisionTypes = [
+  "quote_range",
+  "next_question", 
+  "schedule_windows",
+  "crew_assignment",
+  "channel_choice",
+  "feasibility_gate",
+  "escalate_human"
+] as const;
+export type DecisionType = typeof DecisionTypes[number];
+export const decisionTypeEnum = z.enum(DecisionTypes);
+
+export const HumanActionTypes = [
+  "approve",
+  "reject",
+  "edit",
+  "request_info",
+  "change_channel",
+  "escalate",
+  "assign_different_crew",
+  "send_quote",
+  "pause",
+  "resume"
+] as const;
+export type HumanActionType = typeof HumanActionTypes[number];
+export const humanActionTypeEnum = z.enum(HumanActionTypes);
+
+export const OutcomeTypes = [
+  "quote_accepted",
+  "quote_declined",
+  "quote_no_response",
+  "job_booked",
+  "job_completed",
+  "job_canceled",
+  "complaint",
+  "refund",
+  "churn",
+  "retention_event"
+] as const;
+export type OutcomeType = typeof OutcomeTypes[number];
+export const outcomeTypeEnum = z.enum(OutcomeTypes);
+
+// ConfidenceLevels and ConfidenceLevel already defined above (line ~2250)
+export const confidenceLevelEnum = z.enum(ConfidenceLevels);
+
+export const SuggestionStatuses = ["proposed", "approved", "rejected", "applied"] as const;
+export type SuggestionStatus = typeof SuggestionStatuses[number];
+export const suggestionStatusEnum = z.enum(SuggestionStatuses);
+
+export const PolicyChangeTypes = [
+  "threshold_update",
+  "pricing_parameter_update",
+  "routing_rule_update",
+  "channel_rule_update"
+] as const;
+export type PolicyChangeType = typeof PolicyChangeTypes[number];
+export const policyChangeTypeEnum = z.enum(PolicyChangeTypes);
+
+export const KillSwitchScopes = ["global", "service_type", "stage", "channel"] as const;
+export type KillSwitchScope = typeof KillSwitchScopes[number];
+export const killSwitchScopeEnum = z.enum(KillSwitchScopes);
+
+export const PolicyVersionStatuses = ["draft", "active", "archived"] as const;
+export type PolicyVersionStatus = typeof PolicyVersionStatuses[number];
+export const policyVersionStatusEnum = z.enum(PolicyVersionStatuses);
+
+// DecisionLog - captures every AI decision
+export const decisionLogs = pgTable("decision_logs", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  runId: integer("run_id").references(() => orchestrationRuns.id),
+  leadId: integer("lead_id").references(() => leads.id),
+  jobRequestId: integer("job_request_id").references(() => jobRequests.id),
+  customerId: integer("customer_id").references(() => customerProfiles.id),
+  
+  decisionType: text("decision_type").notNull(), // DecisionType enum
+  stage: text("stage"), // OrchestrationStage if in orchestrator
+  agentName: text("agent_name").notNull(), // e.g., QuoteBuildAgent
+  agentVersion: text("agent_version").notNull(), // prompt hash or git sha
+  policyVersion: text("policy_version"), // pricing policy revision id/hash
+  
+  inputsSnapshotJson: jsonb("inputs_snapshot_json").notNull(), // minimal but sufficient context
+  recommendedActionJson: jsonb("recommended_action_json").notNull(), // structured recommendation
+  confidence: text("confidence").notNull().default("medium"), // ConfidenceLevel
+  reasonsJson: jsonb("reasons_json").default([]).notNull(), // structured reasons list
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessCreatedIdx: index("decision_log_business_created_idx").on(table.businessId, table.createdAt),
+  businessTypeCreatedIdx: index("decision_log_business_type_created_idx").on(table.businessId, table.decisionType, table.createdAt),
+}));
+
+// HumanActionLog - captures every human action on AI decisions
+export const humanActionLogs = pgTable("human_action_logs", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  decisionId: integer("decision_id").references(() => decisionLogs.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  role: text("role").notNull(), // OWNER/ADMIN/CREW_LEAD/STAFF
+  
+  actionType: text("action_type").notNull(), // HumanActionType enum
+  finalActionJson: jsonb("final_action_json").notNull(), // final approved/edited result
+  editDeltaJson: jsonb("edit_delta_json").default({}).notNull(), // computed diff
+  reasonCodesJson: jsonb("reason_codes_json").default([]).notNull(), // selected reason codes
+  note: text("note"),
+  timeToActionSeconds: integer("time_to_action_seconds"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessCreatedIdx: index("human_action_business_created_idx").on(table.businessId, table.createdAt),
+  decisionIdx: index("human_action_decision_idx").on(table.decisionId),
+}));
+
+// OutcomeLog - captures downstream outcomes
+export const outcomeLogs = pgTable("outcome_logs", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  decisionId: integer("decision_id").references(() => decisionLogs.id),
+  leadId: integer("lead_id").references(() => leads.id),
+  jobRequestId: integer("job_request_id").references(() => jobRequests.id),
+  customerId: integer("customer_id").references(() => customerProfiles.id),
+  
+  outcomeType: text("outcome_type").notNull(), // OutcomeType enum
+  outcomeValueJson: jsonb("outcome_value_json").default({}).notNull(), // e.g., {accepted:true, nps:9}
+  occurredAt: timestamp("occurred_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessOccurredIdx: index("outcome_log_business_occurred_idx").on(table.businessId, table.occurredAt),
+  decisionIdx: index("outcome_log_decision_idx").on(table.decisionId),
+}));
+
+// ReasonCode - seeded reason codes for structured feedback
+export const reasonCodes = pgTable("reason_codes", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  code: text("code").notNull(), // e.g., LOT_SIZE_UNCERTAIN
+  label: text("label").notNull(), // human-readable label
+  appliesTo: jsonb("applies_to").notNull(), // decisionTypes/actions it applies to
+  isActive: boolean("is_active").default(true).notNull(),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessCodeUnique: uniqueIndex("reason_code_business_code_idx").on(table.businessId, table.code),
+}));
+
+// PolicyVersion - versioned policy storage
+export const policyVersions = pgTable("policy_versions", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  version: text("version").notNull(), // e.g., "pricing-v3-2026-01-03"
+  policyJson: jsonb("policy_json").notNull(), // full policy template set
+  status: text("status").notNull().default("draft"), // draft|active|archived
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// PolicyTuningSuggestion - AI-generated policy improvement suggestions
+export const policyTuningSuggestions = pgTable("policy_tuning_suggestions", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  createdBy: text("created_by").notNull().default("system"),
+  
+  policyChangeType: text("policy_change_type").notNull(), // PolicyChangeType enum
+  target: text("target").notNull(), // e.g., "quote.auto_send_threshold"
+  proposedValueJson: jsonb("proposed_value_json").notNull(),
+  currentValueJson: jsonb("current_value_json").notNull(),
+  evidenceJson: jsonb("evidence_json").notNull(), // metrics, counts, examples
+  
+  status: text("status").notNull().default("proposed"), // SuggestionStatus enum
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  appliedAt: timestamp("applied_at"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// KillSwitch - emergency automation control
+export const killSwitches = pgTable("kill_switches", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  scope: text("scope").notNull(), // KillSwitchScope enum
+  scopeValue: text("scope_value").notNull(), // e.g., "cleanup" or "QUOTE_BUILD"
+  isEnabled: boolean("is_enabled").default(false).notNull(),
+  reason: text("reason"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Relations for Learning System
+export const decisionLogsRelations = relations(decisionLogs, ({ one, many }) => ({
+  business: one(businessProfiles, {
+    fields: [decisionLogs.businessId],
+    references: [businessProfiles.id],
+  }),
+  run: one(orchestrationRuns, {
+    fields: [decisionLogs.runId],
+    references: [orchestrationRuns.id],
+  }),
+  lead: one(leads, {
+    fields: [decisionLogs.leadId],
+    references: [leads.id],
+  }),
+  jobRequest: one(jobRequests, {
+    fields: [decisionLogs.jobRequestId],
+    references: [jobRequests.id],
+  }),
+  customer: one(customerProfiles, {
+    fields: [decisionLogs.customerId],
+    references: [customerProfiles.id],
+  }),
+  humanActions: many(humanActionLogs),
+  outcomes: many(outcomeLogs),
+}));
+
+export const humanActionLogsRelations = relations(humanActionLogs, ({ one }) => ({
+  business: one(businessProfiles, {
+    fields: [humanActionLogs.businessId],
+    references: [businessProfiles.id],
+  }),
+  decision: one(decisionLogs, {
+    fields: [humanActionLogs.decisionId],
+    references: [decisionLogs.id],
+  }),
+  user: one(users, {
+    fields: [humanActionLogs.userId],
+    references: [users.id],
+  }),
+}));
+
+export const outcomeLogsRelations = relations(outcomeLogs, ({ one }) => ({
+  business: one(businessProfiles, {
+    fields: [outcomeLogs.businessId],
+    references: [businessProfiles.id],
+  }),
+  decision: one(decisionLogs, {
+    fields: [outcomeLogs.decisionId],
+    references: [decisionLogs.id],
+  }),
+  lead: one(leads, {
+    fields: [outcomeLogs.leadId],
+    references: [leads.id],
+  }),
+  jobRequest: one(jobRequests, {
+    fields: [outcomeLogs.jobRequestId],
+    references: [jobRequests.id],
+  }),
+  customer: one(customerProfiles, {
+    fields: [outcomeLogs.customerId],
+    references: [customerProfiles.id],
+  }),
+}));
+
+export const reasonCodesRelations = relations(reasonCodes, ({ one }) => ({
+  business: one(businessProfiles, {
+    fields: [reasonCodes.businessId],
+    references: [businessProfiles.id],
+  }),
+}));
+
+export const policyVersionsRelations = relations(policyVersions, ({ one }) => ({
+  business: one(businessProfiles, {
+    fields: [policyVersions.businessId],
+    references: [businessProfiles.id],
+  }),
+}));
+
+export const policyTuningSuggestionsRelations = relations(policyTuningSuggestions, ({ one }) => ({
+  business: one(businessProfiles, {
+    fields: [policyTuningSuggestions.businessId],
+    references: [businessProfiles.id],
+  }),
+  reviewedByUser: one(users, {
+    fields: [policyTuningSuggestions.reviewedByUserId],
+    references: [users.id],
+  }),
+}));
+
+export const killSwitchesRelations = relations(killSwitches, ({ one }) => ({
+  business: one(businessProfiles, {
+    fields: [killSwitches.businessId],
+    references: [businessProfiles.id],
+  }),
+}));
+
+// Insert schemas for Learning System
+export const insertDecisionLogSchema = createInsertSchema(decisionLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertHumanActionLogSchema = createInsertSchema(humanActionLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertOutcomeLogSchema = createInsertSchema(outcomeLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertReasonCodeSchema = createInsertSchema(reasonCodes).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPolicyVersionSchema = createInsertSchema(policyVersions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPolicyTuningSuggestionSchema = createInsertSchema(policyTuningSuggestions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertKillSwitchSchema = createInsertSchema(killSwitches).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types for Learning System
+export type DecisionLog = typeof decisionLogs.$inferSelect;
+export type InsertDecisionLog = z.infer<typeof insertDecisionLogSchema>;
+
+export type HumanActionLog = typeof humanActionLogs.$inferSelect;
+export type InsertHumanActionLog = z.infer<typeof insertHumanActionLogSchema>;
+
+export type OutcomeLog = typeof outcomeLogs.$inferSelect;
+export type InsertOutcomeLog = z.infer<typeof insertOutcomeLogSchema>;
+
+export type ReasonCode = typeof reasonCodes.$inferSelect;
+export type InsertReasonCode = z.infer<typeof insertReasonCodeSchema>;
+
+export type PolicyVersion = typeof policyVersions.$inferSelect;
+export type InsertPolicyVersion = z.infer<typeof insertPolicyVersionSchema>;
+
+export type PolicyTuningSuggestion = typeof policyTuningSuggestions.$inferSelect;
+export type InsertPolicyTuningSuggestion = z.infer<typeof insertPolicyTuningSuggestionSchema>;
+
+export type KillSwitch = typeof killSwitches.$inferSelect;
+export type InsertKillSwitch = z.infer<typeof insertKillSwitchSchema>;
+
+// API input schemas for Learning System
+export const logDecisionInputSchema = z.object({
+  businessId: z.number(),
+  runId: z.number().optional(),
+  leadId: z.number().optional(),
+  jobRequestId: z.number().optional(),
+  customerId: z.number().optional(),
+  decisionType: decisionTypeEnum,
+  stage: z.string().optional(),
+  agentName: z.string(),
+  agentVersion: z.string(),
+  policyVersion: z.string().optional(),
+  inputsSnapshot: z.record(z.unknown()),
+  recommendedAction: z.record(z.unknown()),
+  confidence: confidenceLevelEnum,
+  reasons: z.array(z.string()).default([]),
+});
+
+export const logHumanActionInputSchema = z.object({
+  businessId: z.number(),
+  decisionId: z.number(),
+  userId: z.number(),
+  role: z.string(),
+  actionType: humanActionTypeEnum,
+  finalAction: z.record(z.unknown()),
+  reasonCodes: z.array(z.string()).default([]),
+  note: z.string().optional(),
+});
+
+export const logOutcomeInputSchema = z.object({
+  businessId: z.number(),
+  decisionId: z.number().optional(),
+  leadId: z.number().optional(),
+  jobRequestId: z.number().optional(),
+  customerId: z.number().optional(),
+  outcomeType: outcomeTypeEnum,
+  outcomeValue: z.record(z.unknown()).default({}),
+  occurredAt: z.string().datetime().optional(),
+});
+
+export const reviewSuggestionInputSchema = z.object({
+  status: z.enum(["approved", "rejected"]),
+  reviewerNote: z.string().optional(),
+});
