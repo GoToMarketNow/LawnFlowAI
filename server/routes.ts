@@ -6292,6 +6292,247 @@ Return JSON format:
     }
   });
 
+  // --- Ops API: Skills Management ---
+  app.get("/api/ops/skills", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const skillsList = await storage.getSkills(profile.id);
+      res.json(skillsList);
+    } catch (error: any) {
+      console.error("[Skills] Error fetching skills:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ops/skills", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can create skills" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const { name, description, category } = req.body;
+      if (!name) {
+        return res.status(400).json({ error: "name is required" });
+      }
+      const skill = await storage.createSkill({
+        businessId: profile.id,
+        name,
+        description: description || null,
+        category: category || "general",
+      });
+      res.status(201).json(skill);
+    } catch (error: any) {
+      console.error("[Skills] Error creating skill:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/ops/skills/:id", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can update skills" });
+      }
+      const skillId = parseInt(req.params.id);
+      const updates = req.body;
+      const skill = await storage.updateSkill(skillId, updates);
+      res.json(skill);
+    } catch (error: any) {
+      console.error("[Skills] Error updating skill:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/ops/skills/:id", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can delete skills" });
+      }
+      const skillId = parseInt(req.params.id);
+      await storage.deleteSkill(skillId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Skills] Error deleting skill:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Ops API: Equipment Management ---
+  app.get("/api/ops/equipment", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const equipmentList = await storage.getEquipment(profile.id);
+      res.json(equipmentList);
+    } catch (error: any) {
+      console.error("[Equipment] Error fetching equipment:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ops/equipment", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can create equipment" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const { name, type, description, status } = req.body;
+      if (!name) {
+        return res.status(400).json({ error: "name is required" });
+      }
+      const equip = await storage.createEquipment({
+        businessId: profile.id,
+        name,
+        type: type || "other",
+        description: description || null,
+        status: status || "available",
+      });
+      res.status(201).json(equip);
+    } catch (error: any) {
+      console.error("[Equipment] Error creating equipment:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/ops/equipment/:id", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can update equipment" });
+      }
+      const equipId = parseInt(req.params.id);
+      const updates = req.body;
+      const equip = await storage.updateEquipment(equipId, updates);
+      res.json(equip);
+    } catch (error: any) {
+      console.error("[Equipment] Error updating equipment:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/ops/equipment/:id", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can delete equipment" });
+      }
+      const equipId = parseInt(req.params.id);
+      await storage.deleteEquipment(equipId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Equipment] Error deleting equipment:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Ops API: Crew Skills Assignment ---
+  app.get("/api/ops/crews/:crewId/skills", async (req, res) => {
+    try {
+      const crewId = parseInt(req.params.crewId);
+      const crewSkillsList = await storage.getCrewSkills(crewId);
+      res.json(crewSkillsList);
+    } catch (error: any) {
+      console.error("[CrewSkills] Error fetching crew skills:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ops/crews/:crewId/skills", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can assign crew skills" });
+      }
+      const crewId = parseInt(req.params.crewId);
+      const { skillId, proficiencyLevel } = req.body;
+      if (!skillId) {
+        return res.status(400).json({ error: "skillId is required" });
+      }
+      const crewSkill = await storage.addCrewSkill(crewId, skillId, proficiencyLevel || 1);
+      res.status(201).json(crewSkill);
+    } catch (error: any) {
+      console.error("[CrewSkills] Error adding crew skill:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/ops/crews/:crewId/skills/:skillId", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can remove crew skills" });
+      }
+      const crewId = parseInt(req.params.crewId);
+      const skillId = parseInt(req.params.skillId);
+      await storage.removeCrewSkill(crewId, skillId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[CrewSkills] Error removing crew skill:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Ops API: Crew Equipment Assignment ---
+  app.get("/api/ops/crews/:crewId/equipment", async (req, res) => {
+    try {
+      const crewId = parseInt(req.params.crewId);
+      const crewEquipList = await storage.getCrewEquipment(crewId);
+      res.json(crewEquipList);
+    } catch (error: any) {
+      console.error("[CrewEquipment] Error fetching crew equipment:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ops/crews/:crewId/equipment", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can assign crew equipment" });
+      }
+      const crewId = parseInt(req.params.crewId);
+      const { equipmentId } = req.body;
+      if (!equipmentId) {
+        return res.status(400).json({ error: "equipmentId is required" });
+      }
+      const crewEquip = await storage.addCrewEquipment(crewId, equipmentId);
+      res.status(201).json(crewEquip);
+    } catch (error: any) {
+      console.error("[CrewEquipment] Error adding crew equipment:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/ops/crews/:crewId/equipment/:equipmentId", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can remove crew equipment" });
+      }
+      const crewId = parseInt(req.params.crewId);
+      const equipmentId = parseInt(req.params.equipmentId);
+      await storage.removeCrewEquipment(crewId, equipmentId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[CrewEquipment] Error removing crew equipment:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // --- Ops API: Job Requests ---
   app.get("/api/ops/jobs", async (req, res) => {
     try {
