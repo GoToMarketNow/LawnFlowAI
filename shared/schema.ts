@@ -2162,7 +2162,122 @@ export const insertDistanceCacheSchema = createInsertSchema(distanceCache).omit(
   createdAt: true,
 });
 
+// ============================================
+// Skills & Equipment Tables
+// ============================================
+
+// Skill Categories
+export const SkillCategories = ["lawn_maintenance", "hardscape", "irrigation", "tree_care", "landscaping", "snow_removal", "general"] as const;
+export type SkillCategory = typeof SkillCategories[number];
+
+// Master Skills table
+export const skills = pgTable("skills", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category").notNull().default("general"), // lawn_maintenance, hardscape, irrigation, etc.
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("skill_business_idx").on(table.businessId),
+  nameIdx: index("skill_name_idx").on(table.businessId, table.name),
+}));
+
+// Equipment Types
+export const EquipmentTypes = ["mower", "trailer", "truck", "skid_steer", "excavator", "aerator", "dethatcher", "spreader", "blower", "trimmer", "chainsaw", "other"] as const;
+export type EquipmentType = typeof EquipmentTypes[number];
+
+// Equipment Statuses
+export const EquipmentStatuses = ["available", "in_use", "maintenance", "retired"] as const;
+export type EquipmentStatus = typeof EquipmentStatuses[number];
+
+// Master Equipment table
+export const equipment = pgTable("equipment", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  name: text("name").notNull(),
+  type: text("type").notNull().default("other"), // mower, trailer, truck, etc.
+  description: text("description"),
+  status: text("status").notNull().default("available"), // available, in_use, maintenance, retired
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("equipment_business_idx").on(table.businessId),
+  typeIdx: index("equipment_type_idx").on(table.type),
+}));
+
+// Junction table: Crew Skills
+export const crewSkills = pgTable("crew_skills", {
+  id: serial("id").primaryKey(),
+  crewId: integer("crew_id").references(() => crews.id).notNull(),
+  skillId: integer("skill_id").references(() => skills.id).notNull(),
+  proficiencyLevel: integer("proficiency_level").default(1), // 1-5 scale
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  crewIdx: index("crew_skill_crew_idx").on(table.crewId),
+  skillIdx: index("crew_skill_skill_idx").on(table.skillId),
+  uniqueIdx: uniqueIndex("crew_skill_unique_idx").on(table.crewId, table.skillId),
+}));
+
+// Junction table: Crew Equipment
+export const crewEquipment = pgTable("crew_equipment", {
+  id: serial("id").primaryKey(),
+  crewId: integer("crew_id").references(() => crews.id).notNull(),
+  equipmentId: integer("equipment_id").references(() => equipment.id).notNull(),
+  assignedAt: timestamp("assigned_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+}, (table) => ({
+  crewIdx: index("crew_equipment_crew_idx").on(table.crewId),
+  equipmentIdx: index("crew_equipment_equipment_idx").on(table.equipmentId),
+  uniqueIdx: uniqueIndex("crew_equipment_unique_idx").on(table.crewId, table.equipmentId),
+}));
+
+// Insert schemas for Skills & Equipment
+export const insertSkillSchema = createInsertSchema(skills).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertEquipmentSchema = createInsertSchema(equipment).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCrewSkillSchema = createInsertSchema(crewSkills).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertCrewEquipmentSchema = createInsertSchema(crewEquipment).omit({
+  id: true,
+  assignedAt: true,
+});
+
+// Types for Skills & Equipment
+export type Skill = typeof skills.$inferSelect;
+export type InsertSkill = z.infer<typeof insertSkillSchema>;
+
+export type Equipment = typeof equipment.$inferSelect;
+export type InsertEquipment = z.infer<typeof insertEquipmentSchema>;
+
+export type CrewSkill = typeof crewSkills.$inferSelect;
+export type InsertCrewSkill = z.infer<typeof insertCrewSkillSchema>;
+
+export type CrewEquipment = typeof crewEquipment.$inferSelect;
+export type InsertCrewEquipment = z.infer<typeof insertCrewEquipmentSchema>;
+
+// Extended types with relations
+export type SkillWithCrews = Skill & { crewCount: number };
+export type EquipmentWithCrews = Equipment & { crewCount: number; crews?: Crew[] };
+
+// ============================================
 // Types for Route Optimizer
+// ============================================
 export type Crew = typeof crews.$inferSelect;
 export type InsertCrew = z.infer<typeof insertCrewSchema>;
 
@@ -2174,6 +2289,8 @@ export type CrewWithMembers = Crew & {
   members: (CrewMember & { user?: User | null })[];
   leader?: (CrewMember & { user?: User | null }) | null;
   memberCount: number;
+  skills?: Skill[];
+  equipment?: Equipment[];
 };
 
 export type JobRequest = typeof jobRequests.$inferSelect;
