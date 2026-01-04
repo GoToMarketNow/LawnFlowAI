@@ -1,0 +1,271 @@
+You are a senior full-stack engineer building LawnFlow.ai in Replit (Next.js + Postgres + Prisma).
+Implement the Crew Management module in SIX sequential sprints. Each sprint must compile, run, and be testable.
+Keep UX clean, minimal, and intuitive. Follow existing app patterns (auth, RBAC, layout, components, styling).
+Do NOT overbuild. Use “MVP-first” defaults with a clear path to v2.
+
+GLOBAL REQUIREMENTS (apply to all steps)
+- Respect RBAC: OWNER_ADMIN, CREW_LEAD, CREW_MEMBER
+- Use existing design system/components and dashboard layout (sidebar + topbar)
+- Add navigation: Operations → Crews
+- All new pages must have:
+  - consistent header/breadcrumbs
+  - empty states
+  - loading states
+  - error states
+- Avoid PII in logs; audit changes via event tables
+- Use server actions or API routes consistent with current architecture
+- Use Postgres + Prisma migrations
+- Add seed/demo data for 3 crews in Charlottesville/Albemarle/Greene
+
+================================================================================
+SPRINT 1 (1/6): Crew CRUD + Assign Leader/Members (FOUNDATION)
+================================================================================
+GOAL
+Create core Crew entities and membership management with a clean UI.
+
+BACKEND
+1) Prisma models:
+- Crew: id, accountId, name, status(ACTIVE/INACTIVE), homeBaseLat, homeBaseLng, createdAt, updatedAt
+- CrewMember: id, crewId, userId, crewRole(LEADER/MEMBER), isActive, startAt, endAt
+- Ensure User already exists with role enum; add if missing.
+
+2) Services:
+- createCrew(accountId, name, homeBase?)
+- updateCrew(id, fields)
+- listCrews(accountId)
+- getCrew(id)
+- addCrewMember(crewId, userId, crewRole)
+- removeCrewMember(crewId, userId) (soft-end via endAt)
+- setCrewLeader(crewId, userId) (enforce 1 leader active)
+
+FRONTEND
+1) Page: /operations/crews
+- Table/cards list of crews:
+  - name, leader, member count, status
+  - actions: View, Edit, Set inactive
+- Buttons: “New Crew”
+
+2) Page: /operations/crews/[id]
+- Crew detail:
+  - header: crew name + status toggle
+  - section: Leader (dropdown to select from members or eligible users)
+  - section: Members list (add/remove)
+  - small “Home Base” display (text only, map later)
+
+UX
+- Owner/Admin can create/edit all
+- Crew Lead sees only their crew (read-only membership, can’t change roster)
+- Crew Member sees only their crew (read-only)
+
+DONE WHEN
+- You can create 3 crews and assign members/leaders
+- RBAC enforced
+- Seed script creates demo crews + users
+
+================================================================================
+SPRINT 2 (2/6): Assign Truck + Assets (RELATIONSHIPS)
+================================================================================
+GOAL
+Introduce truck/vehicle and equipment assets and associate them to crews.
+
+BACKEND
+1) Prisma models:
+- Vehicle: id, accountId, name, status, plate?, lastKnownLat?, lastKnownLng?, lastLocationAt?
+- CrewVehicle: id, crewId, vehicleId, startAt, endAt (history)
+- Asset: id, accountId, name, assetType(MOWER/TRIMMER/BLOWER/TRAILER/OTHER), status(ACTIVE/MAINTENANCE/RETIRED), maintenanceDueAt?
+- CrewAsset: id, crewId, assetId, startAt, endAt
+
+2) Services:
+- assignVehicleToCrew(crewId, vehicleId) (end previous)
+- unassignVehicleFromCrew(crewId)
+- assignAssetToCrew(crewId, assetId) (allow multiple)
+- unassignAssetFromCrew(crewId, assetId)
+
+FRONTEND
+1) Update /operations/crews/[id]:
+- Truck section:
+  - current truck + “Swap truck” modal
+- Assets section:
+  - list assigned assets
+  - “Add asset” modal (multi-select)
+  - maintenance flags (simple badges)
+
+2) Add simple lists:
+- /operations/assets (Owner/Admin)
+- /operations/vehicles (Owner/Admin)
+Minimal CRUD for vehicles/assets (name/type/status).
+
+UX
+- Keep screens minimal: list + create + edit + assign
+- No maps yet
+
+DONE WHEN
+- A crew can have 1 active truck and N assets
+- UI shows assignments cleanly
+
+================================================================================
+SPRINT 3 (3/6): Crew List + Crew Detail Polish (OPERATIONAL READINESS)
+================================================================================
+GOAL
+Make Crews module feel like a real operations tool.
+
+FRONTEND ENHANCEMENTS
+1) /operations/crews list:
+- Add status chips: ACTIVE/INACTIVE
+- Add “Readiness” indicator:
+  - ✅ has leader + truck
+  - ⚠ missing leader or truck
+- Add “Today” summary placeholder (counts from jobs later)
+
+2) /operations/crews/[id]:
+- Add “At a glance” cards:
+  - Leader
+  - Members
+  - Truck
+  - Assets count
+- Add Activity Log placeholder (empty state, will fill in Sprint 4)
+
+BACKEND
+- Add computed “readiness” helper function (server-side)
+
+DONE WHEN
+- Crews pages look clean, scannable, and intuitive
+- Empty states guide user what to do next
+
+================================================================================
+SPRINT 4 (4/6): Check-in / Complete Events → Crew Status (EVENT SYSTEM)
+================================================================================
+GOAL
+Add event-based status so crews can be “on site”, “en route”, etc. without GPS.
+
+BACKEND
+1) Prisma models:
+- CrewStatusEvent: id, crewId, status(OFF_DUTY/AVAILABLE/EN_ROUTE/ON_SITE/COMPLETE/DELAYED), relatedJobId?, occurredAt, actorUserId?, notes?
+- CrewLocationEvent: id, crewId, source(CHECK_IN/CHECK_OUT/MANUAL), lat, lng, accuracy?, relatedJobId?, occurredAt
+
+2) Services:
+- recordCrewStatus(crewId, status, jobId?, actorUserId?)
+- recordCrewLocation(crewId, lat, lng, source, jobId?)
+- getCrewLiveState(accountId): per crew -> latest status + latest location + timestamp
+
+FRONTEND
+1) On job detail screen (existing or create minimal):
+- Buttons (Crew Lead only):
+  - “Mark En Route”
+  - “Check In”
+  - “Complete Job”
+- Each action writes a CrewStatusEvent and CrewLocationEvent (if lat/lng available via browser geolocation; if not, store null and still record status)
+
+2) Crew pages:
+- /operations/crews list shows status badge from live state
+- /operations/crews/[id] shows Activity Log:
+  - last 20 events
+
+DONE WHEN
+- Crew Lead can change status via buttons
+- Owner/Admin sees statuses update in crew list
+- Events appear in activity log
+
+================================================================================
+SPRINT 5 (5/6): Live Map View (GOOGLE MAPS + STATE)
+================================================================================
+GOAL
+Add a “Live Map” that visualizes crews and job sites using Google Maps.
+MVP uses last known location from events, not continuous tracking.
+
+BACKEND
+- API: GET /api/crews/live returns:
+  - crewId, name, status, leader, lastLat, lastLng, lastUpdatedAt, currentJobId?
+- Optional: include today’s jobs markers (if job table exists)
+
+FRONTEND
+1) Page: /operations/crews/map
+- Google Maps embed
+- Left side rail:
+  - filters: active only / on site / available
+  - list of crews with status + last update time
+- Map markers:
+  - crew marker labeled with crew name
+  - marker color by status (use existing theme)
+- Polling:
+  - only on this page, every 20–30 seconds
+
+UX
+- Map is calm and readable, not cluttered
+- Clicking a crew opens a detail drawer with:
+  - leader, members count, truck, current job, last update, “Call leader” (click-to-call)
+
+DONE WHEN
+- Live Map renders and shows crew markers based on events
+- Filters work
+
+================================================================================
+SPRINT 6 (6/6): Activity Log + Filters + Final UX Polish (SHIP READY)
+================================================================================
+GOAL
+Make the module “ship ready” and intuitive from dashboard down.
+
+FRONTEND
+1) Crew Overview dashboard widget (optional but recommended):
+- On main dashboard show:
+  - Active crews count
+  - Crews on-site right now
+  - Crews missing truck/leader (readiness alerts)
+
+2) Crews list:
+- Add advanced filters:
+  - status
+  - readiness
+  - region (if home base stored)
+- Add “Quick Actions” dropdown:
+  - View crew
+  - Swap truck
+  - Add asset
+  - Message leader
+
+3) Crew detail:
+- Clean layout sections:
+  - At a glance
+  - Members
+  - Truck & Assets
+  - Today’s jobs (if exists)
+  - Activity log (events)
+
+BACKEND
+- Add query helpers for filterable crew list (server-side)
+- Add indexes on crewId, occurredAt for events tables
+
+DONE WHEN
+- The entire Crews experience feels intuitive and consistent
+- Owner/Admin can manage crews end-to-end
+- Crew Lead can update status and job progress
+- Live map provides operational visibility
+
+================================================================================
+DELIVERABLE CHECKLIST (MUST CREATE)
+================================================================================
+- Prisma migration(s) for all models
+- Seed script for 3 crews + users + vehicles + assets + sample events
+- Pages:
+  - /operations/crews
+  - /operations/crews/[id]
+  - /operations/crews/map
+  - /operations/vehicles (minimal)
+  - /operations/assets (minimal)
+- APIs/services:
+  - crew CRUD
+  - membership
+  - assignments
+  - live state
+  - events
+- Basic tests (at least one per sprint):
+  - RBAC checks
+  - live state aggregation
+  - assignment history correctness
+
+Now implement Sprint 1 ONLY.
+After Sprint 1 compiles and runs, stop and output:
+- what was created
+- how to test it
+- what’s next for Sprint 2
+Then proceed sprint-by-sprint in order.
