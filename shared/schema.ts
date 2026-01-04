@@ -1921,6 +1921,7 @@ export const crews = pgTable("crews", {
   // Capacity constraints
   serviceRadiusMiles: integer("service_radius_miles").notNull().default(20),
   dailyCapacityMinutes: integer("daily_capacity_minutes").notNull().default(420), // 7 hours
+  maxJobsPerDay: integer("max_jobs_per_day").notNull().default(8), // Max jobs crew can handle
   
   // Skills and equipment (JSON arrays)
   skillsJson: jsonb("skills_json").notNull().default([]), // e.g. ["mowing", "hardscape", "irrigation"]
@@ -2318,6 +2319,7 @@ export const crewInputSchema = z.object({
   homeBaseAddress: z.string().optional(),
   serviceRadiusMiles: z.number().default(20),
   dailyCapacityMinutes: z.number().default(420),
+  maxJobsPerDay: z.number().default(8),
   skillsJson: z.array(z.string()).default([]),
   equipmentJson: z.array(z.string()).default([]),
   isActive: z.boolean().default(true),
