@@ -6533,6 +6533,149 @@ Return JSON format:
     }
   });
 
+  // --- Ops API: Crew Availability ---
+  app.get("/api/ops/crews/:crewId/availability", async (req, res) => {
+    try {
+      const crewId = parseInt(req.params.crewId);
+      const availabilityList = await storage.getCrewAvailability(crewId);
+      res.json(availabilityList);
+    } catch (error: any) {
+      console.error("[CrewAvailability] Error fetching crew availability:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/ops/crews/:crewId/availability", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN" && role !== "CREW_LEAD") {
+        return res.status(403).json({ error: "Only OWNER, ADMIN or CREW_LEAD can set crew availability" });
+      }
+      const crewId = parseInt(req.params.crewId);
+      const { availability } = req.body;
+      if (!Array.isArray(availability)) {
+        return res.status(400).json({ error: "availability must be an array" });
+      }
+      const updated = await storage.setCrewAvailability(crewId, availability);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("[CrewAvailability] Error setting crew availability:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/ops/crews/:crewId/availability/:slotId", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN" && role !== "CREW_LEAD") {
+        return res.status(403).json({ error: "Only OWNER, ADMIN or CREW_LEAD can update crew availability" });
+      }
+      const slotId = parseInt(req.params.slotId);
+      const updates = req.body;
+      const updated = await storage.updateCrewAvailabilitySlot(slotId, updates);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("[CrewAvailability] Error updating availability slot:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Ops API: Time-Off Requests ---
+  app.get("/api/ops/time-off", async (req, res) => {
+    try {
+      const crewId = req.query.crewId ? parseInt(req.query.crewId as string) : undefined;
+      const status = req.query.status as string | undefined;
+      const requests = await storage.getTimeOffRequests(crewId, status);
+      res.json(requests);
+    } catch (error: any) {
+      console.error("[TimeOff] Error fetching time-off requests:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/ops/time-off/:id", async (req, res) => {
+    try {
+      const request = await storage.getTimeOffRequest(parseInt(req.params.id));
+      if (!request) {
+        return res.status(404).json({ error: "Time-off request not found" });
+      }
+      res.json(request);
+    } catch (error: any) {
+      console.error("[TimeOff] Error fetching time-off request:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ops/time-off", async (req, res) => {
+    try {
+      const { crewId, startDate, endDate, reason, requestedBy } = req.body;
+      if (!crewId || !startDate || !endDate) {
+        return res.status(400).json({ error: "crewId, startDate, and endDate are required" });
+      }
+      const request = await storage.createTimeOffRequest({
+        crewId,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        reason,
+        requestedBy,
+        status: "pending",
+      });
+      res.status(201).json(request);
+    } catch (error: any) {
+      console.error("[TimeOff] Error creating time-off request:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/ops/time-off/:id", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can update time-off requests" });
+      }
+      const id = parseInt(req.params.id);
+      const updated = await storage.updateTimeOffRequest(id, req.body);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("[TimeOff] Error updating time-off request:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ops/time-off/:id/approve", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can approve time-off requests" });
+      }
+      const id = parseInt(req.params.id);
+      const userId = (req.user as any)?.id || 1;
+      const { notes } = req.body;
+      const approved = await storage.approveTimeOffRequest(id, userId, notes);
+      res.json(approved);
+    } catch (error: any) {
+      console.error("[TimeOff] Error approving time-off request:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ops/time-off/:id/deny", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can deny time-off requests" });
+      }
+      const id = parseInt(req.params.id);
+      const userId = (req.user as any)?.id || 1;
+      const { notes } = req.body;
+      const denied = await storage.denyTimeOffRequest(id, userId, notes);
+      res.json(denied);
+    } catch (error: any) {
+      console.error("[TimeOff] Error denying time-off request:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // --- Ops API: Job Requests ---
   app.get("/api/ops/jobs", async (req, res) => {
     try {
