@@ -735,7 +735,7 @@ export default function CrewDetailPage() {
                     dailyCapacityMinutes: parseInt(capacityHours) * 60,
                     maxJobsPerDay: parseInt(maxJobs),
                   })}
-                  disabled={updateCapacityMutation.isPending}
+                  disabled={updateCapacityMutation.isPending || !capacityHours || !maxJobs || isNaN(parseInt(capacityHours)) || isNaN(parseInt(maxJobs)) || parseInt(capacityHours) < 1 || parseInt(maxJobs) < 1}
                   data-testid="button-save-capacity"
                 >
                   {updateCapacityMutation.isPending ? "Saving..." : "Save Changes"}
