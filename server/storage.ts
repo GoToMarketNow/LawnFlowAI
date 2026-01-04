@@ -335,6 +335,7 @@ export interface IStorage {
   updateTimeOffRequest(id: number, updates: Partial<TimeOffRequest>): Promise<TimeOffRequest>;
   approveTimeOffRequest(id: number, approvedBy: number, notes?: string): Promise<TimeOffRequest>;
   denyTimeOffRequest(id: number, approvedBy: number, notes?: string): Promise<TimeOffRequest>;
+  deleteTimeOffRequest(id: number): Promise<boolean>;
   
   // Route Optimizer - Job Requests
   getJobRequests(businessId: number): Promise<JobRequest[]>;
@@ -1671,8 +1672,47 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTimeOffRequest(request: InsertTimeOffRequest): Promise<TimeOffRequest> {
-    const [created] = await db.insert(timeOffRequests).values(request).returning();
+    // Validate dates at storage layer to protect all entry points
+    // Use shared validator to ensure all dates come in as validated ISO strings or Date objects
+    const startDate = this.validateAndParseDateInput(request.startDate, "startDate");
+    const endDate = this.validateAndParseDateInput(request.endDate, "endDate");
+    
+    if (startDate > endDate) {
+      throw new Error("startDate must be before or equal to endDate");
+    }
+    
+    const [created] = await db.insert(timeOffRequests).values({
+      ...request,
+      startDate,
+      endDate,
+    }).returning();
     return created;
+  }
+  
+  // Shared date validation helper - ONLY accepts ISO YYYY-MM-DD strings to prevent format ambiguity
+  // Date objects are rejected to ensure all dates pass through format validation
+  private validateAndParseDateInput(input: any, fieldName: string): Date {
+    const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    
+    // Reject Date objects - they bypass ISO format validation
+    if (input instanceof Date) {
+      throw new Error(`${fieldName} must be an ISO YYYY-MM-DD string, not a Date object`);
+    }
+    
+    if (typeof input !== 'string') {
+      throw new Error(`${fieldName} must be an ISO YYYY-MM-DD string`);
+    }
+    
+    if (!isoDateRegex.test(input)) {
+      throw new Error(`${fieldName} must be in ISO YYYY-MM-DD format`);
+    }
+    
+    const parsed = new Date(input);
+    if (isNaN(parsed.getTime())) {
+      throw new Error(`${fieldName} is not a valid date`);
+    }
+    
+    return parsed;
   }
 
   async updateTimeOffRequest(id: number, updates: Partial<TimeOffRequest>): Promise<TimeOffRequest> {
@@ -1712,6 +1752,11 @@ export class DatabaseStorage implements IStorage {
       .where(eq(timeOffRequests.id, id))
       .returning();
     return updated;
+  }
+
+  async deleteTimeOffRequest(id: number): Promise<boolean> {
+    const result = await db.delete(timeOffRequests).where(eq(timeOffRequests.id, id));
+    return true;
   }
 
   // Route Optimizer - Job Requests

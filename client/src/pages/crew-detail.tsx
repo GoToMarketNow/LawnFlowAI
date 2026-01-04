@@ -56,10 +56,11 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import type { Crew, CrewMember, User, Skill, Equipment, CrewSkill, CrewEquipment, CrewAvailability } from "@shared/schema";
+import type { Crew, CrewMember, User, Skill, Equipment, CrewSkill, CrewEquipment, CrewAvailability, TimeOffRequest } from "@shared/schema";
 import { format } from "date-fns";
-import { Calendar, Check, X } from "lucide-react";
+import { Calendar, Check, X, CalendarOff, CheckCircle, XCircle, Clock as ClockIcon } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 
 type CrewSkillWithSkill = CrewSkill & { skill: Skill };
 type CrewEquipmentWithEquipment = CrewEquipment & { equipment: Equipment };
@@ -103,6 +104,13 @@ export default function CrewDetailPage() {
   const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const DEFAULT_START = "08:00";
   const DEFAULT_END = "17:00";
+  
+  const [showTimeOffDialog, setShowTimeOffDialog] = useState(false);
+  const [timeOffStartDate, setTimeOffStartDate] = useState("");
+  const [timeOffEndDate, setTimeOffEndDate] = useState("");
+  const [timeOffNotes, setTimeOffNotes] = useState("");
+  
+  const canApproveTimeOff = userRole === "OWNER" || userRole === "ADMIN";
 
   const { data: crew, isLoading, refetch } = useQuery<CrewWithMembers>({
     queryKey: ["/api/ops/crews", id],
@@ -132,6 +140,11 @@ export default function CrewDetailPage() {
 
   const { data: crewAvailability } = useQuery<CrewAvailability[]>({
     queryKey: ["/api/ops/crews", id, "availability"],
+    enabled: !!id,
+  });
+
+  const { data: timeOffRequests } = useQuery<TimeOffRequest[]>({
+    queryKey: ["/api/ops/crews", id, "time-off"],
     enabled: !!id,
   });
 
@@ -290,6 +303,62 @@ export default function CrewDetailPage() {
   const getAvailabilityForDay = (dayOfWeek: number) => {
     return crewAvailability?.find(a => a.dayOfWeek === dayOfWeek);
   };
+
+  const createTimeOffMutation = useMutation({
+    mutationFn: async (data: { startDate: string; endDate: string; notes?: string }) => {
+      return apiRequest("POST", `/api/ops/crews/${id}/time-off`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id, "time-off"] });
+      setShowTimeOffDialog(false);
+      setTimeOffStartDate("");
+      setTimeOffEndDate("");
+      setTimeOffNotes("");
+      toast({ title: "Time-off request created" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to create request", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const approveTimeOffMutation = useMutation({
+    mutationFn: async (requestId: number) => {
+      return apiRequest("PATCH", `/api/ops/time-off/${requestId}/approve`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id, "time-off"] });
+      toast({ title: "Time-off approved" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to approve", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const denyTimeOffMutation = useMutation({
+    mutationFn: async (requestId: number) => {
+      return apiRequest("PATCH", `/api/ops/time-off/${requestId}/deny`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id, "time-off"] });
+      toast({ title: "Time-off denied" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to deny", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteTimeOffMutation = useMutation({
+    mutationFn: async (requestId: number) => {
+      return apiRequest("DELETE", `/api/ops/time-off/${requestId}`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id, "time-off"] });
+      toast({ title: "Time-off request deleted" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to delete", description: error.message, variant: "destructive" });
+    },
+  });
 
   const assignedSkillIds = crewSkills?.map(cs => cs.skillId) ?? [];
   const availableSkillsToAdd = allSkills?.filter(s => !assignedSkillIds.includes(s.id)) ?? [];
@@ -970,6 +1039,172 @@ export default function CrewDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <CalendarOff className="h-4 w-4" />
+                Time-Off Requests
+              </CardTitle>
+              <CardDescription>
+                Manage vacation and time-off for this crew
+              </CardDescription>
+            </div>
+            {canEdit && (
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => setShowTimeOffDialog(true)}
+                data-testid="button-request-time-off"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Request Time Off
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!timeOffRequests || timeOffRequests.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No time-off requests</p>
+          ) : (
+            <div className="space-y-3">
+              {timeOffRequests.map((request) => (
+                <div 
+                  key={request.id} 
+                  className="flex items-center justify-between gap-4 p-3 border rounded-md"
+                  data-testid={`time-off-request-${request.id}`}
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">
+                        {format(new Date(request.startDate), "MMM d")} - {format(new Date(request.endDate), "MMM d, yyyy")}
+                      </span>
+                      <Badge 
+                        variant={
+                          request.status === "approved" ? "default" :
+                          request.status === "denied" ? "destructive" :
+                          "secondary"
+                        }
+                        className="text-xs"
+                      >
+                        {request.status === "approved" && <CheckCircle className="h-3 w-3 mr-1" />}
+                        {request.status === "denied" && <XCircle className="h-3 w-3 mr-1" />}
+                        {request.status === "pending" && <ClockIcon className="h-3 w-3 mr-1" />}
+                        {request.status}
+                      </Badge>
+                    </div>
+                    {request.notes && (
+                      <p className="text-xs text-muted-foreground mt-1">{request.notes}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {request.status === "pending" && canApproveTimeOff && (
+                      <>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => approveTimeOffMutation.mutate(request.id)}
+                          disabled={approveTimeOffMutation.isPending}
+                          data-testid={`button-approve-${request.id}`}
+                        >
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => denyTimeOffMutation.mutate(request.id)}
+                          disabled={denyTimeOffMutation.isPending}
+                          data-testid={`button-deny-${request.id}`}
+                        >
+                          <XCircle className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </>
+                    )}
+                    {canEdit && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => deleteTimeOffMutation.mutate(request.id)}
+                        disabled={deleteTimeOffMutation.isPending}
+                        data-testid={`button-delete-time-off-${request.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={showTimeOffDialog} onOpenChange={setShowTimeOffDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request Time Off</DialogTitle>
+            <DialogDescription>
+              Schedule time off for this crew
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="start-date">Start Date</Label>
+                <Input
+                  id="start-date"
+                  type="date"
+                  value={timeOffStartDate}
+                  onChange={(e) => setTimeOffStartDate(e.target.value)}
+                  data-testid="input-time-off-start"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="end-date">End Date</Label>
+                <Input
+                  id="end-date"
+                  type="date"
+                  value={timeOffEndDate}
+                  onChange={(e) => setTimeOffEndDate(e.target.value)}
+                  data-testid="input-time-off-end"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes (optional)</Label>
+              <Textarea
+                id="notes"
+                value={timeOffNotes}
+                onChange={(e) => setTimeOffNotes(e.target.value)}
+                placeholder="Reason for time off..."
+                data-testid="input-time-off-notes"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowTimeOffDialog(false)}
+              data-testid="button-cancel-time-off"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => createTimeOffMutation.mutate({
+                startDate: timeOffStartDate,
+                endDate: timeOffEndDate,
+                notes: timeOffNotes || undefined,
+              })}
+              disabled={!timeOffStartDate || !timeOffEndDate || createTimeOffMutation.isPending}
+              data-testid="button-submit-time-off"
+            >
+              {createTimeOffMutation.isPending ? "Submitting..." : "Submit Request"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showAddSkillDialog} onOpenChange={setShowAddSkillDialog}>
         <DialogContent>

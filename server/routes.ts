@@ -6547,7 +6547,10 @@ Return JSON format:
 
   app.put("/api/ops/crews/:crewId/availability", async (req, res) => {
     try {
-      const role = (req.user as any)?.role || "OWNER";
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role;
       if (role !== "OWNER" && role !== "ADMIN" && role !== "CREW_LEAD") {
         return res.status(403).json({ error: "Only OWNER, ADMIN or CREW_LEAD can set crew availability" });
       }
@@ -6556,6 +6559,23 @@ Return JSON format:
       if (!Array.isArray(availability)) {
         return res.status(400).json({ error: "availability must be an array" });
       }
+      
+      // Validate HH:MM format and ensure one slot per day
+      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      const seenDays = new Set<number>();
+      for (const slot of availability) {
+        if (slot.dayOfWeek < 0 || slot.dayOfWeek > 6) {
+          return res.status(400).json({ error: "dayOfWeek must be 0-6" });
+        }
+        if (seenDays.has(slot.dayOfWeek)) {
+          return res.status(400).json({ error: `Duplicate entry for day ${slot.dayOfWeek}` });
+        }
+        seenDays.add(slot.dayOfWeek);
+        if (!timeRegex.test(slot.startTime) || !timeRegex.test(slot.endTime)) {
+          return res.status(400).json({ error: "Times must be in HH:MM format" });
+        }
+      }
+      
       const updated = await storage.setCrewAvailability(crewId, availability);
       res.json(updated);
     } catch (error: any) {
@@ -6566,12 +6586,25 @@ Return JSON format:
 
   app.patch("/api/ops/crews/:crewId/availability/:slotId", async (req, res) => {
     try {
-      const role = (req.user as any)?.role || "OWNER";
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role;
       if (role !== "OWNER" && role !== "ADMIN" && role !== "CREW_LEAD") {
         return res.status(403).json({ error: "Only OWNER, ADMIN or CREW_LEAD can update crew availability" });
       }
       const slotId = parseInt(req.params.slotId);
       const updates = req.body;
+      
+      // Validate time format if provided
+      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      if (updates.startTime && !timeRegex.test(updates.startTime)) {
+        return res.status(400).json({ error: "startTime must be in HH:MM format" });
+      }
+      if (updates.endTime && !timeRegex.test(updates.endTime)) {
+        return res.status(400).json({ error: "endTime must be in HH:MM format" });
+      }
+      
       const updated = await storage.updateCrewAvailabilitySlot(slotId, updates);
       res.json(updated);
     } catch (error: any) {
@@ -6581,6 +6614,66 @@ Return JSON format:
   });
 
   // --- Ops API: Time-Off Requests ---
+  // Get time-off for a specific crew
+  app.get("/api/ops/crews/:crewId/time-off", async (req, res) => {
+    try {
+      const crewId = parseInt(req.params.crewId);
+      const requests = await storage.getTimeOffRequests(crewId);
+      res.json(requests);
+    } catch (error: any) {
+      console.error("[TimeOff] Error fetching crew time-off:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create time-off request for a specific crew
+  app.post("/api/ops/crews/:crewId/time-off", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role;
+      if (role !== "OWNER" && role !== "ADMIN" && role !== "CREW_LEAD") {
+        return res.status(403).json({ error: "Only OWNER, ADMIN or CREW_LEAD can create time-off requests" });
+      }
+      const crewId = parseInt(req.params.crewId);
+      const { startDate, endDate, notes } = req.body;
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: "startDate and endDate are required" });
+      }
+      
+      // Validate ISO date format and parse
+      const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!isoDateRegex.test(startDate) || !isoDateRegex.test(endDate)) {
+        return res.status(400).json({ error: "Dates must be in YYYY-MM-DD format" });
+      }
+      
+      const parsedStart = new Date(startDate);
+      const parsedEnd = new Date(endDate);
+      
+      if (isNaN(parsedStart.getTime()) || isNaN(parsedEnd.getTime())) {
+        return res.status(400).json({ error: "Invalid date values" });
+      }
+      
+      if (parsedStart > parsedEnd) {
+        return res.status(400).json({ error: "startDate must be before or equal to endDate" });
+      }
+      
+      const request = await storage.createTimeOffRequest({
+        crewId,
+        startDate: startDate, // Pass validated ISO string - storage layer handles conversion
+        endDate: endDate,     // Pass validated ISO string - storage layer handles conversion
+        reason: notes,
+        requestedBy: (req.user as any)?.id,
+        status: "pending",
+      });
+      res.status(201).json(request);
+    } catch (error: any) {
+      console.error("[TimeOff] Error creating time-off request:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/ops/time-off", async (req, res) => {
     try {
       const crewId = req.query.crewId ? parseInt(req.query.crewId as string) : undefined;
@@ -6612,10 +6705,28 @@ Return JSON format:
       if (!crewId || !startDate || !endDate) {
         return res.status(400).json({ error: "crewId, startDate, and endDate are required" });
       }
+      
+      // Validate ISO date format and parse
+      const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!isoDateRegex.test(startDate) || !isoDateRegex.test(endDate)) {
+        return res.status(400).json({ error: "Dates must be in YYYY-MM-DD format" });
+      }
+      
+      const parsedStart = new Date(startDate);
+      const parsedEnd = new Date(endDate);
+      
+      if (isNaN(parsedStart.getTime()) || isNaN(parsedEnd.getTime())) {
+        return res.status(400).json({ error: "Invalid date values" });
+      }
+      
+      if (parsedStart > parsedEnd) {
+        return res.status(400).json({ error: "startDate must be before or equal to endDate" });
+      }
+      
       const request = await storage.createTimeOffRequest({
         crewId,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        startDate, // Pass validated ISO string - storage layer handles conversion
+        endDate,   // Pass validated ISO string - storage layer handles conversion
         reason,
         requestedBy,
         status: "pending",
@@ -6629,7 +6740,10 @@ Return JSON format:
 
   app.patch("/api/ops/time-off/:id", async (req, res) => {
     try {
-      const role = (req.user as any)?.role || "OWNER";
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role;
       if (role !== "OWNER" && role !== "ADMIN") {
         return res.status(403).json({ error: "Only OWNER or ADMIN can update time-off requests" });
       }
@@ -6644,12 +6758,15 @@ Return JSON format:
 
   app.post("/api/ops/time-off/:id/approve", async (req, res) => {
     try {
-      const role = (req.user as any)?.role || "OWNER";
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role;
       if (role !== "OWNER" && role !== "ADMIN") {
         return res.status(403).json({ error: "Only OWNER or ADMIN can approve time-off requests" });
       }
       const id = parseInt(req.params.id);
-      const userId = (req.user as any)?.id || 1;
+      const userId = (req.user as any)?.id;
       const { notes } = req.body;
       const approved = await storage.approveTimeOffRequest(id, userId, notes);
       res.json(approved);
@@ -6661,17 +6778,80 @@ Return JSON format:
 
   app.post("/api/ops/time-off/:id/deny", async (req, res) => {
     try {
-      const role = (req.user as any)?.role || "OWNER";
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role;
       if (role !== "OWNER" && role !== "ADMIN") {
         return res.status(403).json({ error: "Only OWNER or ADMIN can deny time-off requests" });
       }
       const id = parseInt(req.params.id);
-      const userId = (req.user as any)?.id || 1;
+      const userId = (req.user as any)?.id;
       const { notes } = req.body;
       const denied = await storage.denyTimeOffRequest(id, userId, notes);
       res.json(denied);
     } catch (error: any) {
       console.error("[TimeOff] Error denying time-off request:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PATCH versions for approve/deny (UI uses PATCH)
+  app.patch("/api/ops/time-off/:id/approve", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role;
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can approve time-off requests" });
+      }
+      const id = parseInt(req.params.id);
+      const userId = (req.user as any)?.id;
+      const { notes } = req.body;
+      const approved = await storage.approveTimeOffRequest(id, userId, notes);
+      res.json(approved);
+    } catch (error: any) {
+      console.error("[TimeOff] Error approving time-off request:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/ops/time-off/:id/deny", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role;
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can deny time-off requests" });
+      }
+      const id = parseInt(req.params.id);
+      const userId = (req.user as any)?.id;
+      const { notes } = req.body;
+      const denied = await storage.denyTimeOffRequest(id, userId, notes);
+      res.json(denied);
+    } catch (error: any) {
+      console.error("[TimeOff] Error denying time-off request:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete time-off request
+  app.delete("/api/ops/time-off/:id", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role;
+      if (role !== "OWNER" && role !== "ADMIN" && role !== "CREW_LEAD") {
+        return res.status(403).json({ error: "Only OWNER, ADMIN or CREW_LEAD can delete time-off requests" });
+      }
+      const id = parseInt(req.params.id);
+      await storage.deleteTimeOffRequest(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[TimeOff] Error deleting time-off request:", error);
       res.status(500).json({ error: error.message });
     }
   });
