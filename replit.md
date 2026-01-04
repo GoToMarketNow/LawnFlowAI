@@ -77,6 +77,17 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
   - Orchestrator integration: memories written at key stage completions (LEAD_INTAKE, QUOTE_CONFIRM, SCHEDULE_PROPOSE, CREW_LOCK, JOB_BOOKED)
   - Context enrichment: returning customers get customerInsights populated (preferred crew, time slots, prior services)
   - API endpoints: POST /api/memory/upsert, POST /api/memory/search, GET /api/memory/customer, GET /api/memory/customers, GET /api/memory/status
+- **Communications Manager:** Comprehensive customer messaging system with intent-based architecture:
+  - CommunicationIntent schema with 28 intent types covering full lead-to-cash journey
+  - Three-layer orchestrator: intent router, context assembler, and renderer pipeline
+  - Template library with 20+ templates organized by intent type and service category
+  - Custom Handlebars-style renderer with variable substitution, conditionals, and loops
+  - Stage triggers emit CommunicationIntent events at orchestrator touchpoints (LEAD_INTAKE, QUOTE_BUILD, QUOTE_CONFIRM, SCHEDULE_PROPOSE, CREW_LOCK, JOB_BOOKED)
+  - Customer Memory integration for personalization (preferred name, contact windows, service history)
+  - Compliance guardrails: business hours enforcement (8am-8pm weekdays, adjusted weekends), daily message limits (10/day), duplicate detection (5-minute window), urgent bypass
+  - Approval workflow with pending queue and audit logging
+  - Comms Studio UI (/comms): templates browser, intent types list, live message preview with variable editing, pending approvals management
+  - API endpoints: /api/comms/v2/templates, /api/comms/v2/preview, /api/comms/v2/approvals, /api/comms/v2/send, /api/comms/v2/intent-types
 - **Learning System:** Feedback-driven policy improvement system with comprehensive logging and admin dashboard:
   - Decision Logs (`decisionLogs` table): Captures every AI recommendation with inputs snapshot, recommended action, confidence level, and policy version
   - Human Action Logs (`humanActionLogs` table): Records operator decisions (approve/edit/reject) with edit deltas and reason codes
