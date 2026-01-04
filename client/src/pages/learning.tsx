@@ -16,7 +16,8 @@ import {
   ToggleLeft,
   ToggleRight,
   RefreshCw,
-  Activity
+  Activity,
+  Loader2
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -54,11 +55,10 @@ interface PolicyVersion {
 interface Suggestion {
   id: number;
   businessId: number;
-  changeType: string;
-  targetKey: string;
-  currentValue: unknown;
-  proposedValue: unknown;
-  confidence: string;
+  policyChangeType: string;
+  target: string;
+  currentValueJson: unknown;
+  proposedValueJson: unknown;
   evidenceJson: Record<string, unknown>;
   status: string;
   reviewedByUserId: number | null;
@@ -300,29 +300,80 @@ function SuggestionsTab() {
     },
   });
 
+  const generateSuggestions = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/learning/suggestions/generate");
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/learning/suggestions"] });
+      toast({
+        title: "Analysis Complete",
+        description: `Created ${data.created} suggestions, skipped ${data.skipped}.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   if (isLoading) {
     return <Skeleton className="h-48 w-full" />;
   }
 
   if (suggestions.length === 0) {
     return (
-      <EmptyState
-        icon={TrendingUp}
-        title="No Tuning Suggestions"
-        description="The learning system will propose policy adjustments based on human override patterns. As you review AI decisions, suggestions will appear here."
-      />
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <Button
+            onClick={() => generateSuggestions.mutate()}
+            disabled={generateSuggestions.isPending}
+            data-testid="button-generate-suggestions"
+          >
+            {generateSuggestions.isPending ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Analyze Decisions
+          </Button>
+        </div>
+        <EmptyState
+          icon={TrendingUp}
+          title="No Tuning Suggestions"
+          description="The learning system will propose policy adjustments based on human override patterns. Click 'Analyze Decisions' to generate suggestions from recent activity."
+        />
+      </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          onClick={() => generateSuggestions.mutate()}
+          disabled={generateSuggestions.isPending}
+          data-testid="button-generate-suggestions"
+        >
+          {generateSuggestions.isPending ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4 mr-2" />
+          )}
+          Re-Analyze Decisions
+        </Button>
+      </div>
       {suggestions.map((suggestion) => (
         <Card key={suggestion.id} data-testid={`suggestion-${suggestion.id}`}>
           <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
             <div>
-              <CardTitle className="text-base">{suggestion.changeType}: {suggestion.targetKey}</CardTitle>
+              <CardTitle className="text-base">{suggestion.policyChangeType}: {suggestion.target}</CardTitle>
               <CardDescription>
-                Confidence: {suggestion.confidence} | Created {format(new Date(suggestion.createdAt), "MMM d")}
+                Created {format(new Date(suggestion.createdAt), "MMM d")}
               </CardDescription>
             </div>
             <Badge 
@@ -337,20 +388,26 @@ function SuggestionsTab() {
             </Badge>
           </CardHeader>
           <CardContent className="space-y-4">
+            {suggestion.evidenceJson?.rationale && (
+              <p className="text-sm text-muted-foreground">{suggestion.evidenceJson.rationale as string}</p>
+            )}
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="text-muted-foreground">Current Value</p>
                 <pre className="mt-1 p-2 bg-muted rounded text-xs">
-                  {JSON.stringify(suggestion.currentValue, null, 2)}
+                  {JSON.stringify(suggestion.currentValueJson, null, 2)}
                 </pre>
               </div>
               <div>
                 <p className="text-muted-foreground">Proposed Value</p>
                 <pre className="mt-1 p-2 bg-muted rounded text-xs">
-                  {JSON.stringify(suggestion.proposedValue, null, 2)}
+                  {JSON.stringify(suggestion.proposedValueJson, null, 2)}
                 </pre>
               </div>
             </div>
+            {suggestion.evidenceJson?.impactEstimate && (
+              <p className="text-sm"><span className="text-muted-foreground">Impact:</span> {suggestion.evidenceJson.impactEstimate as string}</p>
+            )}
             {suggestion.status === "proposed" && (
               <div className="flex gap-2">
                 <Button

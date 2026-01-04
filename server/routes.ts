@@ -7328,6 +7328,20 @@ Return JSON format:
     }
   });
   
+  // POST /api/learning/suggestions/generate - Generate new suggestions from decision analysis
+  app.post("/api/learning/suggestions/generate", async (req, res) => {
+    try {
+      const businessId = (req.user as any)?.businessId || 1;
+      const { generateSuggestions } = await import("./lib/learning/suggestions");
+      
+      const result = await generateSuggestions(businessId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Learning] Error generating suggestions:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
   // GET /api/learning/kill-switches - List kill switches
   app.get("/api/learning/kill-switches", async (req, res) => {
     try {
