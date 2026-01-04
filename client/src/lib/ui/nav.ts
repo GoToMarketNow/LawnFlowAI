@@ -115,6 +115,15 @@ export const navigation: NavGroup[] = [
         shortcut: 'g l',
         description: 'AI policy tuning and metrics',
       },
+      { 
+        id: 'comms', 
+        label: 'Comms Studio', 
+        href: '/comms', 
+        icon: 'MessageSquare', 
+        roles: ['OWNER', 'ADMIN'],
+        shortcut: 'g m',
+        description: 'Message templates and approvals',
+      },
     ],
   },
   {

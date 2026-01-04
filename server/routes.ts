@@ -4295,6 +4295,147 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/comms/v2/templates", async (req, res) => {
+    try {
+      const { MESSAGE_TEMPLATES } = await import("./lib/comms/templates");
+      const { intentType, serviceCategory } = req.query;
+      
+      let templates = MESSAGE_TEMPLATES;
+      
+      if (intentType) {
+        templates = templates.filter(t => t.intentType === intentType);
+      }
+      if (serviceCategory) {
+        templates = templates.filter(t => t.serviceCategory === serviceCategory);
+      }
+      
+      res.json(templates);
+    } catch (error: any) {
+      console.error("[Comms] Error fetching v2 templates:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/comms/v2/preview", async (req, res) => {
+    try {
+      const { previewMessage, getTemplate } = await import("./lib/comms");
+      const { templateId, intentType, serviceCategory, context } = req.body;
+      
+      let template;
+      if (templateId) {
+        const { getTemplateById } = await import("./lib/comms/templates");
+        template = getTemplateById(templateId);
+      } else if (intentType) {
+        template = getTemplate(intentType, serviceCategory);
+      }
+      
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      const preview = previewMessage(template.template, context || {});
+      res.json({
+        template: {
+          id: template.id,
+          name: template.name,
+          intentType: template.intentType,
+        },
+        ...preview,
+      });
+    } catch (error: any) {
+      console.error("[Comms] Error previewing message:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/comms/v2/pending-approvals", async (req, res) => {
+    try {
+      const { commsOrchestrator } = await import("./lib/comms");
+      const profile = await storage.getBusinessProfile();
+      
+      const approvals = commsOrchestrator.getPendingApprovals(profile?.id);
+      res.json(approvals);
+    } catch (error: any) {
+      console.error("[Comms] Error fetching pending approvals:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/comms/v2/approve/:intentId", async (req, res) => {
+    try {
+      const { commsOrchestrator } = await import("./lib/comms");
+      const { intentId } = req.params;
+      const userId = (req as any).user?.id || 1;
+      
+      const result = await commsOrchestrator.approveIntent(intentId, userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Comms] Error approving intent:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/comms/v2/reject/:intentId", async (req, res) => {
+    try {
+      const { commsOrchestrator } = await import("./lib/comms");
+      const { intentId } = req.params;
+      const { reason } = req.body;
+      const userId = (req as any).user?.id || 1;
+      
+      await commsOrchestrator.rejectIntent(intentId, userId, reason);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Comms] Error rejecting intent:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/comms/v2/send", async (req, res) => {
+    try {
+      const { sendQuickSMS } = await import("./lib/comms");
+      const profile = await storage.getBusinessProfile();
+      
+      if (!profile) {
+        return res.status(400).json({ error: "Business profile not found" });
+      }
+      
+      const { intentType, recipientPhone, recipientName, context } = req.body;
+      
+      if (!intentType || !recipientPhone) {
+        return res.status(400).json({ error: "intentType and recipientPhone are required" });
+      }
+      
+      const result = await sendQuickSMS(
+        intentType,
+        profile.id,
+        recipientPhone,
+        recipientName || "Customer",
+        context
+      );
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Comms] Error sending message:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/comms/v2/intent-types", async (req, res) => {
+    try {
+      const { INTENT_METADATA } = await import("@shared/comms-schema");
+      
+      const intentTypes = Object.entries(INTENT_METADATA).map(([type, meta]) => ({
+        type,
+        ...meta,
+      }));
+      
+      res.json(intentTypes);
+    } catch (error: any) {
+      console.error("[Comms] Error fetching intent types:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/upsell/scan", async (req, res) => {
     try {
       const { runUpsellScan, getJobberAccountForBusiness } = await import("./workers/upsell/upsellWorker");

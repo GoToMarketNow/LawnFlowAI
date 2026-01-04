@@ -11,6 +11,7 @@ import {
   Settings,
   Zap,
   Brain,
+  MessageSquare,
 } from "lucide-react";
 import {
   Sidebar,
@@ -42,6 +43,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Bot,
   Settings,
   Brain,
+  MessageSquare,
 };
 
 interface AppSidebarProps {
