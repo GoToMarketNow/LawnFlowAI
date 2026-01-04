@@ -92,6 +92,8 @@ import {
   equipment,
   crewSkills,
   crewEquipment,
+  crewAvailability,
+  timeOffRequests,
   jobRequests,
   scheduleItems,
   assignmentSimulations,
@@ -109,6 +111,10 @@ import {
   type InsertCrewSkill,
   type CrewEquipment,
   type InsertCrewEquipment,
+  type CrewAvailability,
+  type InsertCrewAvailability,
+  type TimeOffRequest,
+  type InsertTimeOffRequest,
   type JobRequest,
   type InsertJobRequest,
   type ScheduleItem,
@@ -316,6 +322,19 @@ export interface IStorage {
   getCrewEquipment(crewId: number): Promise<(CrewEquipment & { equipment: Equipment })[]>;
   addCrewEquipment(crewId: number, equipmentId: number): Promise<CrewEquipment>;
   removeCrewEquipment(crewId: number, equipmentId: number): Promise<boolean>;
+  
+  // Crew Availability
+  getCrewAvailability(crewId: number): Promise<CrewAvailability[]>;
+  setCrewAvailability(crewId: number, availability: InsertCrewAvailability[]): Promise<CrewAvailability[]>;
+  updateCrewAvailabilitySlot(id: number, updates: Partial<InsertCrewAvailability>): Promise<CrewAvailability>;
+  
+  // Time-Off Requests
+  getTimeOffRequests(crewId?: number, status?: string): Promise<TimeOffRequest[]>;
+  getTimeOffRequest(id: number): Promise<TimeOffRequest | undefined>;
+  createTimeOffRequest(request: InsertTimeOffRequest): Promise<TimeOffRequest>;
+  updateTimeOffRequest(id: number, updates: Partial<TimeOffRequest>): Promise<TimeOffRequest>;
+  approveTimeOffRequest(id: number, approvedBy: number, notes?: string): Promise<TimeOffRequest>;
+  denyTimeOffRequest(id: number, approvedBy: number, notes?: string): Promise<TimeOffRequest>;
   
   // Route Optimizer - Job Requests
   getJobRequests(businessId: number): Promise<JobRequest[]>;
@@ -1584,6 +1603,115 @@ export class DatabaseStorage implements IStorage {
       .set({ isActive: false })
       .where(and(eq(crewEquipment.crewId, crewId), eq(crewEquipment.equipmentId, equipmentId)));
     return true;
+  }
+
+  // Crew Availability
+  async getCrewAvailability(crewId: number): Promise<CrewAvailability[]> {
+    return db
+      .select()
+      .from(crewAvailability)
+      .where(eq(crewAvailability.crewId, crewId))
+      .orderBy(crewAvailability.dayOfWeek);
+  }
+
+  async setCrewAvailability(crewId: number, availability: InsertCrewAvailability[]): Promise<CrewAvailability[]> {
+    // Delete existing availability for this crew
+    await db.delete(crewAvailability).where(eq(crewAvailability.crewId, crewId));
+    
+    // Insert new availability records
+    if (availability.length === 0) {
+      return [];
+    }
+    
+    const toInsert = availability.map(slot => ({
+      ...slot,
+      crewId,
+    }));
+    
+    return db.insert(crewAvailability).values(toInsert).returning();
+  }
+
+  async updateCrewAvailabilitySlot(id: number, updates: Partial<InsertCrewAvailability>): Promise<CrewAvailability> {
+    const [updated] = await db
+      .update(crewAvailability)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(crewAvailability.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Time-Off Requests
+  async getTimeOffRequests(crewId?: number, status?: string): Promise<TimeOffRequest[]> {
+    let conditions = [];
+    if (crewId !== undefined) {
+      conditions.push(eq(timeOffRequests.crewId, crewId));
+    }
+    if (status !== undefined) {
+      conditions.push(eq(timeOffRequests.status, status));
+    }
+    
+    if (conditions.length === 0) {
+      return db.select().from(timeOffRequests).orderBy(desc(timeOffRequests.createdAt));
+    }
+    
+    return db
+      .select()
+      .from(timeOffRequests)
+      .where(conditions.length === 1 ? conditions[0] : and(...conditions))
+      .orderBy(desc(timeOffRequests.createdAt));
+  }
+
+  async getTimeOffRequest(id: number): Promise<TimeOffRequest | undefined> {
+    const [request] = await db
+      .select()
+      .from(timeOffRequests)
+      .where(eq(timeOffRequests.id, id))
+      .limit(1);
+    return request;
+  }
+
+  async createTimeOffRequest(request: InsertTimeOffRequest): Promise<TimeOffRequest> {
+    const [created] = await db.insert(timeOffRequests).values(request).returning();
+    return created;
+  }
+
+  async updateTimeOffRequest(id: number, updates: Partial<TimeOffRequest>): Promise<TimeOffRequest> {
+    const [updated] = await db
+      .update(timeOffRequests)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(timeOffRequests.id, id))
+      .returning();
+    return updated;
+  }
+
+  async approveTimeOffRequest(id: number, approvedBy: number, notes?: string): Promise<TimeOffRequest> {
+    const [updated] = await db
+      .update(timeOffRequests)
+      .set({
+        status: "approved",
+        approvedBy,
+        approvedAt: sql`CURRENT_TIMESTAMP`,
+        notes: notes || null,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(timeOffRequests.id, id))
+      .returning();
+    return updated;
+  }
+
+  async denyTimeOffRequest(id: number, approvedBy: number, notes?: string): Promise<TimeOffRequest> {
+    const [updated] = await db
+      .update(timeOffRequests)
+      .set({
+        status: "denied",
+        approvedBy,
+        approvedAt: sql`CURRENT_TIMESTAMP`,
+        notes: notes || null,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(timeOffRequests.id, id))
+      .returning();
+    return updated;
   }
 
   // Route Optimizer - Job Requests
