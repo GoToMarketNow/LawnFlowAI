@@ -70,12 +70,11 @@ interface KillSwitch {
   id: number;
   businessId: number;
   scope: string;
-  scopeId: string | null;
-  isActive: boolean;
+  scopeValue: string;
+  isEnabled: boolean;
   reason: string | null;
-  createdByUserId: number;
-  expiresAt: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 function MetricsCard({ title, value, subtitle, icon: Icon, trend }: {
@@ -106,10 +105,10 @@ function ConfidenceBreakdown({ high, medium, low }: { high: number; medium: numb
   if (total === 0) return <span className="text-muted-foreground">No data</span>;
   
   return (
-    <div className="flex gap-2 items-center">
-      <Badge variant="default" className="bg-green-600">{high} high</Badge>
-      <Badge variant="secondary">{medium} med</Badge>
-      <Badge variant="outline">{low} low</Badge>
+    <div className="flex gap-2 items-center" data-testid="confidence-breakdown">
+      <Badge variant="default" className="bg-green-600" data-testid="badge-confidence-high">{high} high</Badge>
+      <Badge variant="secondary" data-testid="badge-confidence-medium">{medium} med</Badge>
+      <Badge variant="outline" data-testid="badge-confidence-low">{low} low</Badge>
     </div>
   );
 }
@@ -254,7 +253,10 @@ function PolicyVersionsTab() {
                 Created {format(new Date(version.createdAt), "MMM d, yyyy 'at' h:mm a")}
               </CardDescription>
             </div>
-            <Badge variant={version.status === "active" ? "default" : "secondary"}>
+            <Badge 
+              variant={version.status === "active" ? "default" : "secondary"}
+              data-testid={`badge-policy-status-${version.id}`}
+            >
               {version.status}
             </Badge>
           </CardHeader>
@@ -323,11 +325,14 @@ function SuggestionsTab() {
                 Confidence: {suggestion.confidence} | Created {format(new Date(suggestion.createdAt), "MMM d")}
               </CardDescription>
             </div>
-            <Badge variant={
-              suggestion.status === "proposed" ? "secondary" :
-              suggestion.status === "approved" ? "default" :
-              suggestion.status === "applied" ? "outline" : "destructive"
-            }>
+            <Badge 
+              variant={
+                suggestion.status === "proposed" ? "secondary" :
+                suggestion.status === "approved" ? "default" :
+                suggestion.status === "applied" ? "outline" : "destructive"
+              }
+              data-testid={`badge-suggestion-status-${suggestion.id}`}
+            >
               {suggestion.status}
             </Badge>
           </CardHeader>
@@ -455,11 +460,14 @@ function KillSwitchesTab() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-medium capitalize">{sw.scope}</span>
-                    {sw.scopeId && (
-                      <Badge variant="outline" className="font-mono text-xs">{sw.scopeId}</Badge>
+                    {sw.scopeValue && sw.scopeValue !== sw.scope && (
+                      <Badge variant="outline" className="font-mono text-xs">{sw.scopeValue}</Badge>
                     )}
-                    <Badge variant={sw.isActive ? "destructive" : "secondary"}>
-                      {sw.isActive ? "ACTIVE" : "Inactive"}
+                    <Badge 
+                      variant={sw.isEnabled ? "destructive" : "secondary"}
+                      data-testid={`badge-killswitch-status-${sw.id}`}
+                    >
+                      {sw.isEnabled ? "ACTIVE" : "Inactive"}
                     </Badge>
                   </div>
                   {sw.reason && (
@@ -467,17 +475,16 @@ function KillSwitchesTab() {
                   )}
                   <p className="text-xs text-muted-foreground mt-1">
                     Created {format(new Date(sw.createdAt), "MMM d, yyyy")}
-                    {sw.expiresAt && ` | Expires ${format(new Date(sw.expiresAt), "MMM d, yyyy")}`}
                   </p>
                 </div>
                 <Button
                   size="icon"
-                  variant={sw.isActive ? "destructive" : "outline"}
-                  onClick={() => toggleSwitch.mutate({ id: sw.id, isActive: !sw.isActive })}
+                  variant={sw.isEnabled ? "destructive" : "outline"}
+                  onClick={() => toggleSwitch.mutate({ id: sw.id, isActive: !sw.isEnabled })}
                   disabled={toggleSwitch.isPending}
                   data-testid={`button-toggle-kill-switch-${sw.id}`}
                 >
-                  {sw.isActive ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
+                  {sw.isEnabled ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
                 </Button>
               </CardContent>
             </Card>

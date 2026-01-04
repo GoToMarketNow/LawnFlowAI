@@ -7347,8 +7347,7 @@ Return JSON format:
   app.post("/api/learning/kill-switches", async (req, res) => {
     try {
       const businessId = (req.user as any)?.businessId || 1;
-      const userId = (req.user as any)?.id || 1;
-      const { scope, scopeId, reason, expiresAt } = req.body;
+      const { scope, scopeId, reason } = req.body;
       
       if (!scope || !["global", "agent", "stage", "decision_type"].includes(scope)) {
         return res.status(400).json({ error: "Invalid scope" });
@@ -7357,11 +7356,9 @@ Return JSON format:
       const [created] = await db.insert(killSwitches).values({
         businessId,
         scope,
-        scopeId: scopeId || null,
-        isActive: true,
+        scopeValue: scopeId || scope, // Use scopeId if provided, otherwise scope as value
+        isEnabled: true,
         reason: reason || null,
-        createdByUserId: userId,
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
       }).returning();
       
       res.json(created);
@@ -7378,7 +7375,7 @@ Return JSON format:
       const { isActive } = req.body;
       
       const [updated] = await db.update(killSwitches)
-        .set({ isActive: Boolean(isActive) })
+        .set({ isEnabled: Boolean(isActive) })
         .where(eq(killSwitches.id, id))
         .returning();
       
