@@ -88,6 +88,10 @@ import {
   type InsertQuoteDraft,
   crews,
   crewMembers,
+  skills,
+  equipment,
+  crewSkills,
+  crewEquipment,
   jobRequests,
   scheduleItems,
   assignmentSimulations,
@@ -97,6 +101,14 @@ import {
   type InsertCrew,
   type CrewMember,
   type InsertCrewMember,
+  type Skill,
+  type InsertSkill,
+  type Equipment,
+  type InsertEquipment,
+  type CrewSkill,
+  type InsertCrewSkill,
+  type CrewEquipment,
+  type InsertCrewEquipment,
   type JobRequest,
   type InsertJobRequest,
   type ScheduleItem,
@@ -280,6 +292,30 @@ export interface IStorage {
   updateCrewMember(id: number, updates: Partial<InsertCrewMember>): Promise<CrewMember | null>;
   removeCrewMember(id: number): Promise<CrewMember | null>;
   setCrewLeader(crewId: number, memberId: number): Promise<void>;
+  
+  // Skills Management
+  getSkills(businessId: number): Promise<Skill[]>;
+  getSkill(id: number): Promise<Skill | undefined>;
+  createSkill(skill: InsertSkill): Promise<Skill>;
+  updateSkill(id: number, updates: Partial<InsertSkill>): Promise<Skill>;
+  deleteSkill(id: number): Promise<boolean>;
+  
+  // Equipment Management
+  getEquipment(businessId: number): Promise<Equipment[]>;
+  getEquipmentItem(id: number): Promise<Equipment | undefined>;
+  createEquipment(equip: InsertEquipment): Promise<Equipment>;
+  updateEquipment(id: number, updates: Partial<InsertEquipment>): Promise<Equipment>;
+  deleteEquipment(id: number): Promise<boolean>;
+  
+  // Crew Skills Assignment
+  getCrewSkills(crewId: number): Promise<(CrewSkill & { skill: Skill })[]>;
+  addCrewSkill(crewId: number, skillId: number, proficiencyLevel?: number): Promise<CrewSkill>;
+  removeCrewSkill(crewId: number, skillId: number): Promise<boolean>;
+  
+  // Crew Equipment Assignment
+  getCrewEquipment(crewId: number): Promise<(CrewEquipment & { equipment: Equipment })[]>;
+  addCrewEquipment(crewId: number, equipmentId: number): Promise<CrewEquipment>;
+  removeCrewEquipment(crewId: number, equipmentId: number): Promise<boolean>;
   
   // Route Optimizer - Job Requests
   getJobRequests(businessId: number): Promise<JobRequest[]>;
@@ -1395,6 +1431,159 @@ export class DatabaseStorage implements IStorage {
       .update(crewMembers)
       .set({ role: "LEADER" })
       .where(eq(crewMembers.id, memberId));
+  }
+
+  // Skills Management
+  async getSkills(businessId: number): Promise<Skill[]> {
+    return db
+      .select()
+      .from(skills)
+      .where(and(eq(skills.businessId, businessId), eq(skills.isActive, true)))
+      .orderBy(skills.name);
+  }
+
+  async getSkill(id: number): Promise<Skill | undefined> {
+    const [skill] = await db
+      .select()
+      .from(skills)
+      .where(eq(skills.id, id));
+    return skill;
+  }
+
+  async createSkill(skill: InsertSkill): Promise<Skill> {
+    const [created] = await db
+      .insert(skills)
+      .values(skill)
+      .returning();
+    return created;
+  }
+
+  async updateSkill(id: number, updates: Partial<InsertSkill>): Promise<Skill> {
+    const [updated] = await db
+      .update(skills)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(skills.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteSkill(id: number): Promise<boolean> {
+    const [deleted] = await db
+      .update(skills)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(skills.id, id))
+      .returning();
+    return !!deleted;
+  }
+
+  // Equipment Management
+  async getEquipment(businessId: number): Promise<Equipment[]> {
+    return db
+      .select()
+      .from(equipment)
+      .where(and(eq(equipment.businessId, businessId), eq(equipment.isActive, true)))
+      .orderBy(equipment.name);
+  }
+
+  async getEquipmentItem(id: number): Promise<Equipment | undefined> {
+    const [item] = await db
+      .select()
+      .from(equipment)
+      .where(eq(equipment.id, id));
+    return item;
+  }
+
+  async createEquipment(equip: InsertEquipment): Promise<Equipment> {
+    const [created] = await db
+      .insert(equipment)
+      .values(equip)
+      .returning();
+    return created;
+  }
+
+  async updateEquipment(id: number, updates: Partial<InsertEquipment>): Promise<Equipment> {
+    const [updated] = await db
+      .update(equipment)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(equipment.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteEquipment(id: number): Promise<boolean> {
+    const [deleted] = await db
+      .update(equipment)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(equipment.id, id))
+      .returning();
+    return !!deleted;
+  }
+
+  // Crew Skills Assignment
+  async getCrewSkills(crewId: number): Promise<(CrewSkill & { skill: Skill })[]> {
+    const results = await db
+      .select({
+        id: crewSkills.id,
+        crewId: crewSkills.crewId,
+        skillId: crewSkills.skillId,
+        proficiencyLevel: crewSkills.proficiencyLevel,
+        createdAt: crewSkills.createdAt,
+        skill: skills,
+      })
+      .from(crewSkills)
+      .innerJoin(skills, eq(crewSkills.skillId, skills.id))
+      .where(eq(crewSkills.crewId, crewId));
+    return results;
+  }
+
+  async addCrewSkill(crewId: number, skillId: number, proficiencyLevel: number = 1): Promise<CrewSkill> {
+    const [created] = await db
+      .insert(crewSkills)
+      .values({ crewId, skillId, proficiencyLevel })
+      .onConflictDoNothing()
+      .returning();
+    return created;
+  }
+
+  async removeCrewSkill(crewId: number, skillId: number): Promise<boolean> {
+    const result = await db
+      .delete(crewSkills)
+      .where(and(eq(crewSkills.crewId, crewId), eq(crewSkills.skillId, skillId)));
+    return true;
+  }
+
+  // Crew Equipment Assignment
+  async getCrewEquipment(crewId: number): Promise<(CrewEquipment & { equipment: Equipment })[]> {
+    const results = await db
+      .select({
+        id: crewEquipment.id,
+        crewId: crewEquipment.crewId,
+        equipmentId: crewEquipment.equipmentId,
+        assignedAt: crewEquipment.assignedAt,
+        isActive: crewEquipment.isActive,
+        equipment: equipment,
+      })
+      .from(crewEquipment)
+      .innerJoin(equipment, eq(crewEquipment.equipmentId, equipment.id))
+      .where(and(eq(crewEquipment.crewId, crewId), eq(crewEquipment.isActive, true)));
+    return results;
+  }
+
+  async addCrewEquipment(crewId: number, equipmentId: number): Promise<CrewEquipment> {
+    const [created] = await db
+      .insert(crewEquipment)
+      .values({ crewId, equipmentId })
+      .onConflictDoNothing()
+      .returning();
+    return created;
+  }
+
+  async removeCrewEquipment(crewId: number, equipmentId: number): Promise<boolean> {
+    await db
+      .update(crewEquipment)
+      .set({ isActive: false })
+      .where(and(eq(crewEquipment.crewId, crewId), eq(crewEquipment.equipmentId, equipmentId)));
+    return true;
   }
 
   // Route Optimizer - Job Requests
