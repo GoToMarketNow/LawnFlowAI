@@ -47,6 +47,7 @@ import PricingControlCenter from "@/pages/pricing-control-center";
 import QuoteBuilder from "@/pages/quote-builder";
 import QuotesPage from "@/pages/quotes";
 import OpsDashboard from "@/pages/ops-dashboard";
+import LearningDashboard from "@/pages/learning";
 import SchedulePage from "@/pages/schedule";
 import CustomersPage from "@/pages/customers";
 import SettingsPage from "@/pages/settings";
@@ -213,6 +214,7 @@ function AuthenticatedLayout() {
                   <Route path="/audit" component={AuditLogPage} />
                   <Route path="/pricing" component={PricingControlCenter} />
                   <Route path="/ops" component={OpsDashboard} />
+                  <Route path="/learning" component={LearningDashboard} />
                   <Route path="/admin/coverage" component={AdminCoveragePage} />
                   <Route path="/conversations" component={ConversationsPage} />
                   <Route path="/conversations/:id" component={ConversationDetailPage} />

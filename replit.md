@@ -69,6 +69,18 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
   - Orchestrator integration: memories written at key stage completions (LEAD_INTAKE, QUOTE_CONFIRM, SCHEDULE_PROPOSE, CREW_LOCK, JOB_BOOKED)
   - Context enrichment: returning customers get customerInsights populated (preferred crew, time slots, prior services)
   - API endpoints: POST /api/memory/upsert, POST /api/memory/search, GET /api/memory/customer, GET /api/memory/customers, GET /api/memory/status
+- **Learning System:** Feedback-driven policy improvement system with comprehensive logging and admin dashboard:
+  - Decision Logs (`decisionLogs` table): Captures every AI recommendation with inputs snapshot, recommended action, confidence level, and policy version
+  - Human Action Logs (`humanActionLogs` table): Records operator decisions (approve/edit/reject) with edit deltas and reason codes
+  - Outcome Logs (`outcomeLogs` table): Tracks downstream results (customer_accepted, job_completed, margin_realized)
+  - Reason Codes (`reasonCodes` table): 15 default codes (LOT_SIZE_UNCERTAIN, MARGIN_TOO_LOW, etc.) for structured feedback
+  - Policy Versions (`policyVersions` table): Versioned policy configurations with thresholds, pricing, routing, and channel rules
+  - Policy Tuning Suggestions (`policyTuningSuggestions` table): Auto-generated policy adjustments based on override patterns
+  - Kill Switches (`killSwitches` table): Emergency controls to pause automation by scope (global, agent, stage, decision_type)
+  - JSON Diff Engine: Computes edit deltas between AI recommendations and human actions
+  - Logging helpers: logDecision(), logHumanAction(), logOutcome() in server/lib/learning/
+  - Admin Dashboard (/learning): Metrics overview, policy versions, suggestions, and kill switch management
+  - API endpoints: /api/learning/seed, /api/learning/metrics, /api/learning/reason-codes, /api/learning/policy-versions, /api/learning/suggestions, /api/learning/kill-switches
 - **Key Features:** Dashboard with ROI metrics, conversation overview, pending actions for human approval, business profile configuration, event simulator, job tracking, and audit logging.
 
 **System Design Choices:**

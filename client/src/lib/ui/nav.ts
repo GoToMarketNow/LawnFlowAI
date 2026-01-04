@@ -106,6 +106,15 @@ export const navigation: NavGroup[] = [
         description: 'AI agent directory',
         readOnly: true,
       },
+      { 
+        id: 'learning', 
+        label: 'Learning', 
+        href: '/learning', 
+        icon: 'Brain', 
+        roles: ['OWNER', 'ADMIN'],
+        shortcut: 'g l',
+        description: 'AI policy tuning and metrics',
+      },
     ],
   },
   {
