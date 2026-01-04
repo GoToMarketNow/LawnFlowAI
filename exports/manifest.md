@@ -1,6 +1,6 @@
 # LawnFlow.ai Screenshot Manifest
 
-**Generated:** 1/4/2026, 8:55:54 PM
+**Generated:** 1/4/2026, 9:10:37 PM
 **App Version:** 1.0.0-mvp
 **Total Screenshots:** 23
 
@@ -474,12 +474,12 @@ buttons streamline field operations.
 
 ---
 
-#### Job Detail (Crew) [PLACEHOLDER]
+#### Job Detail (Crew)
 
 **ID:** `job_detail_crew`
 **Route:** `/jobs`
 **Persona:** Crew Lead
-**Image:** `screenshots/job_detail_crew_placeholder.png`
+**Image:** `screenshots/job_detail_crew.png`
 
 > Detailed job scope, notes, and completion checklist.
 
@@ -613,12 +613,12 @@ invoicing syncs to Jobber where payments are processed.
 
 ### Ongoing Communications
 
-#### Customer Management [PLACEHOLDER]
+#### Customer Management
 
 **ID:** `customers_list`
 **Route:** `/customers`
 **Persona:** Business Owner/Admin
-**Image:** `screenshots/customers_list_placeholder.png`
+**Image:** `screenshots/customers_list.png`
 
 > All customers with service history and renewal status.
 
@@ -649,12 +649,12 @@ add-ons based on property characteristics and past purchases.
 
 ---
 
-#### Review Request Automation [PLACEHOLDER]
+#### Review Request Automation
 
 **ID:** `review_request`
 **Route:** `/conversations`
 **Persona:** Business Owner/Admin
-**Image:** `screenshots/review_request_placeholder.png`
+**Image:** `screenshots/review_request.png`
 
 > Automated review requests after service completion.
 
@@ -687,12 +687,12 @@ while negative feedback routes to owner for immediate attention.
 
 ### AI Agents Directory
 
-#### AI Agents Directory [PLACEHOLDER]
+#### AI Agents Directory
 
 **ID:** `agents_directory`
 **Route:** `/agents`
 **Persona:** Business Owner/Admin
-**Image:** `screenshots/agents_directory_placeholder.png`
+**Image:** `screenshots/agents_directory.png`
 
 > Catalog of all AI agents with capabilities and status.
 
@@ -723,12 +723,12 @@ agents and adjust automation thresholds without code changes.
 
 ---
 
-#### Agent Detail & Configuration [PLACEHOLDER]
+#### Agent Detail & Configuration
 
 **ID:** `agent_detail`
 **Route:** `/agents`
 **Persona:** Business Owner/Admin
-**Image:** `screenshots/agent_detail_placeholder.png`
+**Image:** `screenshots/agent_detail.png`
 
 > Deep dive into individual agent performance and settings.
 
@@ -761,12 +761,12 @@ without developer involvement.
 
 ### Settings & Configuration
 
-#### Business Profile [PLACEHOLDER]
+#### Business Profile
 
 **ID:** `business_profile`
 **Route:** `/settings`
 **Persona:** Business Owner/Admin
-**Image:** `screenshots/business_profile_placeholder.png`
+**Image:** `screenshots/business_profile.png`
 
 > Core business information and branding.
 
@@ -796,12 +796,12 @@ here immediately update how AI represents the business.
 
 ---
 
-#### Automation Policies [PLACEHOLDER]
+#### Automation Policies
 
 **ID:** `policy_configuration`
 **Route:** `/settings`
 **Persona:** Business Owner/Admin
-**Image:** `screenshots/policy_configuration_placeholder.png`
+**Image:** `screenshots/policy_configuration.png`
 
 > Configure automation levels and approval thresholds.
 
@@ -831,12 +831,12 @@ while individual rules can be customized per workflow stage.
 
 ---
 
-#### Learning System Dashboard [PLACEHOLDER]
+#### Learning System Dashboard
 
 **ID:** `learning_dashboard`
 **Route:** `/learning`
 **Persona:** Business Owner/Admin
-**Image:** `screenshots/learning_dashboard_placeholder.png`
+**Image:** `screenshots/learning_dashboard.png`
 
 > AI learning metrics and policy improvement suggestions.
 

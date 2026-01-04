@@ -23,7 +23,7 @@ export class ScreenshotCapture {
   private outputDir: string;
   private options: CaptureOptions;
   private captureCount: number = 0;
-  private readonly MAX_CAPTURES_BEFORE_RESTART = 5; // Restart browser every N captures for stability
+  private readonly MAX_CAPTURES_BEFORE_RESTART = 3; // Restart browser every N captures for stability
 
   constructor(plan: ScreenshotPlan, options: CaptureOptions = {}) {
     this.plan = plan;

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-01-04T20:55:54.135Z",
+  "generatedAt": "2026-01-04T21:10:37.042Z",
   "appVersion": "1.0.0-mvp",
   "totalScreenshots": 23,
   "byStage": {
@@ -47,7 +47,7 @@
       ],
       "escalationOrApproval": "Displays count of items needing owner review",
       "imagePath": "screenshots/dashboard_overview.png",
-      "capturedAt": "2026-01-04T20:53:39.752Z",
+      "capturedAt": "2026-01-04T21:06:01.095Z",
       "status": "captured"
     },
     {
@@ -78,7 +78,7 @@
       ],
       "escalationOrApproval": "All items here are already escalated awaiting human decision",
       "imagePath": "screenshots/inbox_unified.png",
-      "capturedAt": "2026-01-04T20:53:52.556Z",
+      "capturedAt": "2026-01-04T21:06:13.871Z",
       "status": "captured"
     },
     {
@@ -109,7 +109,7 @@
       ],
       "escalationOrApproval": "Escalates when customer intent is unclear or requests human",
       "imagePath": "screenshots/conversations_list.png",
-      "capturedAt": "2026-01-04T20:54:05.656Z",
+      "capturedAt": "2026-01-04T21:06:26.691Z",
       "status": "captured"
     },
     {
@@ -140,7 +140,7 @@
       ],
       "escalationOrApproval": "Manual takeover available at any point",
       "imagePath": "screenshots/conversation_detail.png",
-      "capturedAt": "2026-01-04T20:54:18.534Z",
+      "capturedAt": "2026-01-04T21:06:42.918Z",
       "status": "captured"
     },
     {
@@ -171,7 +171,7 @@
       ],
       "escalationOrApproval": "Escalates leads with low confidence or out-of-area requests",
       "imagePath": "screenshots/leads_list.png",
-      "capturedAt": "2026-01-04T20:54:31.403Z",
+      "capturedAt": "2026-01-04T21:06:55.937Z",
       "status": "captured"
     },
     {
@@ -201,7 +201,7 @@
       ],
       "escalationOrApproval": "Out-of-area leads automatically flagged for manual review",
       "imagePath": "screenshots/service_area_map.png",
-      "capturedAt": "2026-01-04T20:54:44.585Z",
+      "capturedAt": "2026-01-04T21:07:08.813Z",
       "status": "captured"
     },
     {
@@ -232,7 +232,7 @@
       ],
       "escalationOrApproval": "Quotes above threshold or with unusual parameters need approval",
       "imagePath": "screenshots/quotes_list.png",
-      "capturedAt": "2026-01-04T20:54:57.962Z",
+      "capturedAt": "2026-01-04T21:07:25.310Z",
       "status": "captured"
     },
     {
@@ -265,7 +265,7 @@
       ],
       "escalationOrApproval": "Low-confidence quotes flagged for manual pricing review",
       "imagePath": "screenshots/quote_builder.png",
-      "capturedAt": "2026-01-04T20:55:11.286Z",
+      "capturedAt": "2026-01-04T21:07:38.116Z",
       "status": "captured"
     },
     {
@@ -296,7 +296,7 @@
       ],
       "escalationOrApproval": "Schedule conflicts or overloaded days flagged for review",
       "imagePath": "screenshots/schedule_calendar.png",
-      "capturedAt": "2026-01-04T20:55:24.256Z",
+      "capturedAt": "2026-01-04T21:07:51.284Z",
       "status": "captured"
     },
     {
@@ -327,7 +327,7 @@
       ],
       "escalationOrApproval": "Overbooked crews or skill mismatches require owner approval",
       "imagePath": "screenshots/crew_assignment.png",
-      "capturedAt": "2026-01-04T20:55:37.037Z",
+      "capturedAt": "2026-01-04T21:08:10.252Z",
       "status": "captured"
     },
     {
@@ -358,7 +358,7 @@
       ],
       "escalationOrApproval": "Jobs running significantly over time trigger alerts",
       "imagePath": "screenshots/jobs_list.png",
-      "capturedAt": "2026-01-04T20:55:50.215Z",
+      "capturedAt": "2026-01-04T21:08:24.189Z",
       "status": "captured"
     },
     {
@@ -388,7 +388,7 @@
       ],
       "escalationOrApproval": "Crew can flag issues or request owner support",
       "imagePath": "screenshots/crew_today_view_placeholder.png",
-      "capturedAt": "2026-01-04T20:55:54.070Z",
+      "capturedAt": "2026-01-04T21:08:27.558Z",
       "status": "placeholder"
     },
     {
@@ -418,9 +418,9 @@
         "time tracking"
       ],
       "escalationOrApproval": "Issues or change requests escalate to owner",
-      "imagePath": "screenshots/job_detail_crew_placeholder.png",
-      "capturedAt": "2026-01-04T20:55:54.071Z",
-      "status": "placeholder"
+      "imagePath": "screenshots/job_detail_crew.png",
+      "capturedAt": "2026-01-04T21:08:46.058Z",
+      "status": "captured"
     },
     {
       "id": "invoicing_ready",
@@ -450,7 +450,7 @@
       ],
       "escalationOrApproval": "Scope changes or discrepancies need owner approval before invoicing",
       "imagePath": "screenshots/invoicing_ready_placeholder.png",
-      "capturedAt": "2026-01-04T20:55:54.073Z",
+      "capturedAt": "2026-01-04T21:08:49.697Z",
       "status": "placeholder"
     },
     {
@@ -480,9 +480,9 @@
         "review requests"
       ],
       "escalationOrApproval": "High-value renewals may be flagged for personal outreach",
-      "imagePath": "screenshots/customers_list_placeholder.png",
-      "capturedAt": "2026-01-04T20:55:54.074Z",
-      "status": "placeholder"
+      "imagePath": "screenshots/customers_list.png",
+      "capturedAt": "2026-01-04T21:09:07.373Z",
+      "status": "captured"
     },
     {
       "id": "review_request",
@@ -511,9 +511,9 @@
         "rating aggregation"
       ],
       "escalationOrApproval": "Negative feedback immediately escalates to owner",
-      "imagePath": "screenshots/review_request_placeholder.png",
-      "capturedAt": "2026-01-04T20:55:54.084Z",
-      "status": "placeholder"
+      "imagePath": "screenshots/review_request.png",
+      "capturedAt": "2026-01-04T21:09:20.942Z",
+      "status": "captured"
     },
     {
       "id": "agents_directory",
@@ -540,9 +540,9 @@
         "kill switches"
       ],
       "escalationOrApproval": "Agents can be disabled instantly via kill switch",
-      "imagePath": "screenshots/agents_directory_placeholder.png",
-      "capturedAt": "2026-01-04T20:55:54.086Z",
-      "status": "placeholder"
+      "imagePath": "screenshots/agents_directory.png",
+      "capturedAt": "2026-01-04T21:09:34.626Z",
+      "status": "captured"
     },
     {
       "id": "agent_detail",
@@ -569,9 +569,9 @@
         "enable/disable state"
       ],
       "escalationOrApproval": "Configuration changes take effect immediately",
-      "imagePath": "screenshots/agent_detail_placeholder.png",
-      "capturedAt": "2026-01-04T20:55:54.097Z",
-      "status": "placeholder"
+      "imagePath": "screenshots/agent_detail.png",
+      "capturedAt": "2026-01-04T21:09:52.154Z",
+      "status": "captured"
     },
     {
       "id": "business_profile",
@@ -597,9 +597,9 @@
         "agent context refresh"
       ],
       "escalationOrApproval": "N/A - owner-only configuration",
-      "imagePath": "screenshots/business_profile_placeholder.png",
-      "capturedAt": "2026-01-04T20:55:54.103Z",
-      "status": "placeholder"
+      "imagePath": "screenshots/business_profile.png",
+      "capturedAt": "2026-01-04T21:10:05.274Z",
+      "status": "captured"
     },
     {
       "id": "policy_configuration",
@@ -626,9 +626,9 @@
         "agent behavior changes"
       ],
       "escalationOrApproval": "Policy changes are owner-only",
-      "imagePath": "screenshots/policy_configuration_placeholder.png",
-      "capturedAt": "2026-01-04T20:55:54.110Z",
-      "status": "placeholder"
+      "imagePath": "screenshots/policy_configuration.png",
+      "capturedAt": "2026-01-04T21:10:18.684Z",
+      "status": "captured"
     },
     {
       "id": "learning_dashboard",
@@ -657,9 +657,9 @@
         "kill switch controls"
       ],
       "escalationOrApproval": "Suggestions require explicit owner approval to apply",
-      "imagePath": "screenshots/learning_dashboard_placeholder.png",
-      "capturedAt": "2026-01-04T20:55:54.122Z",
-      "status": "placeholder"
+      "imagePath": "screenshots/learning_dashboard.png",
+      "capturedAt": "2026-01-04T21:10:36.838Z",
+      "status": "captured"
     },
     {
       "id": "mobile_crew_app",
@@ -683,7 +683,7 @@
       ],
       "escalationOrApproval": "N/A",
       "imagePath": "screenshots/mobile_crew_app_placeholder.png",
-      "capturedAt": "2026-01-04T20:55:54.123Z",
+      "capturedAt": "2026-01-04T21:10:36.838Z",
       "status": "not_implemented"
     },
     {
@@ -708,7 +708,7 @@
       ],
       "escalationOrApproval": "N/A",
       "imagePath": "screenshots/payment_processing_placeholder.png",
-      "capturedAt": "2026-01-04T20:55:54.123Z",
+      "capturedAt": "2026-01-04T21:10:36.838Z",
       "status": "not_implemented"
     }
   ]
