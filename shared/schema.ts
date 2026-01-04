@@ -2236,6 +2236,41 @@ export const crewEquipment = pgTable("crew_equipment", {
   uniqueIdx: uniqueIndex("crew_equipment_unique_idx").on(table.crewId, table.equipmentId),
 }));
 
+// Crew Availability - weekly schedule patterns
+export const crewAvailability = pgTable("crew_availability", {
+  id: serial("id").primaryKey(),
+  crewId: integer("crew_id").references(() => crews.id).notNull(),
+  dayOfWeek: integer("day_of_week").notNull(), // 0=Sunday, 1=Monday, ..., 6=Saturday
+  startTime: text("start_time").notNull(), // "08:00" format
+  endTime: text("end_time").notNull(), // "17:00" format
+  isAvailable: boolean("is_available").notNull().default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  crewIdx: index("crew_availability_crew_idx").on(table.crewId),
+  dayIdx: index("crew_availability_day_idx").on(table.crewId, table.dayOfWeek),
+}));
+
+// Time-Off Requests for crews
+export const timeOffRequests = pgTable("time_off_requests", {
+  id: serial("id").primaryKey(),
+  crewId: integer("crew_id").references(() => crews.id).notNull(),
+  requestedBy: integer("requested_by").references(() => users.id),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  reason: text("reason"),
+  status: text("status").notNull().default("pending"), // pending, approved, denied
+  approvedBy: integer("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  crewIdx: index("time_off_crew_idx").on(table.crewId),
+  statusIdx: index("time_off_status_idx").on(table.status),
+  dateIdx: index("time_off_date_idx").on(table.startDate, table.endDate),
+}));
+
 // Insert schemas for Skills & Equipment
 export const insertSkillSchema = createInsertSchema(skills).omit({
   id: true,
@@ -2259,6 +2294,19 @@ export const insertCrewEquipmentSchema = createInsertSchema(crewEquipment).omit(
   assignedAt: true,
 });
 
+export const insertCrewAvailabilitySchema = createInsertSchema(crewAvailability).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTimeOffRequestSchema = createInsertSchema(timeOffRequests).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  approvedAt: true,
+});
+
 // Types for Skills & Equipment
 export type Skill = typeof skills.$inferSelect;
 export type InsertSkill = z.infer<typeof insertSkillSchema>;
@@ -2271,6 +2319,12 @@ export type InsertCrewSkill = z.infer<typeof insertCrewSkillSchema>;
 
 export type CrewEquipment = typeof crewEquipment.$inferSelect;
 export type InsertCrewEquipment = z.infer<typeof insertCrewEquipmentSchema>;
+
+export type CrewAvailability = typeof crewAvailability.$inferSelect;
+export type InsertCrewAvailability = z.infer<typeof insertCrewAvailabilitySchema>;
+
+export type TimeOffRequest = typeof timeOffRequests.$inferSelect;
+export type InsertTimeOffRequest = z.infer<typeof insertTimeOffRequestSchema>;
 
 // Extended types with relations
 export type SkillWithCrews = Skill & { crewCount: number };
