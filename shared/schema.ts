@@ -1898,15 +1898,25 @@ export interface VoiceParseResult {
 // Route Optimizer
 // ============================================
 
+// Crew status enum
+export const CrewStatuses = ["ACTIVE", "INACTIVE"] as const;
+export type CrewStatus = typeof CrewStatuses[number];
+
+// Crew member role enum  
+export const CrewMemberRoles = ["LEADER", "MEMBER"] as const;
+export type CrewMemberRole = typeof CrewMemberRoles[number];
+
 // Crew - team unit for job assignments
 export const crews = pgTable("crews", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
   name: text("name").notNull(),
+  status: text("status").notNull().default("ACTIVE"), // ACTIVE, INACTIVE
   
   // Home base location
   homeBaseLat: doublePrecision("home_base_lat"),
   homeBaseLng: doublePrecision("home_base_lng"),
+  homeBaseAddress: text("home_base_address"), // Human-readable address
   
   // Capacity constraints
   serviceRadiusMiles: integer("service_radius_miles").notNull().default(20),
@@ -1922,6 +1932,7 @@ export const crews = pgTable("crews", {
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => ({
   businessIdx: index("crew_business_idx").on(table.businessId),
+  statusIdx: index("crew_status_idx").on(table.status),
 }));
 
 // Crew Members - individuals within a crew
@@ -1930,14 +1941,17 @@ export const crewMembers = pgTable("crew_members", {
   crewId: integer("crew_id").references(() => crews.id).notNull(),
   userId: integer("user_id").references(() => users.id), // Optional link to system user
   displayName: text("display_name").notNull(),
-  role: text("role").notNull().default("member"), // lead, member
+  role: text("role").notNull().default("MEMBER"), // LEADER, MEMBER
   
   isActive: boolean("is_active").notNull().default(true),
+  startAt: timestamp("start_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  endAt: timestamp("end_at"), // null means still active
   
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => ({
   crewIdx: index("crew_member_crew_idx").on(table.crewId),
   userIdx: index("crew_member_user_idx").on(table.userId),
+  activeIdx: index("crew_member_active_idx").on(table.isActive),
 }));
 
 // Job Request Statuses
@@ -2155,6 +2169,13 @@ export type InsertCrew = z.infer<typeof insertCrewSchema>;
 export type CrewMember = typeof crewMembers.$inferSelect;
 export type InsertCrewMember = z.infer<typeof insertCrewMemberSchema>;
 
+// Extended type with member details for crew management UI
+export type CrewWithMembers = Crew & {
+  members: (CrewMember & { user?: User | null })[];
+  leader?: (CrewMember & { user?: User | null }) | null;
+  memberCount: number;
+};
+
 export type JobRequest = typeof jobRequests.$inferSelect;
 export type InsertJobRequest = z.infer<typeof insertJobRequestSchema>;
 
@@ -2174,12 +2195,22 @@ export type InsertDistanceCache = z.infer<typeof insertDistanceCacheSchema>;
 export const crewInputSchema = z.object({
   businessId: z.number(),
   name: z.string().min(1),
+  status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
   homeBaseLat: z.number().optional(),
   homeBaseLng: z.number().optional(),
+  homeBaseAddress: z.string().optional(),
   serviceRadiusMiles: z.number().default(20),
   dailyCapacityMinutes: z.number().default(420),
   skillsJson: z.array(z.string()).default([]),
   equipmentJson: z.array(z.string()).default([]),
+  isActive: z.boolean().default(true),
+});
+
+export const crewMemberInputSchema = z.object({
+  crewId: z.number(),
+  userId: z.number().optional(),
+  displayName: z.string().min(1),
+  role: z.enum(["LEADER", "MEMBER"]).default("MEMBER"),
   isActive: z.boolean().default(true),
 });
 
