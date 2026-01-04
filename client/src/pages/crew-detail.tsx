@@ -56,8 +56,10 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import type { Crew, CrewMember, User, Skill, Equipment, CrewSkill, CrewEquipment } from "@shared/schema";
+import type { Crew, CrewMember, User, Skill, Equipment, CrewSkill, CrewEquipment, CrewAvailability } from "@shared/schema";
 import { format } from "date-fns";
+import { Calendar, Check, X } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 type CrewSkillWithSkill = CrewSkill & { skill: Skill };
 type CrewEquipmentWithEquipment = CrewEquipment & { equipment: Equipment };
@@ -89,6 +91,18 @@ export default function CrewDetailPage() {
   const [editingCapacity, setEditingCapacity] = useState(false);
   const [capacityHours, setCapacityHours] = useState("");
   const [maxJobs, setMaxJobs] = useState("");
+  
+  const [editingAvailability, setEditingAvailability] = useState(false);
+  const [availabilityDraft, setAvailabilityDraft] = useState<{
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    isAvailable: boolean;
+  }[]>([]);
+  
+  const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const DEFAULT_START = "08:00";
+  const DEFAULT_END = "17:00";
 
   const { data: crew, isLoading, refetch } = useQuery<CrewWithMembers>({
     queryKey: ["/api/ops/crews", id],
@@ -113,6 +127,11 @@ export default function CrewDetailPage() {
 
   const { data: crewEquipmentList } = useQuery<CrewEquipmentWithEquipment[]>({
     queryKey: ["/api/ops/crews", id, "equipment"],
+    enabled: !!id,
+  });
+
+  const { data: crewAvailability } = useQuery<CrewAvailability[]>({
+    queryKey: ["/api/ops/crews", id, "availability"],
     enabled: !!id,
   });
 
@@ -230,6 +249,47 @@ export default function CrewDetailPage() {
       toast({ title: "Failed to update capacity", description: error.message, variant: "destructive" });
     },
   });
+
+  const updateAvailabilityMutation = useMutation({
+    mutationFn: async (availability: typeof availabilityDraft) => {
+      return apiRequest("PUT", `/api/ops/crews/${id}/availability`, { availability });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id, "availability"] });
+      setEditingAvailability(false);
+      toast({ title: "Availability schedule updated" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to update availability", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const initializeAvailabilityDraft = () => {
+    if (crewAvailability && crewAvailability.length > 0) {
+      setAvailabilityDraft(
+        crewAvailability.map(a => ({
+          dayOfWeek: a.dayOfWeek,
+          startTime: a.startTime,
+          endTime: a.endTime,
+          isAvailable: a.isAvailable,
+        }))
+      );
+    } else {
+      // Default schedule: Mon-Fri 8am-5pm
+      setAvailabilityDraft(
+        DAYS_OF_WEEK.map((_, i) => ({
+          dayOfWeek: i,
+          startTime: DEFAULT_START,
+          endTime: DEFAULT_END,
+          isAvailable: i >= 1 && i <= 5, // Mon-Fri on, Sat-Sun off
+        }))
+      );
+    }
+  };
+
+  const getAvailabilityForDay = (dayOfWeek: number) => {
+    return crewAvailability?.find(a => a.dayOfWeek === dayOfWeek);
+  };
 
   const assignedSkillIds = crewSkills?.map(cs => cs.skillId) ?? [];
   const availableSkillsToAdd = allSkills?.filter(s => !assignedSkillIds.includes(s.id)) ?? [];
@@ -770,6 +830,142 @@ export default function CrewDetailPage() {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Weekly Availability
+              </CardTitle>
+              <CardDescription>
+                Configure working days and hours for this crew
+              </CardDescription>
+            </div>
+            {canEdit && !editingAvailability && (
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => {
+                  initializeAvailabilityDraft();
+                  setEditingAvailability(true);
+                }}
+                data-testid="button-edit-availability"
+              >
+                Edit Schedule
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {editingAvailability ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                {availabilityDraft.map((slot, idx) => (
+                  <div 
+                    key={slot.dayOfWeek} 
+                    className="flex items-center gap-4 py-2 border-b last:border-b-0"
+                  >
+                    <div className="w-24 font-medium text-sm">
+                      {DAYS_OF_WEEK[slot.dayOfWeek]}
+                    </div>
+                    <Switch
+                      checked={slot.isAvailable}
+                      onCheckedChange={(checked) => {
+                        const updated = [...availabilityDraft];
+                        updated[idx] = { ...updated[idx], isAvailable: checked };
+                        setAvailabilityDraft(updated);
+                      }}
+                      data-testid={`switch-available-${slot.dayOfWeek}`}
+                    />
+                    {slot.isAvailable && (
+                      <>
+                        <Input
+                          type="time"
+                          value={slot.startTime}
+                          onChange={(e) => {
+                            const updated = [...availabilityDraft];
+                            updated[idx] = { ...updated[idx], startTime: e.target.value };
+                            setAvailabilityDraft(updated);
+                          }}
+                          className="w-28"
+                          data-testid={`input-start-${slot.dayOfWeek}`}
+                        />
+                        <span className="text-muted-foreground">to</span>
+                        <Input
+                          type="time"
+                          value={slot.endTime}
+                          onChange={(e) => {
+                            const updated = [...availabilityDraft];
+                            updated[idx] = { ...updated[idx], endTime: e.target.value };
+                            setAvailabilityDraft(updated);
+                          }}
+                          className="w-28"
+                          data-testid={`input-end-${slot.dayOfWeek}`}
+                        />
+                      </>
+                    )}
+                    {!slot.isAvailable && (
+                      <span className="text-muted-foreground text-sm">Not available</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  size="sm"
+                  onClick={() => updateAvailabilityMutation.mutate(availabilityDraft)}
+                  disabled={updateAvailabilityMutation.isPending}
+                  data-testid="button-save-availability"
+                >
+                  {updateAvailabilityMutation.isPending ? "Saving..." : "Save Schedule"}
+                </Button>
+                <Button 
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setEditingAvailability(false)}
+                  data-testid="button-cancel-availability"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {DAYS_OF_WEEK.map((day, i) => {
+                const avail = getAvailabilityForDay(i);
+                const isAvailable = avail?.isAvailable ?? (i >= 1 && i <= 5);
+                const start = avail?.startTime ?? DEFAULT_START;
+                const end = avail?.endTime ?? DEFAULT_END;
+                
+                return (
+                  <div 
+                    key={i} 
+                    className="flex items-center gap-4 py-1"
+                    data-testid={`availability-day-${i}`}
+                  >
+                    <div className="w-24 font-medium text-sm">
+                      {day}
+                    </div>
+                    {isAvailable ? (
+                      <div className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-green-600" />
+                        <span className="text-sm">{start} - {end}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <X className="h-4 w-4" />
+                        <span className="text-sm">Off</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
