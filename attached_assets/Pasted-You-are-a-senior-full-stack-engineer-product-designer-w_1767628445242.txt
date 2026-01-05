@@ -1,0 +1,221 @@
+You are a senior full-stack engineer + product designer working in Replit on LawnFlow.ai (Next.js + Postgres + Prisma).
+Implement a new left-sidebar “Active Comms” operations view and update the Comms area so operators can triage and act
+on conversations across Leads, Customers, and Crews with urgency-based sorting, channel views, and embedded action/approval handling.
+
+This is a UX + data refactor. Keep it MVP-fast, but architect it cleanly.
+Do NOT break existing Comms Inbox/Studio. Add this as an “Ops Comms” layer on top.
+
+================================================================================
+GOAL (WHAT THE USER SEES)
+================================================================================
+In the left-hand sidebar, add a new navigation item:
+- Ops → Active Comms
+
+This page is a triage-first experience:
+- Shows ACTIVE comms threads for Leads, Customers, and Crews
+- Sortable/filterable by:
+  - Urgency (SLA / at-risk)
+  - Audience (Lead | Customer | Crew)
+  - Channel (SMS | Email | In-App | Push)
+- Each comms item shows:
+  - full exchange thread (center pane)
+  - actions required / suggested (right pane)
+  - approvals requested (right pane)
+- The main page orientation adapts:
+  - “Thread view” mode (default)
+  - “Channel view” mode (group by channel)
+  - “Action view” mode (group by action required)
+
+================================================================================
+INFORMATION ARCHITECTURE
+================================================================================
+- /ops/comms (new)  <-- “Active Comms” triage page
+- /comms remains:
+  - /comms/inbox (full inbox, all threads)
+  - /comms/studio (automations)
+Active Comms is an ops overlay: only threads that are relevant now.
+
+================================================================================
+UI SPEC: ACTIVE COMMS PAGE (3-PANEL ADAPTIVE)
+================================================================================
+
+Layout is responsive and consistent:
+Left Panel (List)
+- Search box
+- Filter chips row:
+  - Audience: All | Leads | Customers | Crews
+  - Urgency: All | High | Medium | Low
+  - Channel: All | SMS | Email | In-App | Push
+  - Status: Needs response | Waiting on customer | Waiting on crew | Escalated | Approval needed
+- Sort dropdown:
+  - Urgency
+  - Newest activity
+  - SLA deadline
+  - Confidence low-first (optional)
+- Toggle tabs:
+  - Threads (default)
+  - Actions
+  - Channels
+
+Center Panel (Conversation)
+- Full exchange timeline
+- Context header showing:
+  - audience (lead/customer/crew)
+  - related job/quote if available
+  - current stage (lead/quote/schedule/billing)
+- Composer (for permitted roles), with:
+  - suggested response from agent
+  - send options (SMS/email)
+  - “request approval” toggle (creates approval item)
+  - “assign to human” / “mark resolved”
+
+Right Panel (Action / Approval Rail)
+- “Actions Required”
+  - checklist items (approve quote, schedule visit, call customer, request photos, etc.)
+- “Agent Suggestions”
+  - recommended next step + confidence + rationale
+- “Approvals”
+  - any pending approvals tied to this thread
+  - Approve / Edit / Reject (opens approval modal)
+
+Adaptive behavior by tab:
+A) Threads tab:
+- Left: thread list
+- Center: thread
+- Right: actions
+
+B) Actions tab:
+- Left: action queue list (each item links to a thread)
+- Center: thread
+- Right: action detail + one-click resolve
+
+C) Channels tab:
+- Left: grouped by channel with counts (SMS/Email/In-app)
+- Center: thread list within channel OR selected thread
+- Right: actions
+
+================================================================================
+THREAD LIST CARD DESIGN (LEFT PANEL)
+================================================================================
+Each row/card shows:
+- Audience badge (Lead/Customer/Crew)
+- Name (or phone if unknown)
+- Channel icon
+- Urgency badge (High/Med/Low)
+- “Needs response” / “Approval needed” tags
+- Last message snippet + timestamp
+- SLA countdown (if applicable)
+- Related object chips: Job, Quote, Invoice (if applicable)
+
+Urgency scoring (MVP):
+- High:
+  - approval needed
+  - negative sentiment detected
+  - SLA overdue
+  - customer requested call
+  - crew reported blocker
+- Medium:
+  - awaiting response within next 4 hours
+- Low:
+  - general follow-up / FYI
+
+================================================================================
+DATA MODEL / BACKEND SUPPORT (MINIMAL CHANGES)
+================================================================================
+Use existing CommsThread/CommsMessage models if present.
+Add lightweight fields to enable urgency + action routing:
+
+1) CommsThread (extend)
+- audienceType (LEAD|CUSTOMER|CREW)
+- audienceId (nullable)
+- primaryChannel (SMS|EMAIL|IN_APP)
+- lastMessageAt
+- lastInboundAt (nullable)
+- lastOutboundAt (nullable)
+- urgencyScore (int) 0–100
+- urgencyLevel (LOW|MED|HIGH)
+- status (NEEDS_RESPONSE|WAITING_ON_OTHER|ESCALATED|APPROVAL_NEEDED|RESOLVED)
+- relatedJobId (nullable)
+- relatedQuoteId (nullable)
+- relatedInvoiceId (nullable)
+
+2) CommsActionItem (new)
+- id, accountId
+- threadId
+- type (APPROVE_QUOTE|SCHEDULE|REQUEST_PHOTOS|CALL_CUSTOMER|RESOLVE_DISPUTE|ASSIGN_CREW|OTHER)
+- state (OPEN|DONE|DISMISSED)
+- assignedToUserId (nullable)
+- suggestedByAgent (nullable string)
+- payloadJson
+- dueAt (nullable)
+- createdAt, updatedAt
+
+3) Approval linkage (reuse existing Approvals if present)
+- Ensure approvals can reference threadId for fast lookup.
+
+Compute urgency:
+- A server function recomputeThreadUrgency(threadId) called on:
+  - new inbound message
+  - new approval request
+  - new action item
+  - sentiment flag (if you have it)
+- Store results on thread row for fast sorting.
+
+================================================================================
+APIs (NEW)
+================================================================================
+- GET /api/ops/comms/threads?audience=&urgency=&channel=&status=&sort=
+- GET /api/ops/comms/threads/:id (thread + messages + context + actions + approvals)
+- POST /api/ops/comms/threads/:id/actions (create action item)
+- PATCH /api/ops/comms/actions/:id (mark done/dismiss)
+- PATCH /api/ops/comms/threads/:id/status (resolve/escalate)
+
+Existing comms send endpoints should be reused:
+- sending a message updates thread timestamps and triggers urgency recompute
+
+================================================================================
+AGENT INTEGRATION (ACTION + APPROVAL CREATION)
+================================================================================
+Update Comms worker + orchestration so agents can:
+- attach “suggested actions” to a thread:
+  create CommsActionItem with suggestedByAgent
+- request an approval from within a thread:
+  create Approval with threadId link
+- publish agent rationale into the right rail:
+  store as payloadJson on action item or in a ThreadContext table (optional)
+
+Agents that should be able to generate action items:
+- QualificationAgent (needs more info)
+- QuoteAgent (approval needed)
+- SchedulingAgent (time windows)
+- CrewCommsWorker (crew blockers)
+- RemediationAgent (billing dispute)
+- CollectionsAgent (call needed)
+
+================================================================================
+IMPLEMENTATION ORDER (DO IN THIS SEQUENCE)
+================================================================================
+1) DB: extend CommsThread + add CommsActionItem (migration + seed a few action items)
+2) API: threads list/detail + actions CRUD + urgency compute function
+3) UI: /ops/comms page with tabs (Threads/Actions/Channels), filters, 3-panel layout
+4) Integrate approvals rail (read existing approvals linked to thread)
+5) Hook: on inbound message + action creation -> recompute urgency
+6) QA: role-based access and performance (pagination, indexed sorting)
+
+================================================================================
+ACCEPTANCE CRITERIA
+================================================================================
+- Left sidebar includes “Active Comms”
+- Can filter/sort active comms by urgency, audience, channel
+- Selecting a thread shows full exchange + context
+- Right rail shows actions required/suggested + approvals tied to the thread
+- Tabs switch between Threads/Actions/Channels and layout adapts accordingly
+- “Resolve” changes thread status and removes from Active Comms by default
+
+NOW DO THIS:
+Implement step 1 only (DB migration + seed + basic urgency fields).
+Stop and output:
+- schema changes
+- how to run migration
+- seed results
+Then proceed to step 2.
