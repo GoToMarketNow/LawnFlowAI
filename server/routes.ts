@@ -10936,7 +10936,7 @@ Return JSON format:
       if (!req.user) {
         return res.status(401).json({ error: "Not authenticated" });
       }
-      const accountId = req.user.accountId;
+      const accountId = 1; // TODO: Get from session when accountId is available
       
       const filters: {
         audienceType?: string;
@@ -10977,7 +10977,7 @@ Return JSON format:
       if (!req.user) {
         return res.status(401).json({ error: "Not authenticated" });
       }
-      const accountId = req.user.accountId;
+      const accountId = 1; // TODO: Get from session when accountId is available
       const threadId = parseInt(req.params.id);
       
       const thread = await storage.getOpsCommsThread(threadId);
@@ -11000,7 +11000,7 @@ Return JSON format:
       if (!req.user) {
         return res.status(401).json({ error: "Not authenticated" });
       }
-      const accountId = req.user.accountId;
+      const accountId = 1; // TODO: Get from session when accountId is available
       
       const filters: {
         threadId?: number;
@@ -11036,7 +11036,7 @@ Return JSON format:
       if (!req.user) {
         return res.status(401).json({ error: "Not authenticated" });
       }
-      const accountId = req.user.accountId;
+      const accountId = 1; // TODO: Get from session when accountId is available
       const itemId = parseInt(req.params.id);
       
       const item = await storage.getOpsCommsActionItem(itemId);
@@ -11080,7 +11080,7 @@ Return JSON format:
       if (!req.user) {
         return res.status(401).json({ error: "Not authenticated" });
       }
-      const accountId = req.user.accountId;
+      const accountId = 1; // TODO: Get from session when accountId is available
       const threadId = parseInt(req.params.id);
       
       const thread = await storage.getOpsCommsThread(threadId);
