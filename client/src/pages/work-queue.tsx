@@ -232,12 +232,18 @@ export default function WorkQueuePage() {
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: workItems, isLoading, error } = useQuery<WorkItem[]>({
+  interface WorkQueueResponse {
+    items: WorkItem[];
+    total: number;
+    byPriority: Record<Priority, number>;
+  }
+
+  const { data: response, isLoading, error } = useQuery<WorkQueueResponse>({
     queryKey: ["/api/work-queue"],
     staleTime: 30000,
   });
 
-  const items = workItems || [];
+  const items = response?.items || [];
   
   const filteredItems = items.filter(item => {
     if (typeFilter !== "all" && item.type !== typeFilter) return false;
