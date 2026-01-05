@@ -1,0 +1,279 @@
+You are a senior full-stack engineer in Replit working on LawnFlow.ai (Next.js + Postgres + Prisma).
+Revamp the Comms Studio so it supports BOTH customer-facing comms (leads/customers) AND crew comms (leaders/members),
+with powerful filters and the ability to activate/deactivate/pause sequences and automations.
+
+This must be MVP-fast but production-grade in structure.
+Do NOT redesign the whole app—focus only on Comms Studio + supporting APIs/DB.
+
+================================================================================
+GOAL
+================================================================================
+Create a unified Comms Studio with:
+- Views: Customer/Lead Comms, Crew Comms
+- Filters: crew, lead, customer, job, status, channel, language
+- Control actions: activate, deactivate, pause, resume
+- Clear separation between:
+  1) Conversations (Inbox/Threads)
+  2) Automations (Studio: sequences, briefings, reminders, campaigns)
+
+Comms Studio becomes the control plane for automated messaging.
+
+================================================================================
+SCOPE (WHAT TO BUILD)
+================================================================================
+A) /comms page becomes two tabs:
+1) Inbox (threads needing attention)
+2) Studio (automations + templates + campaigns)
+
+B) Studio has 3 sub-tabs:
+1) Automations
+2) Templates
+3) Broadcast
+
+C) Automations supports two audiences:
+- Customers/Leads
+- Crews (leaders + members)
+
+D) Every automation has:
+- state: ACTIVE | PAUSED | INACTIVE
+- schedule: immediate / event-driven / recurring
+- target: lead/customer/crew
+- channel(s): SMS, Email, In-App, Push
+- language: EN/ES
+- metrics: sent, delivered, failed, acked (where applicable)
+
+================================================================================
+DATA MODEL (PRISMA)
+================================================================================
+If you already have comms models, extend them rather than replace.
+
+1) CommsAutomation
+- id
+- accountId
+- name
+- audienceType (CUSTOMER | LEAD | CREW)
+- automationType (
+    LEAD_QUALIFICATION,
+    QUOTE_FOLLOWUP,
+    APPOINTMENT_REMINDER,
+    REVIEW_REQUEST,
+    RETENTION_NUDGE,
+    CREW_DAILY_BRIEFING,
+    CREW_SCHEDULE_CHANGE,
+    CREW_NEW_JOB_ADDED,
+    CREW_SCOPE_CHANGE
+  )
+- triggerType (EVENT | SCHEDULED | MANUAL)
+- triggerEvent (nullable string) // e.g., JOB_ASSIGNED, QUOTE_SENT
+- scheduleJson (jsonb) // {cron, timezone, quietHours}
+- state (ACTIVE | PAUSED | INACTIVE)
+- channelsJson (jsonb) // ["SMS","IN_APP","PUSH","EMAIL"]
+- languageMode (AUTO | EN | ES)
+- templateSetId (FK)
+- filtersJson (jsonb) // e.g., {crewIds:[], serviceCodes:[], regionZips:[], customerTags:[]}
+- createdAt, updatedAt
+
+2) CommsTemplateSet
+- id, accountId
+- name
+- audienceType (CUSTOMER | LEAD | CREW)
+- language (EN | ES)
+- templatesJson (jsonb)
+  // keyed messages used by automationType, e.g.:
+  // { "default": "...", "short": "...", "followup": "..." }
+- isDefault (bool)
+- createdAt, updatedAt
+
+3) CommsDeliveryLog
+- id, accountId
+- automationId (nullable)
+- threadId (nullable)
+- recipientType (CUSTOMER | LEAD | CREW_MEMBER)
+- recipientId (nullable)
+- phoneE164 (nullable)
+- channel (SMS | EMAIL | IN_APP | PUSH)
+- status (QUEUED | SENT | DELIVERED | FAILED | ACKED)
+- providerMessageId (nullable)
+- relatedJobId (nullable)
+- relatedLeadId (nullable)
+- relatedCustomerId (nullable)
+- relatedCrewId (nullable)
+- payloadJson (jsonb)
+- errorJson (jsonb)
+- createdAt
+
+4) CommsAudienceIndex (optional but helpful)
+A materialized mapping table to filter fast:
+- id, accountId
+- audienceType
+- audienceId
+- crewId (nullable)
+- customerId (nullable)
+- leadId (nullable)
+- tagsJson
+- languagePref (EN/ES)
+- createdAt, updatedAt
+
+================================================================================
+UI/UX DESIGN (COMMS STUDIO)
+================================================================================
+
+/comms (Tabs)
+- Inbox
+- Studio
+
+1) Inbox (existing behavior, just ensure crew threads are included)
+Left: thread list
+Center: thread messages
+Right: context (lead/customer/job/crew) + agent suggestions
+
+Inbox filters:
+- Audience: All | Leads | Customers | Crew
+- Status: Needs response | Escalated | All
+- Channel: SMS | Email | In-app
+- Crew: dropdown (only if Audience includes Crew)
+- Customer: search by name/phone
+- Lead: search by name/phone
+
+2) Studio (NEW CONTROL PLANE)
+Sub-tabs:
+A) Automations
+B) Templates
+C) Broadcast
+
+A) Automations Tab (core)
+Top filter bar:
+- Audience: Leads | Customers | Crew
+- Automation type
+- State: Active | Paused | Inactive
+- Channel
+- Language
+- Crew (if Crew audience)
+- Service (optional)
+- Region/Zip (optional)
+Table columns:
+- Name
+- Audience
+- Type
+- Trigger (event/scheduled/manual)
+- State (toggle)
+- Channels
+- Last run
+- Sent (7d)
+Row actions:
+- Activate
+- Pause
+- Deactivate
+- Edit
+- Run test (send to my number only)
+
+State behavior:
+- ACTIVE: runs automatically on trigger/schedule
+- PAUSED: does not run, but keeps config
+- INACTIVE: archived/disabled, hidden by default
+
+B) Templates Tab
+- Filter by audience + language
+- Template sets list
+- Edit templates (simple textarea)
+- Set default
+
+C) Broadcast Tab
+- Audience selection:
+  - specific crew(s) OR all crews OR filtered customer segment
+- Compose message
+- Choose channels
+- Preview EN/ES
+- Send now (requires confirmation)
+
+================================================================================
+FILTER REQUIREMENTS (MUST)
+================================================================================
+Add a unified filter component used across Inbox + Studio:
+- Audience: Lead | Customer | Crew
+- Crew selector (multi-select)
+- Lead selector (search)
+- Customer selector (search)
+- Job selector (search)
+- State (active/paused/inactive) for Studio
+- Channel selector
+
+When selecting a Crew:
+- automatically scopes to Crew Lead + members (based on preferences)
+When selecting a Lead/Customer:
+- scopes to their thread(s) and automations affecting them
+
+================================================================================
+CONTROL ACTIONS (ACTIVATE/PAUSE/DEACTIVATE)
+================================================================================
+Implement API routes:
+- PATCH /api/comms/automations/:id/state { state: ACTIVE|PAUSED|INACTIVE }
+- POST /api/comms/automations/:id/test { toPhoneE164, channel }
+- GET /api/comms/automations (filters)
+- POST /api/comms/automations (create)
+- PATCH /api/comms/automations/:id (edit)
+
+Ensure state changes:
+- Are audit logged
+- Immediately affect worker execution (worker checks state)
+
+================================================================================
+WORKER/ORCHESTRATION INTEGRATION
+================================================================================
+Update the Comms Worker(s) so:
+- Every outbound message is associated with:
+  - automationId (if from Studio automation)
+  - delivery log entry
+- Before sending, worker loads automation and verifies:
+  - state === ACTIVE
+  - quiet hours respected
+  - filters match the recipient (crew/customer/lead)
+
+Events to wire:
+- JOB_ASSIGNED → CREW_NEW_JOB_ADDED automation
+- JOB_UPDATED (time) → CREW_SCHEDULE_CHANGE
+- JOB_SCOPE_CHANGED → CREW_SCOPE_CHANGE
+- DAILY at 6:30am → CREW_DAILY_BRIEFING
+- LEAD_CREATED → LEAD_QUALIFICATION
+- QUOTE_SENT → QUOTE_FOLLOWUP
+- JOB_COMPLETED → REVIEW_REQUEST / RETENTION_NUDGE (optional)
+
+================================================================================
+IMPLEMENTATION ORDER (DO IN THIS SEQUENCE)
+================================================================================
+1) DB: add CommsAutomation, CommsTemplateSet, CommsDeliveryLog (migrate + seed)
+2) APIs: list/create/edit/state change automations + templates endpoints
+3) UI: /comms restructure into Inbox + Studio, with Automations/Template/Broadcast sub-tabs
+4) Filters: unified filter bar used in Inbox + Studio
+5) Worker integration: enforce automation state + log deliveries + test send
+6) QA: ensure pause/activate/deactivate works and filters correctly scope crews/leads/customers
+
+================================================================================
+SEED (MVP DEFAULT AUTOMATIONS)
+================================================================================
+Seed these ACTIVE automations:
+- Lead Qualification (Lead, event-driven LEAD_CREATED, SMS)
+- Quote Follow-up (Lead/Customer, scheduled +2h after quote sent, SMS)
+- Crew Daily Briefing (Crew, scheduled daily 6:30am, SMS+IN_APP)
+- Crew New Job Added (Crew, event JOB_ASSIGNED, SMS+PUSH)
+- Crew Schedule Change (Crew, event JOB_UPDATED, SMS+PUSH)
+- Review Request (Customer, event JOB_COMPLETED, SMS)
+
+Seed EN/ES template sets for each.
+
+================================================================================
+ACCEPTANCE CRITERIA
+================================================================================
+- Comms Studio shows automations with filters for Crew/Lead/Customer
+- Can activate/deactivate/pause/resume an automation
+- Paused automations do not send messages
+- Inbox can be filtered to crew threads and customer/lead threads
+- Delivery log is recorded for all automation-sent messages
+- “Test send” sends only to specified phone and logs delivery
+
+NOW DO THIS:
+Implement step (1) DB migration + seed only.
+Stop and output:
+- models added
+- seed automations added
+- next steps for API/UI
