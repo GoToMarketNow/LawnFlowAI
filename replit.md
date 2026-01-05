@@ -41,6 +41,11 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
 - **Route Optimizer:** Multi-agent job assignment system with job request tracking and simulation-based scheduling, including a decision workflow.
 - **Optimizer Orchestrator Agent:** Manages the end-to-end decision workflow for job assignments, including creation, approval, and writeback.
 - **Reconciliation Worker:** Validates invoice/payment integrity and updates Jobber custom fields, including a Dead Letter Queue for failed webhooks.
+- **Billing Agents (Phase B1):**
+  - **InvoiceBuildAgent:** AI-powered invoice generation from completed job data with configurable pricing rules and fallback calculations
+  - **ReconciliationWorker (Billing):** Validates invoice/payment integrity, detects status mismatches, overpayments, and creates billing issues for HIGH severity problems. Uses batched payment retrieval and dedupe keys to prevent duplicate issues.
+  - **BillingAgent:** AI-driven reminder generation with tone control and escalation cadence
+  - API endpoints: `POST /api/billing/invoices/generate`, `POST /api/billing/reconcile`, `POST /api/billing/actions/reminder`
 - **Customer Comms Worker:** Produces customer-facing messages with strict tone, compliance rules, and templates, handling various job events.
 - **Renewal & Upsell Worker:** Weekly scans for upsell opportunities, computes next-best-offers, and creates draft quotes in Jobber.
 - **Customer Experience Vector Memory:** Semantic search-enabled customer memory system with pgvector integration for storing and retrieving customer interactions and preferences, using OpenAI embeddings for context enrichment.
