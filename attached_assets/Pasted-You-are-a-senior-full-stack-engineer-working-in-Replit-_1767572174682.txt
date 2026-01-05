@@ -1,0 +1,235 @@
+You are a senior full-stack engineer working in Replit on LawnFlow.ai (Next.js + Postgres + Prisma).
+Implement a “Crew Comms Worker Agent” and a “Comms Studio” extension so Crew Leaders and Crew Members receive
+critical operational updates via SMS and in-app notifications.
+
+This must support:
+- Daily plan messages (morning briefing)
+- Real-time change notifications (schedule/scope/new customer)
+- Two-way replies via SMS (acknowledge, ask question, request call)
+- In-app notification inbox + push notifications (web push / PWA)
+- RBAC-safe delivery (crew members only see their crew’s jobs)
+
+Do NOT build a complicated new UX. Extend existing comms tooling patterns.
+
+================================================================================
+A) USER STORIES (MVP)
+================================================================================
+1) As a Crew Lead, I get a daily SMS + in-app briefing with:
+   - today’s jobs in order
+   - start time + addresses
+   - scope summary + special notes
+   - equipment reminders
+   - any risky jobs (new customer, incomplete info)
+
+2) As a Crew Member, I get:
+   - today’s job list summary
+   - changes (time/address/scope) as they happen
+   - “new job added” alerts
+   - “job canceled/rescheduled” alerts
+
+3) As an Owner/Admin, I can see outbound comms to crews and status:
+   - delivered / failed
+   - who acknowledged
+   - last message thread per crew
+
+4) Two-way SMS:
+   - Crew replies “ACK” to confirm
+   - Crew replies “HELP” to request owner/admin or dispatcher call
+   - Crew asks a question → routed to owner/admin or to an agent response if safe
+
+================================================================================
+B) DATA MODEL (PRISMA)
+================================================================================
+
+1) Notification
+- id (uuid)
+- accountId
+- recipientUserId
+- recipientRole (OWNER_ADMIN | CREW_LEAD | CREW_MEMBER)
+- channel (IN_APP | PUSH | SMS)
+- type (DAILY_BRIEFING | JOB_ADDED | JOB_UPDATED | JOB_CANCELED | SCOPE_CHANGED | ETA_CHANGED | CUSTOMER_NOTE | EQUIPMENT_ALERT | ACTION_REQUIRED)
+- title
+- body
+- dataJson (jsonb)  // {jobId, crewId, route, deepLink, severity}
+- status (QUEUED | SENT | DELIVERED | FAILED | ACKED)
+- providerMessageId (nullable) // Twilio SID etc.
+- sentAt, deliveredAt, ackedAt, createdAt
+
+2) CrewCommsPreference
+- id
+- accountId
+- userId
+- smsEnabled (bool)
+- pushEnabled (bool)
+- quietHoursStart (nullable)
+- quietHoursEnd (nullable)
+- language (EN | ES)
+- phoneE164 (string) // snapshot from user
+- timezone (string)  // default from account
+
+3) CommsThread (optional but helpful for MVP)
+- id
+- accountId
+- participantUserId
+- participantPhoneE164
+- lastMessageAt
+- lastMessagePreview
+- channel (SMS)
+- metadataJson
+
+4) CommsMessage
+- id
+- threadId
+- direction (OUTBOUND | INBOUND)
+- channel (SMS | IN_APP)
+- body
+- providerMessageId
+- relatedJobId (nullable)
+- relatedCrewId (nullable)
+- createdAt
+
+================================================================================
+C) EVENT SOURCES (WHAT TRIGGERS NOTIFICATIONS)
+================================================================================
+
+Trigger the Crew Comms Worker Agent from these events:
+- Job created and assigned to a crew
+- Job assigned crew changes
+- Job scheduled time changes
+- Job scope/services change
+- Job notes change (customer instructions)
+- Job canceled
+- New customer added to schedule today/tomorrow
+- Crew status changes (optional)
+
+Implement as:
+- Domain events in-app (recommended) OR
+- Postgres-based “event_outbox” table (best) OR
+- Lightweight: run worker after each mutation (MVP acceptable)
+
+================================================================================
+D) DELIVERY CHANNELS
+================================================================================
+
+1) SMS (Twilio)
+- Use existing Twilio messaging service/SID
+- Send to Crew Lead + members based on preferences
+- Support inbound reply webhook:
+  POST /api/webhooks/twilio/inbound
+  Parse message body:
+   - ACK → mark relevant Notification as ACKED
+   - HELP → create escalation notification for Owner/Admin
+   - otherwise store inbound in thread and alert Owner/Admin
+
+2) In-app Notification Inbox
+- Add a bell icon in top nav for Crew Lead/Member
+- Dropdown list of last 10 notifications
+- “View all” page: /notifications
+- Clicking notification deep-links to job/crew page
+
+3) Push Notifications (Web Push / PWA)
+- MVP: implement Web Push with service worker
+- Store push subscription per user in DB:
+  PushSubscription table: userId, endpoint, keysJson
+- Send push on high-severity changes:
+  JOB_ADDED, JOB_CANCELED, ETA_CHANGED, ACTION_REQUIRED
+
+================================================================================
+E) COMM STUDIO EXTENSION (OWNER/ADMIN VIEW)
+================================================================================
+
+Extend Comms Studio so it includes a “Crew” tab:
+- Filter by crew
+- See:
+  - outbound notifications sent today
+  - delivery status
+  - ack status
+  - last inbound message snippet
+- Actions:
+  - “Send broadcast to crew” (SMS + in-app)
+  - “Request ACK” toggle
+  - “Translate to Spanish” (if language preference is ES)
+
+Keep it minimal—table view with a right-side message composer.
+
+================================================================================
+F) CREW COMMS WORKER AGENT (LOGIC)
+================================================================================
+
+Implement a backend worker/service:
+- crewCommsWorker.run(event)
+Responsibilities:
+1) Determine impacted crew + recipients (leader + members)
+2) Respect preferences (smsEnabled/pushEnabled/quiet hours)
+3) Generate message content (EN/ES) using templates
+4) Create Notification records for each recipient + channel
+5) Send SMS / Push (async)
+6) Update statuses (SENT/FAILED/DELIVERED if callback available)
+
+Daily Briefing scheduler:
+- At 6:30am local time per account:
+  - For each crew, build briefing for today’s jobs
+  - Send to leader + members
+
+Message templates (MVP):
+- JOB_ADDED:
+  “New job added today: {timeWindow} at {address}. Scope: {shortScope}. Tap to view: {link}”
+- JOB_UPDATED:
+  “Update: {jobName} changed — {whatChanged}. Tap: {link}”
+- SCOPE_CHANGED:
+  “Scope change: {jobName}. Added/removed: {delta}. Notes: {notes}. Tap: {link}”
+- JOB_CANCELED:
+  “Canceled: {jobName} at {time}. Tap: {link}”
+- DAILY_BRIEFING:
+  “Good morning {name}. Today: {jobCount} jobs. First stop: {firstAddress} at {firstTime}. Notes: {topNotes}. Reply ACK to confirm.”
+
+Spanish versions for each template.
+
+================================================================================
+G) FILES / ROUTES TO IMPLEMENT
+================================================================================
+
+Backend:
+- /lib/comms/crewCommsWorker.ts
+- /lib/comms/templates/en.ts
+- /lib/comms/templates/es.ts
+- /lib/comms/recipients.ts
+- /app/api/webhooks/twilio/inbound/route.ts
+- /app/api/notifications/route.ts (list)
+- /app/api/notifications/ack/route.ts (ack)
+- /lib/push/webpush.ts + service worker support
+
+Frontend:
+- Top nav bell component for crew roles
+- /app/notifications/page.tsx
+- Extend Comms Studio with “Crew” tab and simple composer
+
+DB:
+- Prisma migration for Notification, CrewCommsPreference, CommsThread, CommsMessage, PushSubscription
+
+Seed:
+- Add preferences for demo users
+- Seed a few notifications for UI
+
+================================================================================
+H) ACCEPTANCE CRITERIA
+================================================================================
+
+1) When a job is assigned to a crew, the leader + members receive:
+   - SMS (if enabled)
+   - In-app notification
+2) When schedule or scope changes, they receive a notification within 1 minute.
+3) Daily briefing can be triggered manually via an admin-only endpoint for testing:
+   POST /api/comms/run-daily-briefing
+4) Replying “ACK” via SMS marks the latest action-required notification ACKED.
+5) Owner/Admin can view crew comms history and send a crew broadcast.
+
+Now implement in this order:
+1) DB + in-app notification inbox
+2) SMS outbound + inbound webhook
+3) Event triggers from job mutations
+4) Daily briefing scheduler/manual trigger
+5) Push notifications (web push)
+6) Comms Studio “Crew” tab
+
+Build MVP first with clean code, then improve polish.

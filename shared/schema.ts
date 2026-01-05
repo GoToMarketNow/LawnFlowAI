@@ -3340,3 +3340,202 @@ export const reviewSuggestionInputSchema = z.object({
   status: z.enum(["approved", "rejected"]),
   reviewerNote: z.string().optional(),
 });
+
+// ============================================
+// Crew Comms Worker Agent
+// ============================================
+
+// Notification channel enum
+export const notificationChannelEnum = z.enum(["IN_APP", "PUSH", "SMS"]);
+export type NotificationChannel = z.infer<typeof notificationChannelEnum>;
+
+// Notification type enum
+export const notificationTypeEnum = z.enum([
+  "DAILY_BRIEFING",
+  "JOB_ADDED",
+  "JOB_UPDATED",
+  "JOB_CANCELED",
+  "SCOPE_CHANGED",
+  "ETA_CHANGED",
+  "CUSTOMER_NOTE",
+  "EQUIPMENT_ALERT",
+  "ACTION_REQUIRED",
+  "CREW_BROADCAST",
+]);
+export type NotificationType = z.infer<typeof notificationTypeEnum>;
+
+// Notification status enum
+export const notificationStatusEnum = z.enum(["QUEUED", "SENT", "DELIVERED", "FAILED", "ACKED"]);
+export type NotificationStatus = z.infer<typeof notificationStatusEnum>;
+
+// Recipient role enum
+export const recipientRoleEnum = z.enum(["OWNER_ADMIN", "CREW_LEAD", "CREW_MEMBER"]);
+export type RecipientRole = z.infer<typeof recipientRoleEnum>;
+
+// Message direction enum
+export const messageDirectionEnum = z.enum(["OUTBOUND", "INBOUND"]);
+export type MessageDirection = z.infer<typeof messageDirectionEnum>;
+
+// Language enum
+export const languageEnum = z.enum(["EN", "ES"]);
+export type Language = z.infer<typeof languageEnum>;
+
+// Notifications table
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  recipientUserId: integer("recipient_user_id").references(() => users.id).notNull(),
+  recipientRole: text("recipient_role").notNull(), // OWNER_ADMIN | CREW_LEAD | CREW_MEMBER
+  channel: text("channel").notNull(), // IN_APP | PUSH | SMS
+  type: text("type").notNull(), // DAILY_BRIEFING | JOB_ADDED | etc.
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  dataJson: jsonb("data_json"), // {jobId, crewId, route, deepLink, severity}
+  status: text("status").default("QUEUED").notNull(), // QUEUED | SENT | DELIVERED | FAILED | ACKED
+  providerMessageId: text("provider_message_id"), // Twilio SID etc.
+  sentAt: timestamp("sent_at"),
+  deliveredAt: timestamp("delivered_at"),
+  ackedAt: timestamp("acked_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  recipientIdx: index("notification_recipient_idx").on(table.recipientUserId),
+  statusIdx: index("notification_status_idx").on(table.status),
+  businessIdx: index("notification_business_idx").on(table.businessId),
+  typeIdx: index("notification_type_idx").on(table.type),
+}));
+
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+
+// Crew Comms Preferences table
+export const crewCommsPreferences = pgTable("crew_comms_preferences", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  smsEnabled: boolean("sms_enabled").default(true).notNull(),
+  pushEnabled: boolean("push_enabled").default(true).notNull(),
+  quietHoursStart: text("quiet_hours_start"), // HH:MM format
+  quietHoursEnd: text("quiet_hours_end"), // HH:MM format
+  language: text("language").default("EN").notNull(), // EN | ES
+  phoneE164: text("phone_e164"), // snapshot from user
+  timezone: text("timezone").default("America/New_York"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  userIdx: index("crew_comms_pref_user_idx").on(table.userId),
+  businessIdx: index("crew_comms_pref_business_idx").on(table.businessId),
+  uniqueUserPref: uniqueIndex("crew_comms_pref_unique_idx").on(table.userId),
+}));
+
+export const insertCrewCommsPreferenceSchema = createInsertSchema(crewCommsPreferences).omit({ id: true, createdAt: true, updatedAt: true });
+export type CrewCommsPreference = typeof crewCommsPreferences.$inferSelect;
+export type InsertCrewCommsPreference = z.infer<typeof insertCrewCommsPreferenceSchema>;
+
+// Comms Thread table (for SMS conversation threads)
+export const commsThreads = pgTable("comms_threads", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  participantUserId: integer("participant_user_id").references(() => users.id).notNull(),
+  participantPhoneE164: text("participant_phone_e164").notNull(),
+  channel: text("channel").default("SMS").notNull(), // SMS
+  lastMessageAt: timestamp("last_message_at"),
+  lastMessagePreview: text("last_message_preview"),
+  metadataJson: jsonb("metadata_json"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  participantIdx: index("comms_thread_participant_idx").on(table.participantUserId),
+  phoneIdx: index("comms_thread_phone_idx").on(table.participantPhoneE164),
+  businessIdx: index("comms_thread_business_idx").on(table.businessId),
+}));
+
+export const insertCommsThreadSchema = createInsertSchema(commsThreads).omit({ id: true, createdAt: true });
+export type CommsThread = typeof commsThreads.$inferSelect;
+export type InsertCommsThread = z.infer<typeof insertCommsThreadSchema>;
+
+// Comms Message table (individual messages in threads)
+export const commsMessages = pgTable("comms_messages", {
+  id: serial("id").primaryKey(),
+  threadId: integer("thread_id").references(() => commsThreads.id).notNull(),
+  direction: text("direction").notNull(), // OUTBOUND | INBOUND
+  channel: text("channel").default("SMS").notNull(), // SMS | IN_APP
+  body: text("body").notNull(),
+  providerMessageId: text("provider_message_id"),
+  relatedJobId: text("related_job_id"),
+  relatedCrewId: integer("related_crew_id"),
+  relatedNotificationId: integer("related_notification_id"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  threadIdx: index("comms_message_thread_idx").on(table.threadId),
+  directionIdx: index("comms_message_direction_idx").on(table.direction),
+}));
+
+export const insertCommsMessageSchema = createInsertSchema(commsMessages).omit({ id: true, createdAt: true });
+export type CommsMessage = typeof commsMessages.$inferSelect;
+export type InsertCommsMessage = z.infer<typeof insertCommsMessageSchema>;
+
+// Push Subscription table (for Web Push notifications)
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  endpoint: text("endpoint").notNull(),
+  keysJson: jsonb("keys_json").notNull(), // {p256dh, auth}
+  userAgent: text("user_agent"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  lastUsedAt: timestamp("last_used_at"),
+}, (table) => ({
+  userIdx: index("push_sub_user_idx").on(table.userId),
+  endpointIdx: uniqueIndex("push_sub_endpoint_idx").on(table.endpoint),
+}));
+
+export const insertPushSubscriptionSchema = createInsertSchema(pushSubscriptions).omit({ id: true, createdAt: true });
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type InsertPushSubscription = z.infer<typeof insertPushSubscriptionSchema>;
+
+// Types for Crew Comms
+export type NotificationWithRecipient = Notification & { recipient?: User };
+export type CommsThreadWithMessages = CommsThread & { messages: CommsMessage[]; participant?: User };
+
+// API input schemas for Crew Comms
+export const sendNotificationInputSchema = z.object({
+  businessId: z.number(),
+  recipientUserId: z.number(),
+  recipientRole: recipientRoleEnum,
+  channel: notificationChannelEnum,
+  type: notificationTypeEnum,
+  title: z.string().min(1),
+  body: z.string().min(1),
+  dataJson: z.record(z.unknown()).optional(),
+});
+
+export const ackNotificationInputSchema = z.object({
+  notificationId: z.number(),
+});
+
+export const sendCrewBroadcastInputSchema = z.object({
+  businessId: z.number(),
+  crewId: z.number(),
+  message: z.string().min(1),
+  channels: z.array(notificationChannelEnum).default(["IN_APP", "SMS"]),
+  requestAck: z.boolean().default(false),
+});
+
+export const updateCommsPreferenceInputSchema = z.object({
+  smsEnabled: z.boolean().optional(),
+  pushEnabled: z.boolean().optional(),
+  quietHoursStart: z.string().optional(),
+  quietHoursEnd: z.string().optional(),
+  language: languageEnum.optional(),
+  phoneE164: z.string().optional(),
+  timezone: z.string().optional(),
+});
+
+export const registerPushSubscriptionInputSchema = z.object({
+  endpoint: z.string().url(),
+  keysJson: z.object({
+    p256dh: z.string(),
+    auth: z.string(),
+  }),
+  userAgent: z.string().optional(),
+});
