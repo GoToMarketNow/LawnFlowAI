@@ -4039,3 +4039,36 @@ export const firewoodProfiles = pgTable("firewood_profiles", {
 export const insertFirewoodProfileSchema = createInsertSchema(firewoodProfiles).omit({ id: true, createdAt: true, updatedAt: true });
 export type FirewoodProfile = typeof firewoodProfiles.$inferSelect;
 export type InsertFirewoodProfile = z.infer<typeof insertFirewoodProfileSchema>;
+
+// Customer Service Preferences - tracks per-customer service preferences learned over time
+export const customerServicePreferences = pgTable("customer_service_preferences", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  customerId: integer("customer_id").notNull(), // FK to customers when table exists
+  serviceId: integer("service_id").references(() => services.id), // null means applies to all services
+  preferredFrequency: text("preferred_frequency"), // WEEKLY, BIWEEKLY, MONTHLY, etc.
+  preferredDayOfWeek: text("preferred_day_of_week"), // MONDAY, TUESDAY, etc.
+  preferredTimeWindow: text("preferred_time_window"), // MORNING, AFTERNOON, EVENING
+  preferredCrewId: integer("preferred_crew_id"), // FK to crews when table exists
+  priceFlexibility: text("price_flexibility").default("STANDARD"), // BUDGET, STANDARD, PREMIUM
+  communicationPreference: text("communication_preference").default("SMS"), // SMS, EMAIL, PHONE
+  specialInstructions: text("special_instructions"),
+  gateCodes: text("gate_codes"),
+  petInfo: text("pet_info"),
+  preferredContactMethod: text("preferred_contact_method"),
+  doNotDisturb: boolean("do_not_disturb").default(false).notNull(),
+  doNotDisturbStart: text("do_not_disturb_start"), // HH:MM format
+  doNotDisturbEnd: text("do_not_disturb_end"), // HH:MM format
+  learnedFromInteractions: integer("learned_from_interactions").default(0).notNull(), // count of interactions used to learn
+  confidenceScore: integer("confidence_score").default(50).notNull(), // 0-100 confidence in preferences
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountIdx: index("cust_pref_account_idx").on(table.accountId),
+  customerIdx: index("cust_pref_customer_idx").on(table.customerId),
+  serviceIdx: index("cust_pref_service_idx").on(table.serviceId),
+}));
+
+export const insertCustomerServicePreferenceSchema = createInsertSchema(customerServicePreferences).omit({ id: true, createdAt: true, updatedAt: true });
+export type CustomerServicePreference = typeof customerServicePreferences.$inferSelect;
+export type InsertCustomerServicePreference = z.infer<typeof insertCustomerServicePreferenceSchema>;

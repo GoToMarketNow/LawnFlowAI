@@ -206,6 +206,9 @@ import {
   type InsertMulchProfile,
   type FirewoodProfile,
   type InsertFirewoodProfile,
+  customerServicePreferences,
+  type CustomerServicePreference,
+  type InsertCustomerServicePreference,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, inArray, sql, and, gte, lte } from "drizzle-orm";
@@ -600,6 +603,15 @@ export interface IStorage {
   getFirewoodProfile(id: number): Promise<FirewoodProfile | undefined>;
   createFirewoodProfile(profile: InsertFirewoodProfile): Promise<FirewoodProfile>;
   updateFirewoodProfile(id: number, updates: Partial<InsertFirewoodProfile>): Promise<FirewoodProfile>;
+  
+  // Customer Service Preferences
+  getCustomerServicePreferences(accountId: number, customerId: number): Promise<CustomerServicePreference[]>;
+  getCustomerServicePreference(id: number): Promise<CustomerServicePreference | undefined>;
+  getCustomerServicePreferenceByService(accountId: number, customerId: number, serviceId: number): Promise<CustomerServicePreference | undefined>;
+  createCustomerServicePreference(pref: InsertCustomerServicePreference): Promise<CustomerServicePreference>;
+  updateCustomerServicePreference(id: number, updates: Partial<InsertCustomerServicePreference>): Promise<CustomerServicePreference>;
+  deleteCustomerServicePreference(id: number): Promise<boolean>;
+  upsertCustomerServicePreference(pref: InsertCustomerServicePreference): Promise<CustomerServicePreference>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3305,6 +3317,62 @@ export class DatabaseStorage implements IStorage {
   async updateFirewoodProfile(id: number, updates: Partial<InsertFirewoodProfile>): Promise<FirewoodProfile> {
     const [updated] = await db.update(firewoodProfiles).set({ ...updates, updatedAt: new Date() }).where(eq(firewoodProfiles.id, id)).returning();
     return updated;
+  }
+
+  // Customer Service Preferences
+  async getCustomerServicePreferences(accountId: number, customerId: number): Promise<CustomerServicePreference[]> {
+    return db.select().from(customerServicePreferences)
+      .where(and(
+        eq(customerServicePreferences.accountId, accountId),
+        eq(customerServicePreferences.customerId, customerId)
+      ));
+  }
+
+  async getCustomerServicePreference(id: number): Promise<CustomerServicePreference | undefined> {
+    const [pref] = await db.select().from(customerServicePreferences).where(eq(customerServicePreferences.id, id));
+    return pref;
+  }
+
+  async getCustomerServicePreferenceByService(accountId: number, customerId: number, serviceId: number): Promise<CustomerServicePreference | undefined> {
+    const [pref] = await db.select().from(customerServicePreferences)
+      .where(and(
+        eq(customerServicePreferences.accountId, accountId),
+        eq(customerServicePreferences.customerId, customerId),
+        eq(customerServicePreferences.serviceId, serviceId)
+      ));
+    return pref;
+  }
+
+  async createCustomerServicePreference(pref: InsertCustomerServicePreference): Promise<CustomerServicePreference> {
+    const [created] = await db.insert(customerServicePreferences).values(pref).returning();
+    return created;
+  }
+
+  async updateCustomerServicePreference(id: number, updates: Partial<InsertCustomerServicePreference>): Promise<CustomerServicePreference> {
+    const [updated] = await db.update(customerServicePreferences)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(customerServicePreferences.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCustomerServicePreference(id: number): Promise<boolean> {
+    const result = await db.delete(customerServicePreferences).where(eq(customerServicePreferences.id, id));
+    return true;
+  }
+
+  async upsertCustomerServicePreference(pref: InsertCustomerServicePreference): Promise<CustomerServicePreference> {
+    const existing = pref.serviceId 
+      ? await this.getCustomerServicePreferenceByService(pref.accountId, pref.customerId, pref.serviceId)
+      : undefined;
+    
+    if (existing) {
+      return this.updateCustomerServicePreference(existing.id, {
+        ...pref,
+        learnedFromInteractions: (existing.learnedFromInteractions || 0) + 1,
+      });
+    }
+    return this.createCustomerServicePreference(pref);
   }
 }
 
