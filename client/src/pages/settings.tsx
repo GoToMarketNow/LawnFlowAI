@@ -13,6 +13,8 @@ import {
   Zap,
   ChevronRight,
   Package,
+  CreditCard,
+  MessageSquare,
 } from "lucide-react";
 import { RoleGate } from "@/components/role-gate";
 
@@ -87,6 +89,27 @@ const settingsSections: SettingsSection[] = [
     description: "View system events and agent activity history",
     icon: FileText,
     href: "/audit",
+  },
+  {
+    id: "billing-config",
+    title: "Billing Config",
+    description: "Invoice terms, payment methods, and collections",
+    icon: CreditCard,
+    href: "/settings/billing-config",
+  },
+  {
+    id: "templates",
+    title: "Message Templates",
+    description: "SMS, email, and notification templates",
+    icon: MessageSquare,
+    href: "/settings/templates",
+  },
+  {
+    id: "users",
+    title: "Users & Roles",
+    description: "Team members, permissions, and access control",
+    icon: Users,
+    href: "/settings/users",
   },
 ];
 
