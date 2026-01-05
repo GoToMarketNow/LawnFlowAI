@@ -10933,7 +10933,7 @@ Return JSON format:
   // GET /api/ops/comms/threads - List threads with filtering
   app.get("/api/ops/comms/threads", async (req, res) => {
     try {
-      if (!req.user) {
+      if (!req.session.userId) {
         return res.status(401).json({ error: "Not authenticated" });
       }
       const accountId = 1; // TODO: Get from session when accountId is available
@@ -10941,29 +10941,37 @@ Return JSON format:
       const filters: {
         audienceType?: string;
         status?: string;
-        urgencyMin?: number;
-        urgencyMax?: number;
+        excludeResolved?: boolean;
+        limit?: number;
+        sortBy?: 'urgency' | 'lastMessage' | 'slaDeadline';
       } = {};
       
       if (req.query.audienceType && typeof req.query.audienceType === "string") {
         filters.audienceType = req.query.audienceType;
       }
       if (req.query.status && typeof req.query.status === "string") {
-        filters.status = req.query.status;
-      }
-      if (req.query.urgencyMin) {
-        filters.urgencyMin = parseInt(req.query.urgencyMin as string);
-      }
-      if (req.query.urgencyMax) {
-        filters.urgencyMax = parseInt(req.query.urgencyMax as string);
+        const statusValue = req.query.status;
+        if (statusValue === "ACTIVE") {
+          filters.excludeResolved = true;
+        } else if (statusValue === "WAITING") {
+          filters.status = "WAITING_ON_CUSTOMER";
+        } else if (statusValue !== "all") {
+          filters.status = statusValue;
+        }
       }
       
-      const sortBy = (req.query.sortBy as string) || "urgency";
-      const sortOrder = (req.query.sortOrder as string) === "asc" ? "asc" : "desc";
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
-      const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
+      const sortByQuery = req.query.sortBy as string;
+      if (sortByQuery === "urgency" || sortByQuery === "lastMessage" || sortByQuery === "slaDeadline") {
+        filters.sortBy = sortByQuery;
+      } else {
+        filters.sortBy = "urgency";
+      }
       
-      const threads = await storage.getOpsCommsThreads(accountId, filters, sortBy, sortOrder as "asc" | "desc", limit, offset);
+      if (req.query.limit) {
+        filters.limit = parseInt(req.query.limit as string);
+      }
+      
+      const threads = await storage.getOpsCommsThreads(accountId, filters);
       res.json(threads);
     } catch (error: any) {
       console.error("[ActiveComms] Error fetching threads:", error);
@@ -10974,7 +10982,7 @@ Return JSON format:
   // GET /api/ops/comms/threads/:id - Get single thread with action items
   app.get("/api/ops/comms/threads/:id", async (req, res) => {
     try {
-      if (!req.user) {
+      if (!req.session.userId) {
         return res.status(401).json({ error: "Not authenticated" });
       }
       const accountId = 1; // TODO: Get from session when accountId is available
@@ -10997,7 +11005,7 @@ Return JSON format:
   // GET /api/ops/comms/action-items - List action items with filtering
   app.get("/api/ops/comms/action-items", async (req, res) => {
     try {
-      if (!req.user) {
+      if (!req.session.userId) {
         return res.status(401).json({ error: "Not authenticated" });
       }
       const accountId = 1; // TODO: Get from session when accountId is available
@@ -11033,7 +11041,7 @@ Return JSON format:
   // PATCH /api/ops/comms/action-items/:id - Update action item (complete, dismiss, assign)
   app.patch("/api/ops/comms/action-items/:id", async (req, res) => {
     try {
-      if (!req.user) {
+      if (!req.session.userId) {
         return res.status(401).json({ error: "Not authenticated" });
       }
       const accountId = 1; // TODO: Get from session when accountId is available
@@ -11077,7 +11085,7 @@ Return JSON format:
   // POST /api/ops/comms/threads/:id/recompute-urgency - Recompute thread urgency
   app.post("/api/ops/comms/threads/:id/recompute-urgency", async (req, res) => {
     try {
-      if (!req.user) {
+      if (!req.session.userId) {
         return res.status(401).json({ error: "Not authenticated" });
       }
       const accountId = 1; // TODO: Get from session when accountId is available
