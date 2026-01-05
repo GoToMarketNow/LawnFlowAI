@@ -1,0 +1,535 @@
+You are a senior full-stack engineer in Replit working on LawnFlow.ai (Next.js + Postgres + Prisma).
+Your task is to implement Billing + QuickBooks integration and add a set of new autonomy agents.
+You must also update: onboarding wizard, documentation, and agent-to-agent orchestration.
+
+IMPORTANT CONSTRAINTS
+- Ship in small, testable slices. Each slice must compile and run.
+- Follow existing architecture patterns (RBAC, layout, API routes, services, DB).
+- Billing must be exception-driven: most flows are automatic; humans only handle variances.
+- Do NOT build a full accounting system. QuickBooks remains the accounting source of truth.
+- Create clear agent contracts: inputs/outputs JSON schemas and orchestration steps.
+
+================================================================================
+0) HIGH-LEVEL DELIVERY PLAN (IMPLEMENT IN THIS ORDER)
+================================================================================
+Phase A: Foundations
+A1) Data model + billing UI shell
+A2) QuickBooks OAuth + connection status page
+A3) InvoiceBuildAgent (draft invoice from accepted quote + job completion)
+A4) AccountingSyncAgent (sync customer + invoice to QuickBooks)
+A5) CollectionsAgent (SMS/email reminders) + payment status sync
+A6) RemediationAgent (disputes/credits/reschedule)
+
+Phase B: Accretive Agents
+B1) PricingOptimizationAgent
+B2) CapacityForecastingAgent
+B3) CrewPerformanceAgent
+B4) RetentionAgent
+B5) ComplianceRiskAgent (stub)
+
+Phase C: System Updates
+C1) Update Onboarding Agent + UI wizard
+C2) Update Agent Directory docs + contracts
+C3) Update Orchestrator: Quote→Cash + Remediation paths
+
+================================================================================
+1) DATABASE & SCHEMAS (PRISMA)
+================================================================================
+Add models (adjust to match existing naming conventions):
+
+AccountIntegration
+- id, accountId
+- provider: QUICKBOOKS
+- status: DISCONNECTED | CONNECTED | ERROR
+- accessToken (encrypted), refreshToken (encrypted), tokenExpiresAt
+- realmId (QuickBooks company id)
+- metadataJson
+- createdAt, updatedAt
+
+BillingCustomer
+- id, accountId
+- localCustomerId (FK to your Customer table if exists)
+- externalProvider: QUICKBOOKS
+- externalCustomerId
+- lastSyncedAt
+- syncStatus: OK | NEEDS_REVIEW | ERROR
+- createdAt, updatedAt
+
+Invoice
+- id, accountId
+- customerId (FK)
+- jobId (nullable FK)
+- quoteId (nullable FK)
+- status: DRAFT | PENDING_APPROVAL | SENT | PAID | PARTIAL | OVERDUE | VOID | DISPUTED | FAILED_SYNC
+- currency
+- subtotal, tax, total
+- minQuote, maxQuote, approvedQuote (nullable)  // store quote bounds to detect variance
+- dueDate, sentAt, paidAt
+- notes (nullable)
+- externalProvider: QUICKBOOKS (nullable)
+- externalInvoiceId (nullable)
+- lastSyncedAt (nullable)
+- createdAt, updatedAt
+
+InvoiceLineItem
+- id, invoiceId
+- name
+- description (nullable)
+- quantity
+- unitPrice
+- amount
+- serviceCode (nullable) // maps to quote engine service
+- externalItemId (nullable) // QuickBooks item mapping
+- createdAt, updatedAt
+
+Payment
+- id, accountId
+- invoiceId
+- status: PENDING | SUCCEEDED | FAILED | REFUNDED | PARTIAL
+- amount
+- method: CASH | CHECK | CARD | ACH | UNKNOWN
+- externalProvider (nullable)
+- externalPaymentId (nullable)
+- occurredAt
+- createdAt, updatedAt
+
+BillingIssue
+- id, accountId
+- type: VARIANCE | SYNC_ERROR | DISPUTE | OVERDUE | PAYMENT_FAILED | CREDIT_REQUEST | REFUND_REQUEST
+- severity: LOW | MED | HIGH
+- status: OPEN | IN_PROGRESS | RESOLVED
+- relatedInvoiceId (nullable)
+- relatedJobId (nullable)
+- relatedCustomerId (nullable)
+- summary
+- detailsJson
+- createdAt, updatedAt
+
+PolicyServiceMapping (optional but recommended)
+- id, accountId
+- serviceCode (from quote engine)
+- quickbooksItemName
+- quickbooksItemId (nullable)
+- taxCode (nullable)
+
+MIGRATION NOTES
+- Encrypt tokens at rest (at minimum via env-based crypto helper)
+- Add indexes on accountId, status fields, createdAt
+
+================================================================================
+2) QUICKBOOKS INTEGRATION (OAUTH + API CLIENT)
+================================================================================
+Implement QuickBooks Online OAuth 2.0:
+- /settings/integrations/quickbooks
+  - Connect button
+  - Shows status, realmId, last sync
+  - Disconnect button
+- /api/integrations/quickbooks/connect
+- /api/integrations/quickbooks/callback
+- /api/integrations/quickbooks/disconnect
+
+Implement QB API client wrapper:
+- /lib/integrations/quickbooks/client.ts
+  - getAccessToken(accountId) -> refresh if expired
+  - qbRequest(method, path, body?)
+  - errors normalized
+
+Implement core QB operations:
+- upsertCustomer
+- createInvoice
+- getInvoice
+- listPaymentsForInvoice (or query)
+- createCreditMemo (for remediation)
+- voidInvoice (as needed)
+
+Use QuickBooks sandbox by default for dev:
+- env vars:
+  QUICKBOOKS_CLIENT_ID
+  QUICKBOOKS_CLIENT_SECRET
+  QUICKBOOKS_REDIRECT_URI
+  QUICKBOOKS_ENV (sandbox|production)
+
+================================================================================
+3) BILLING UI DESIGN (FRONT END)
+================================================================================
+Add primary nav item for OWNER_ADMIN: Billing
+Routes:
+- /billing (Overview)
+- /billing/invoices
+- /billing/payments
+- /billing/issues
+- /billing/settings (deep links to integrations + mappings)
+
+UX PATTERN
+Use calm 3-panel layout:
+- Left: list/filter
+- Center: detail
+- Right: agent summary/actions/audit
+
+A) /billing (Overview)
+Tiles:
+- Draft invoices
+- Overdue invoices
+- Billing issues
+- Last sync status
+Below: “Action Required” list (issues + approvals)
+
+B) /billing/invoices
+List columns:
+- Invoice #
+- Customer
+- Status
+- Total
+- Due date
+- Last sync
+Selecting invoice shows:
+- Line items
+- Quote bounds & variance
+- Status timeline
+Actions:
+- Send invoice (SMS/email link)
+- Approve variance (if pending)
+- Sync now
+- Void (admin only)
+
+C) /billing/issues
+List of BillingIssue with severity + type
+Detail shows:
+- what happened
+- recommended resolution
+Buttons:
+- Resolve
+- Escalate to RemediationAgent
+- Contact customer (opens Comms)
+
+D) /billing/settings
+- QuickBooks connection status
+- Service→QB item mapping table
+- Default tax rules (basic)
+
+RBAC:
+- Crew roles: no billing access
+
+================================================================================
+4) AGENTS (PRODUCTION-GRADE CONTRACTS + PROMPTS)
+================================================================================
+All agents must:
+- accept structured JSON input
+- output strict JSON matching schema
+- write events to audit log
+- never invent money amounts beyond policy bounds
+- escalate when uncertain
+
+Create /lib/agents/contracts/*.json for each agent’s input/output schema
+Create /lib/agents/prompts/*.md for each agent’s system prompt
+
+------------------------------------------------------------
+4.1 InvoiceBuildAgent (core)
+------------------------------------------------------------
+WHEN CALLED
+- Job marked COMPLETE OR Job status transitions to READY_TO_INVOICE
+- OR accepted quote exists and scheduled job approaches (optional)
+
+INPUT (json)
+{
+  "accountId": "...",
+  "job": {...},
+  "quote": {...},
+  "customer": {...},
+  "policy": {...},
+  "scopeDeltas": {...},
+  "taxContext": {...}
+}
+
+OUTPUT (json)
+{
+  "invoiceDraft": {
+    "status": "DRAFT|PENDING_APPROVAL",
+    "lineItems": [{ "serviceCode": "", "name": "", "qty": 1, "unitPrice": 0, "amount": 0 }],
+    "subtotal": 0,
+    "tax": 0,
+    "total": 0,
+    "variance": { "withinRange": true, "minQuote": 0, "maxQuote": 0, "proposedTotal": 0, "reason": "" },
+    "notes": ""
+  },
+  "requiresHumanApproval": true|false,
+  "approvalReason": "",
+  "nextAction": "SYNC_TO_QB|WAIT_APPROVAL|SEND_TO_CUSTOMER"
+}
+
+SYSTEM PROMPT (save as prompts/invoice_build_agent.md)
+You are InvoiceBuildAgent for LawnFlow.ai.
+Your job is to create an invoice draft based on the accepted quote and actual job completion signals.
+Rules:
+- Use quote line items and pricing policies as baseline.
+- If scope changes exist, reflect them as separate line items with clear labels.
+- NEVER exceed the approved quote max unless a human approval is required.
+- If proposed total is outside [minQuote,maxQuote] OR confidence < 0.85 -> requiresHumanApproval=true.
+- Output strict JSON only.
+
+------------------------------------------------------------
+4.2 AccountingSyncAgent (QuickBooks)
+------------------------------------------------------------
+WHEN CALLED
+- After invoice draft approved OR when DRAFT with auto-approve and connected QB
+- On manual “Sync now”
+
+INPUT
+{
+  "accountId": "...",
+  "integration": { "provider": "QUICKBOOKS", "realmId": "..." },
+  "invoice": {...},
+  "customer": {...},
+  "serviceMappings": [...]
+}
+
+OUTPUT
+{
+  "customerSync": { "status": "OK|ERROR", "externalCustomerId": "", "message": "" },
+  "invoiceSync": { "status": "OK|ERROR", "externalInvoiceId": "", "message": "" },
+  "nextAction": "SEND_INVOICE|OPEN_ISSUE|NONE"
+}
+
+SYSTEM PROMPT (prompts/accounting_sync_agent.md)
+You are AccountingSyncAgent for LawnFlow.ai syncing to QuickBooks Online.
+Rules:
+- QuickBooks is the accounting source of truth. Never overwrite paid/void states without confirmation.
+- Upsert customer first, then create/update invoice.
+- If mapping missing for any serviceCode -> return ERROR with clear message and open BillingIssue.
+- Output strict JSON only.
+
+------------------------------------------------------------
+4.3 CollectionsAgent (reminders + status)
+------------------------------------------------------------
+WHEN CALLED
+- Daily scheduler checks invoices due/overdue
+- Payment status changes pulled from QuickBooks
+- After invoice sent
+
+INPUT
+{
+  "accountId": "...",
+  "invoice": {...},
+  "customer": {...},
+  "daysPastDue": 0,
+  "history": {...},
+  "language": "EN|ES"
+}
+
+OUTPUT
+{
+  "messagePlan": {
+    "channel": "SMS|EMAIL",
+    "message": "",
+    "sendNow": true|false,
+    "scheduleAt": null
+  },
+  "escalate": true|false,
+  "escalationReason": "",
+  "nextAction": "SEND_MESSAGE|OPEN_ISSUE|NONE"
+}
+
+SYSTEM PROMPT (prompts/collections_agent.md)
+You are CollectionsAgent for LawnFlow.ai.
+Rules:
+- Be professional and friendly. Do not threaten.
+- If dispute signals or negative sentiment -> escalate to RemediationAgent.
+- Use the customer’s language preference.
+- Output strict JSON only.
+
+------------------------------------------------------------
+4.4 RemediationAgent (disputes, credits, redo)
+------------------------------------------------------------
+WHEN CALLED
+- Customer disputes invoice
+- Partial payment with complaint
+- Negative sentiment detected
+- BillingIssue of type DISPUTE / PAYMENT_FAILED
+
+INPUT
+{
+  "accountId": "...",
+  "invoice": {...},
+  "job": {...},
+  "quote": {...},
+  "customerMessages": [...],
+  "crewNotes": {...},
+  "policy": {...}
+}
+
+OUTPUT
+{
+  "rootCause": "SCOPE_MISMATCH|QUALITY_ISSUE|PRICING_SURPRISE|PAYMENT_ERROR|UNKNOWN",
+  "resolutionOptions": [
+    { "type": "CREDIT", "amount": 0, "reason": "" },
+    { "type": "REDO_VISIT", "scheduleSuggestion": {...}, "reason": "" },
+    { "type": "CALL_CUSTOMER", "reason": "" }
+  ],
+  "recommended": { "type": "", "details": {} },
+  "requiresHumanApproval": true|false,
+  "nextAction": "CREATE_CREDIT_MEMO|SCHEDULE_REVISIT|ESCALATE"
+}
+
+SYSTEM PROMPT (prompts/remediation_agent.md)
+You are RemediationAgent for LawnFlow.ai.
+Rules:
+- Preserve customer trust while protecting margin.
+- Prefer low-cost resolutions first when appropriate.
+- Any credit/refund above policy threshold requires human approval.
+- Output strict JSON only.
+
+================================================================================
+5) OTHER ACCRETIVE AGENTS (PROMPTS + INTEGRATION POINTS)
+================================================================================
+
+Create each as:
+- contract json
+- system prompt md
+- scheduler/trigger hook
+- surfaced via: Agent Activity Feed + Work Queue (exceptions)
+
+------------------------------------------------------------
+5.1 PricingOptimizationAgent
+------------------------------------------------------------
+Trigger: weekly + when quote acceptance drops
+Input: quotes sent, accepted, lost, price bands, seasonality, service type
+Output: recommended policy adjustments (within safe bounds), confidence, rollout plan
+Rules: never auto-change pricing without owner approval (for MVP)
+
+------------------------------------------------------------
+5.2 CapacityForecastingAgent
+------------------------------------------------------------
+Trigger: daily early morning + on schedule changes
+Input: crews, job durations, backlog, geography, seasonality
+Output: capacity estimate (jobs/day), accept/pause recommendations by zone
+
+------------------------------------------------------------
+5.3 CrewPerformanceAgent
+------------------------------------------------------------
+Trigger: after job completion + weekly summary
+Input: estimated vs actual duration, rework events, customer feedback
+Output: coaching insights, schedule adjustments, equipment reminders
+
+------------------------------------------------------------
+5.4 RetentionAgent
+------------------------------------------------------------
+Trigger: post-service follow-up + monthly
+Input: NPS signals, repeat frequency, churn risk features
+Output: retention outreach plan, upsell suggestions, timing
+
+------------------------------------------------------------
+5.5 ComplianceRiskAgent (stub)
+------------------------------------------------------------
+Trigger: monthly
+Input: license/insurance dates, incident logs
+Output: reminders + risk flags
+(MVP can be “reminder only”)
+
+For each of these agents, create a system prompt that:
+- uses structured inputs only
+- outputs strict JSON only
+- includes safety rules (no hallucinated facts)
+- escalates uncertain cases to owner/admin
+
+================================================================================
+6) ONBOARDING UPDATES (MUST DO)
+================================================================================
+Update the onboarding wizard/agent so billing setup is included:
+
+New onboarding step: “Billing & Accounting”
+- Ask:
+  - Do you use QuickBooks Online? (yes/no)
+  - Connect now (OAuth) or later
+  - Default invoice terms (Due on receipt / Net 7 / Net 14)
+  - Tax handling (simple: default tax rate or none)
+  - Service mapping:
+    - map quote service categories to QB items
+- If they skip connection:
+  - keep invoices in DRAFT locally
+  - show a banner: “Connect QuickBooks to send invoices & track payments.”
+
+Add help text:
+- LawnFlow orchestrates billing; QB remains accounting system.
+
+================================================================================
+7) ORCHESTRATION UPDATE (LEAD→CASH)
+================================================================================
+Update the internal orchestrator with the new stage:
+
+Existing:
+Lead → Quote → Confirm → Schedule → Assign Crew → Book Job
+
+New:
+Book Job → Complete → Invoice → Collect → Remediate (if needed)
+
+Implement orchestration steps:
+- On job complete:
+  1) InvoiceBuildAgent
+  2) if requires approval -> create Approval item + notify owner
+  3) else AccountingSyncAgent
+  4) then send invoice to customer (Comms)
+- Daily:
+  - CollectionsAgent checks overdue invoices
+- Any dispute:
+  - RemediationAgent suggests resolution
+  - if approved -> sync credit memo to QB and notify customer
+
+All exceptions create BillingIssue and appear in:
+- Work Queue
+- Approvals (if money variance)
+- Billing Issues tab
+
+================================================================================
+8) DOCS UPDATE (MUST DO)
+================================================================================
+Update docs:
+- /docs/agents.md (add new agents, contracts, triggers)
+- /docs/orchestration.md (add quote-to-cash)
+- /docs/integrations/quickbooks.md (setup + troubleshooting)
+- /docs/onboarding.md (billing step)
+
+================================================================================
+9) FILES / ROUTES TO IMPLEMENT
+================================================================================
+Backend:
+- /lib/integrations/quickbooks/*
+- /lib/billing/*
+- /lib/agents/billing/* (agent runners)
+- /app/api/integrations/quickbooks/*
+- /app/api/billing/invoices/*
+- /app/api/billing/issues/*
+- /app/api/billing/payments/*
+- scheduler jobs (wherever your cron/worker lives):
+  - nightly invoice status sync
+  - daily collections run
+
+Frontend:
+- /app/billing/page.tsx
+- /app/billing/invoices/page.tsx
+- /app/billing/issues/page.tsx
+- /app/billing/payments/page.tsx
+- /settings/integrations/quickbooks/page.tsx
+- /settings/policies/service-mapping/page.tsx (optional)
+
+================================================================================
+10) ACCEPTANCE CRITERIA
+================================================================================
+- Connect QuickBooks successfully and show connection status
+- When a job is completed:
+  - InvoiceBuildAgent creates invoice draft
+  - If within quote range -> auto-sync to QB
+  - If outside range -> Approval created, no sync until approved
+- Invoices visible in UI with status + line items
+- Billing issues visible and actionable
+- CollectionsAgent sends reminder for overdue invoice (SMS/email via existing comms)
+- RemediationAgent can create a recommended resolution and open an approval if needed
+- Onboarding includes billing setup and can be skipped safely
+- Docs updated
+
+NOW DO THIS:
+Implement Phase A1 only: DB models + Billing UI shell routes + nav entry + empty states.
+Stop after A1 and output:
+- migrations created
+- pages/routes created
+- how to test
+Then proceed to A2, A3, etc. in order.

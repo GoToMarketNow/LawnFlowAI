@@ -3616,3 +3616,219 @@ export type InsertOnboardingAnswer = z.infer<typeof insertOnboardingAnswerSchema
 // Types for Onboarding API
 export type OnboardingSessionWithAnswers = OnboardingSession & { answers: OnboardingAnswer[] };
 export type OnboardingFlowWithNodes = OnboardingFlow & { nodes?: any[] };
+
+// =============================================
+// BILLING & QUICKBOOKS INTEGRATION (Phase A1)
+// =============================================
+
+// Integration Provider enum
+export const integrationProviderEnum = z.enum(["QUICKBOOKS"]);
+export type IntegrationProvider = z.infer<typeof integrationProviderEnum>;
+
+// Integration Status enum
+export const integrationStatusEnum = z.enum(["DISCONNECTED", "CONNECTED", "ERROR"]);
+export type IntegrationStatus = z.infer<typeof integrationStatusEnum>;
+
+// Account Integrations - OAuth connections to external services
+export const accountIntegrations = pgTable("account_integrations", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  provider: text("provider").notNull(), // QUICKBOOKS
+  status: text("status").notNull().default("DISCONNECTED"), // DISCONNECTED, CONNECTED, ERROR
+  accessToken: text("access_token"), // encrypted
+  refreshToken: text("refresh_token"), // encrypted
+  tokenExpiresAt: timestamp("token_expires_at"),
+  realmId: text("realm_id"), // QuickBooks company ID
+  metadataJson: jsonb("metadata_json"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountProviderIdx: uniqueIndex("account_integration_account_provider_idx").on(table.accountId, table.provider),
+  statusIdx: index("account_integration_status_idx").on(table.status),
+}));
+
+export const insertAccountIntegrationSchema = createInsertSchema(accountIntegrations).omit({ id: true, createdAt: true, updatedAt: true });
+export type AccountIntegration = typeof accountIntegrations.$inferSelect;
+export type InsertAccountIntegration = z.infer<typeof insertAccountIntegrationSchema>;
+
+// Invoice Status enum
+export const invoiceStatusEnum = z.enum([
+  "DRAFT", "PENDING_APPROVAL", "SENT", "PAID", "PARTIAL", "OVERDUE", "VOID", "DISPUTED", "FAILED_SYNC"
+]);
+export type InvoiceStatus = z.infer<typeof invoiceStatusEnum>;
+
+// Invoices - billing documents
+export const invoices = pgTable("invoices", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  customerId: integer("customer_id"), // FK to customers when table exists
+  jobId: integer("job_id").references(() => jobs.id),
+  quoteId: integer("quote_id"), // FK to quotes when table exists
+  invoiceNumber: text("invoice_number"), // human-readable number
+  status: text("status").notNull().default("DRAFT"),
+  currency: text("currency").notNull().default("USD"),
+  subtotal: integer("subtotal").notNull().default(0), // in cents
+  tax: integer("tax").notNull().default(0), // in cents
+  total: integer("total").notNull().default(0), // in cents
+  minQuote: integer("min_quote"), // quote range lower bound (cents)
+  maxQuote: integer("max_quote"), // quote range upper bound (cents)
+  approvedQuote: integer("approved_quote"), // final approved amount (cents)
+  dueDate: timestamp("due_date"),
+  sentAt: timestamp("sent_at"),
+  paidAt: timestamp("paid_at"),
+  notes: text("notes"),
+  externalProvider: text("external_provider"), // QUICKBOOKS
+  externalInvoiceId: text("external_invoice_id"),
+  lastSyncedAt: timestamp("last_synced_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountIdx: index("invoice_account_idx").on(table.accountId),
+  statusIdx: index("invoice_status_idx").on(table.status),
+  customerIdx: index("invoice_customer_idx").on(table.customerId),
+  dueDateIdx: index("invoice_due_date_idx").on(table.dueDate),
+}));
+
+export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true, createdAt: true, updatedAt: true });
+export type Invoice = typeof invoices.$inferSelect;
+export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
+
+// Invoice Line Items
+export const invoiceLineItems = pgTable("invoice_line_items", {
+  id: serial("id").primaryKey(),
+  invoiceId: integer("invoice_id").references(() => invoices.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  quantity: integer("quantity").notNull().default(1),
+  unitPrice: integer("unit_price").notNull().default(0), // in cents
+  amount: integer("amount").notNull().default(0), // in cents (qty * unitPrice)
+  serviceCode: text("service_code"), // maps to quote engine service type
+  externalItemId: text("external_item_id"), // QuickBooks item ID
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  invoiceIdx: index("invoice_line_item_invoice_idx").on(table.invoiceId),
+}));
+
+export const insertInvoiceLineItemSchema = createInsertSchema(invoiceLineItems).omit({ id: true, createdAt: true });
+export type InvoiceLineItem = typeof invoiceLineItems.$inferSelect;
+export type InsertInvoiceLineItem = z.infer<typeof insertInvoiceLineItemSchema>;
+
+// Payment Status enum
+export const paymentStatusEnum = z.enum(["PENDING", "SUCCEEDED", "FAILED", "REFUNDED", "PARTIAL"]);
+export type PaymentStatus = z.infer<typeof paymentStatusEnum>;
+
+// Payment Method enum
+export const paymentMethodEnum = z.enum(["CASH", "CHECK", "CARD", "ACH", "UNKNOWN"]);
+export type PaymentMethod = z.infer<typeof paymentMethodEnum>;
+
+// Payments - payment records
+export const payments = pgTable("payments", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  invoiceId: integer("invoice_id").references(() => invoices.id).notNull(),
+  status: text("status").notNull().default("PENDING"),
+  amount: integer("amount").notNull().default(0), // in cents
+  method: text("method").default("UNKNOWN"),
+  externalProvider: text("external_provider"),
+  externalPaymentId: text("external_payment_id"),
+  occurredAt: timestamp("occurred_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountIdx: index("payment_account_idx").on(table.accountId),
+  invoiceIdx: index("payment_invoice_idx").on(table.invoiceId),
+  statusIdx: index("payment_status_idx").on(table.status),
+}));
+
+export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true, createdAt: true });
+export type Payment = typeof payments.$inferSelect;
+export type InsertPayment = z.infer<typeof insertPaymentSchema>;
+
+// Billing Issue Type enum
+export const billingIssueTypeEnum = z.enum([
+  "VARIANCE", "SYNC_ERROR", "DISPUTE", "OVERDUE", "PAYMENT_FAILED", "CREDIT_REQUEST", "REFUND_REQUEST"
+]);
+export type BillingIssueType = z.infer<typeof billingIssueTypeEnum>;
+
+// Billing Issue Severity enum
+export const billingIssueSeverityEnum = z.enum(["LOW", "MED", "HIGH"]);
+export type BillingIssueSeverity = z.infer<typeof billingIssueSeverityEnum>;
+
+// Billing Issue Status enum
+export const billingIssueStatusEnum = z.enum(["OPEN", "IN_PROGRESS", "RESOLVED"]);
+export type BillingIssueStatus = z.infer<typeof billingIssueStatusEnum>;
+
+// Billing Issues - exceptions requiring attention
+export const billingIssues = pgTable("billing_issues", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  type: text("type").notNull(), // VARIANCE, SYNC_ERROR, DISPUTE, etc.
+  severity: text("severity").notNull().default("MED"), // LOW, MED, HIGH
+  status: text("status").notNull().default("OPEN"), // OPEN, IN_PROGRESS, RESOLVED
+  relatedInvoiceId: integer("related_invoice_id").references(() => invoices.id),
+  relatedJobId: integer("related_job_id").references(() => jobs.id),
+  relatedCustomerId: integer("related_customer_id"), // FK to customers when table exists
+  summary: text("summary").notNull(),
+  detailsJson: jsonb("details_json"),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: integer("resolved_by").references(() => users.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountIdx: index("billing_issue_account_idx").on(table.accountId),
+  typeIdx: index("billing_issue_type_idx").on(table.type),
+  severityIdx: index("billing_issue_severity_idx").on(table.severity),
+  statusIdx: index("billing_issue_status_idx").on(table.status),
+}));
+
+export const insertBillingIssueSchema = createInsertSchema(billingIssues).omit({ id: true, createdAt: true, updatedAt: true });
+export type BillingIssue = typeof billingIssues.$inferSelect;
+export type InsertBillingIssue = z.infer<typeof insertBillingIssueSchema>;
+
+// Policy Service Mapping - maps services to QuickBooks items
+export const policyServiceMappings = pgTable("policy_service_mappings", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  serviceCode: text("service_code").notNull(), // from quote engine: mowing, cleanup, etc.
+  quickbooksItemName: text("quickbooks_item_name").notNull(),
+  quickbooksItemId: text("quickbooks_item_id"),
+  taxCode: text("tax_code"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountServiceIdx: uniqueIndex("policy_service_mapping_account_service_idx").on(table.accountId, table.serviceCode),
+}));
+
+export const insertPolicyServiceMappingSchema = createInsertSchema(policyServiceMappings).omit({ id: true, createdAt: true, updatedAt: true });
+export type PolicyServiceMapping = typeof policyServiceMappings.$inferSelect;
+export type InsertPolicyServiceMapping = z.infer<typeof insertPolicyServiceMappingSchema>;
+
+// Billing Customer - external sync tracking for customers
+export const billingCustomers = pgTable("billing_customers", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  localCustomerId: integer("local_customer_id").notNull(), // FK to customers when table exists
+  externalProvider: text("external_provider").notNull(), // QUICKBOOKS
+  externalCustomerId: text("external_customer_id"),
+  syncStatus: text("sync_status").notNull().default("OK"), // OK, NEEDS_REVIEW, ERROR
+  lastSyncedAt: timestamp("last_synced_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountIdx: index("billing_customer_account_idx").on(table.accountId),
+  localCustomerIdx: index("billing_customer_local_idx").on(table.localCustomerId),
+  providerCustomerIdx: uniqueIndex("billing_customer_provider_idx").on(table.accountId, table.externalProvider, table.localCustomerId),
+}));
+
+export const insertBillingCustomerSchema = createInsertSchema(billingCustomers).omit({ id: true, createdAt: true, updatedAt: true });
+export type BillingCustomer = typeof billingCustomers.$inferSelect;
+export type InsertBillingCustomer = z.infer<typeof insertBillingCustomerSchema>;
+
+// Billing Overview Stats (for API responses)
+export interface BillingOverview {
+  draftInvoices: number;
+  overdueInvoices: number;
+  openIssues: number;
+  lastSyncStatus: IntegrationStatus | null;
+  lastSyncAt: Date | null;
+  totalOutstanding: number; // in cents
+}
