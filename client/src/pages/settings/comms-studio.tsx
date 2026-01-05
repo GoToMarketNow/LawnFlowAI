@@ -47,6 +47,7 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { RoleGate } from "@/components/role-gate";
 
 interface CommsAutomation {
   id: number;
@@ -440,7 +441,23 @@ export default function SettingsCommsStudioPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <RoleGate 
+      allowedRoles={["OWNER", "ADMIN"]} 
+      fallback={
+        <div className="p-6 max-w-4xl mx-auto">
+          <Card>
+            <CardContent className="p-12 text-center">
+              <Radio className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-medium mb-2">Access Restricted</h3>
+              <p className="text-sm text-muted-foreground">
+                Comms Studio is only available to owners and administrators.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      }
+    >
+      <div className="space-y-6 p-6">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold flex items-center gap-2">
@@ -659,14 +676,15 @@ export default function SettingsCommsStudioPage() {
             </div>
           )}
         </TabsContent>
-      </Tabs>
+        </Tabs>
 
-      <AutomationDetailDialog
-        automation={selectedAutomation}
-        templateSets={templateSets || []}
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-      />
-    </div>
+        <AutomationDetailDialog
+          automation={selectedAutomation}
+          templateSets={templateSets || []}
+          open={detailOpen}
+          onOpenChange={setDetailOpen}
+        />
+      </div>
+    </RoleGate>
   );
 }

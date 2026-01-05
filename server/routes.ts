@@ -6324,7 +6324,10 @@ Return JSON format:
   // Get all automations
   app.get("/api/comms/automations", async (req, res) => {
     try {
-      const role = (req.user as any)?.role || "OWNER";
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role?.toUpperCase();
       if (role !== "OWNER" && role !== "ADMIN") {
         return res.status(403).json({ error: "Access denied" });
       }
@@ -6346,6 +6349,13 @@ Return JSON format:
   // Get single automation
   app.get("/api/comms/automations/:id", async (req, res) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role?.toUpperCase();
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Access denied" });
+      }
       const automation = await storage.getCommsAutomation(parseInt(req.params.id));
       if (!automation) {
         return res.status(404).json({ error: "Automation not found" });
@@ -6358,13 +6368,38 @@ Return JSON format:
   });
 
   // Update automation (toggle state, etc.)
+  const updateAutomationSchema = z.object({
+    state: z.enum(["ACTIVE", "PAUSED", "INACTIVE"]).optional(),
+    name: z.string().min(1).max(255).optional(),
+    description: z.string().max(1000).nullable().optional(),
+    channelsJson: z.array(z.enum(["SMS", "EMAIL", "IN_APP", "PUSH"])).optional(),
+    languageMode: z.enum(["AUTO", "EN", "ES"]).optional(),
+    templateSetId: z.number().int().positive().nullable().optional(),
+    filtersJson: z.record(z.unknown()).nullable().optional(),
+  }).strict();
+
   app.patch("/api/comms/automations/:id", async (req, res) => {
     try {
-      const role = (req.user as any)?.role || "OWNER";
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role?.toUpperCase();
       if (role !== "OWNER" && role !== "ADMIN") {
         return res.status(403).json({ error: "Only OWNER or ADMIN can update automations" });
       }
-      const automation = await storage.updateCommsAutomation(parseInt(req.params.id), req.body);
+      // Validate request body with Zod
+      const parseResult = updateAutomationSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid request body", 
+          details: parseResult.error.flatten().fieldErrors 
+        });
+      }
+      const updates = parseResult.data;
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "No valid fields to update" });
+      }
+      const automation = await storage.updateCommsAutomation(parseInt(req.params.id), updates);
       if (!automation) {
         return res.status(404).json({ error: "Automation not found" });
       }
@@ -6378,7 +6413,10 @@ Return JSON format:
   // Get all template sets
   app.get("/api/comms/template-sets", async (req, res) => {
     try {
-      const role = (req.user as any)?.role || "OWNER";
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role?.toUpperCase();
       if (role !== "OWNER" && role !== "ADMIN") {
         return res.status(403).json({ error: "Access denied" });
       }
@@ -6400,7 +6438,10 @@ Return JSON format:
   // Get delivery logs
   app.get("/api/comms/delivery-logs", async (req, res) => {
     try {
-      const role = (req.user as any)?.role || "OWNER";
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role?.toUpperCase();
       if (role !== "OWNER" && role !== "ADMIN") {
         return res.status(403).json({ error: "Access denied" });
       }
