@@ -745,3 +745,494 @@ export async function runBillingAgent(
     return createFallbackAction(invoice, config, escalationStep);
   }
 }
+
+// =============================================
+// QUICKBOOKS SYNC AGENT (Phase B2)
+// =============================================
+
+export interface QuickBooksConfig {
+  realmId: string;
+  accessToken: string;
+  refreshToken: string;
+  tokenExpiresAt: Date;
+  baseUrl?: string; // sandbox or production
+}
+
+export interface QBOCustomer {
+  Id?: string;
+  DisplayName: string;
+  PrimaryEmailAddr?: { Address: string };
+  PrimaryPhone?: { FreeFormNumber: string };
+  BillAddr?: {
+    Line1?: string;
+    City?: string;
+    CountrySubDivisionCode?: string;
+    PostalCode?: string;
+  };
+}
+
+export interface QBOInvoice {
+  Id?: string;
+  DocNumber?: string;
+  TxnDate: string;
+  DueDate?: string;
+  CustomerRef: { value: string; name?: string };
+  Line: QBOInvoiceLine[];
+  TotalAmt?: number;
+  Balance?: number;
+  EmailStatus?: string;
+  BillEmail?: { Address: string };
+}
+
+export interface QBOInvoiceLine {
+  DetailType: "SalesItemLineDetail" | "DescriptionOnly";
+  Amount: number;
+  Description?: string;
+  SalesItemLineDetail?: {
+    ItemRef: { value: string; name?: string };
+    Qty?: number;
+    UnitPrice?: number;
+  };
+}
+
+export interface QBOPayment {
+  Id?: string;
+  TxnDate: string;
+  TotalAmt: number;
+  CustomerRef: { value: string; name?: string };
+  Line?: {
+    Amount: number;
+    LinkedTxn: { TxnId: string; TxnType: "Invoice" }[];
+  }[];
+  PaymentMethodRef?: { value: string; name?: string };
+}
+
+export interface SyncResult {
+  success: boolean;
+  action: "created" | "updated" | "skipped" | "error";
+  localId: number;
+  externalId?: string;
+  error?: string;
+  details?: Record<string, any>;
+}
+
+// QuickBooks API client class
+export class QuickBooksClient {
+  private config: QuickBooksConfig;
+  private accountId: number;
+  private baseUrl: string;
+
+  constructor(accountId: number, config: QuickBooksConfig) {
+    this.accountId = accountId;
+    this.config = config;
+    this.baseUrl = config.baseUrl || "https://quickbooks.api.intuit.com";
+  }
+
+  private async refreshTokenIfNeeded(): Promise<void> {
+    const now = new Date();
+    const expiresAt = new Date(this.config.tokenExpiresAt);
+    
+    // Refresh if expires within 5 minutes
+    if (expiresAt.getTime() - now.getTime() < 5 * 60 * 1000) {
+      console.log("[QuickBooksClient] Token expires soon, refreshing...");
+      // In production, this would call Intuit OAuth refresh endpoint
+      // and update the token in the database
+      // For now, we'll log a warning
+      console.warn("[QuickBooksClient] Token refresh not yet implemented");
+    }
+  }
+
+  private async makeRequest<T>(
+    method: "GET" | "POST",
+    endpoint: string,
+    body?: any
+  ): Promise<T> {
+    await this.refreshTokenIfNeeded();
+
+    const url = `${this.baseUrl}/v3/company/${this.config.realmId}/${endpoint}`;
+    
+    const response = await fetch(url, {
+      method,
+      headers: {
+        "Authorization": `Bearer ${this.config.accessToken}`,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`QuickBooks API error: ${response.status} - ${errorText}`);
+    }
+
+    return response.json();
+  }
+
+  async getCustomer(id: string): Promise<QBOCustomer | null> {
+    try {
+      const result = await this.makeRequest<{ Customer: QBOCustomer }>(
+        "GET",
+        `customer/${id}`
+      );
+      return result.Customer;
+    } catch (error) {
+      console.error("[QuickBooksClient] Error fetching customer:", error);
+      return null;
+    }
+  }
+
+  async findCustomerByEmail(email: string): Promise<QBOCustomer | null> {
+    try {
+      const query = encodeURIComponent(`SELECT * FROM Customer WHERE PrimaryEmailAddr = '${email}'`);
+      const result = await this.makeRequest<{ QueryResponse: { Customer?: QBOCustomer[] } }>(
+        "GET",
+        `query?query=${query}`
+      );
+      return result.QueryResponse.Customer?.[0] || null;
+    } catch (error) {
+      console.error("[QuickBooksClient] Error finding customer:", error);
+      return null;
+    }
+  }
+
+  async createCustomer(customer: QBOCustomer): Promise<QBOCustomer> {
+    const result = await this.makeRequest<{ Customer: QBOCustomer }>(
+      "POST",
+      "customer",
+      customer
+    );
+    return result.Customer;
+  }
+
+  async createInvoice(invoice: QBOInvoice): Promise<QBOInvoice> {
+    const result = await this.makeRequest<{ Invoice: QBOInvoice }>(
+      "POST",
+      "invoice",
+      invoice
+    );
+    return result.Invoice;
+  }
+
+  async getInvoice(id: string): Promise<QBOInvoice | null> {
+    try {
+      const result = await this.makeRequest<{ Invoice: QBOInvoice }>(
+        "GET",
+        `invoice/${id}`
+      );
+      return result.Invoice;
+    } catch (error) {
+      console.error("[QuickBooksClient] Error fetching invoice:", error);
+      return null;
+    }
+  }
+
+  async getPaymentsSince(since: Date): Promise<QBOPayment[]> {
+    try {
+      const sinceStr = since.toISOString().split("T")[0];
+      const query = encodeURIComponent(
+        `SELECT * FROM Payment WHERE MetaData.LastUpdatedTime >= '${sinceStr}'`
+      );
+      const result = await this.makeRequest<{ QueryResponse: { Payment?: QBOPayment[] } }>(
+        "GET",
+        `query?query=${query}`
+      );
+      return result.QueryResponse.Payment || [];
+    } catch (error) {
+      console.error("[QuickBooksClient] Error fetching payments:", error);
+      return [];
+    }
+  }
+}
+
+// Invoice Sync Agent - syncs local invoices to QuickBooks
+export async function runInvoiceSyncAgent(
+  accountId: number,
+  invoiceId: number
+): Promise<SyncResult> {
+  try {
+    // Get local invoice
+    const invoice = await storage.getInvoice(invoiceId);
+    if (!invoice) {
+      return {
+        success: false,
+        action: "error",
+        localId: invoiceId,
+        error: "Invoice not found",
+      };
+    }
+
+    // Check if already synced
+    if (invoice.externalInvoiceId) {
+      return {
+        success: true,
+        action: "skipped",
+        localId: invoiceId,
+        externalId: invoice.externalInvoiceId,
+        details: { reason: "Already synced" },
+      };
+    }
+
+    // Get QuickBooks integration
+    const integration = await storage.getAccountIntegration(accountId, "QUICKBOOKS");
+    if (!integration || integration.status !== "CONNECTED") {
+      return {
+        success: false,
+        action: "error",
+        localId: invoiceId,
+        error: "QuickBooks not connected",
+      };
+    }
+
+    // Initialize client
+    const client = new QuickBooksClient(accountId, {
+      realmId: integration.realmId || "",
+      accessToken: integration.accessToken || "",
+      refreshToken: integration.refreshToken || "",
+      tokenExpiresAt: integration.tokenExpiresAt || new Date(),
+    });
+
+    // Get line items
+    const lineItems = await storage.getInvoiceLineItems(invoiceId);
+
+    // Build QuickBooks invoice
+    const qboInvoice: QBOInvoice = {
+      TxnDate: invoice.invoiceDate?.toISOString().split("T")[0] || new Date().toISOString().split("T")[0],
+      DueDate: invoice.dueDate?.toISOString().split("T")[0],
+      CustomerRef: { value: invoice.externalCustomerId || "1" }, // Default customer if not mapped
+      Line: lineItems.map(item => ({
+        DetailType: "SalesItemLineDetail" as const,
+        Amount: item.amount / 100, // Convert cents to dollars
+        Description: item.name,
+        SalesItemLineDetail: {
+          ItemRef: { value: item.externalItemId || "1" }, // Default item if not mapped
+          Qty: item.quantity,
+          UnitPrice: item.unitPrice / 100,
+        },
+      })),
+    };
+
+    // Create in QuickBooks
+    const created = await client.createInvoice(qboInvoice);
+
+    // Update local invoice with external ID
+    await storage.updateInvoice(invoiceId, {
+      externalInvoiceId: created.Id,
+      status: "SENT",
+    });
+
+    // Update sync timestamp
+    await storage.updateAccountIntegration(integration.id, {
+      lastSyncAt: new Date(),
+    });
+
+    return {
+      success: true,
+      action: "created",
+      localId: invoiceId,
+      externalId: created.Id,
+      details: { docNumber: created.DocNumber },
+    };
+  } catch (error: any) {
+    console.error("[InvoiceSyncAgent] Error:", error);
+    
+    // Create billing issue for sync failure
+    await storage.createBillingIssue({
+      accountId,
+      type: "SYNC_ERROR",
+      severity: "HIGH",
+      status: "OPEN",
+      relatedInvoiceId: invoiceId,
+      summary: `Failed to sync invoice to QuickBooks: ${error.message}`,
+      detailsJson: { error: error.message },
+    });
+
+    return {
+      success: false,
+      action: "error",
+      localId: invoiceId,
+      error: error.message,
+    };
+  }
+}
+
+// Payment Sync Agent - syncs payments from QuickBooks to local
+export async function runPaymentSyncAgent(
+  accountId: number,
+  since?: Date
+): Promise<SyncResult[]> {
+  const results: SyncResult[] = [];
+  
+  try {
+    // Get QuickBooks integration
+    const integration = await storage.getAccountIntegration(accountId, "QUICKBOOKS");
+    if (!integration || integration.status !== "CONNECTED") {
+      return [{
+        success: false,
+        action: "error",
+        localId: 0,
+        error: "QuickBooks not connected",
+      }];
+    }
+
+    // Initialize client
+    const client = new QuickBooksClient(accountId, {
+      realmId: integration.realmId || "",
+      accessToken: integration.accessToken || "",
+      refreshToken: integration.refreshToken || "",
+      tokenExpiresAt: integration.tokenExpiresAt || new Date(),
+    });
+
+    // Get payments since last sync or provided date
+    const syncSince = since || integration.lastSyncAt || new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const qboPayments = await client.getPaymentsSince(syncSince);
+
+    // Pre-load all local data ONCE before the loop (avoid O(N^2))
+    const existingPayments = await storage.getPayments(accountId, {});
+    const existingInvoices = await storage.getInvoices(accountId, {});
+    
+    // Build lookup maps for O(1) access (guard against undefined keys)
+    const paymentByExternalId = new Map(
+      existingPayments.filter(p => p.externalPaymentId).map(p => [p.externalPaymentId, p])
+    );
+    const invoiceByExternalId = new Map(
+      existingInvoices.filter(i => i.externalInvoiceId).map(i => [i.externalInvoiceId, i])
+    );
+    const invoiceById = new Map(
+      existingInvoices.map(i => [i.id, i])
+    );
+    
+    // Track newly created payments to update totals correctly
+    const newPayments: { invoiceId: number; amount: number }[] = [];
+
+    for (const qboPayment of qboPayments) {
+      if (!qboPayment.Id) continue;
+
+      // Check if payment already exists locally using pre-loaded map
+      const existingPayment = paymentByExternalId.get(qboPayment.Id);
+
+      if (existingPayment) {
+        results.push({
+          success: true,
+          action: "skipped",
+          localId: existingPayment.id,
+          externalId: qboPayment.Id,
+          details: { reason: "Already synced" },
+        });
+        continue;
+      }
+
+      // Find linked invoice using pre-loaded map
+      let invoiceId: number | undefined;
+      if (qboPayment.Line && qboPayment.Line.length > 0) {
+        const linkedTxn = qboPayment.Line[0].LinkedTxn?.find(t => t.TxnType === "Invoice");
+        if (linkedTxn) {
+          const matchingInvoice = invoiceByExternalId.get(linkedTxn.TxnId);
+          invoiceId = matchingInvoice?.id;
+        }
+      }
+
+      // Create local payment
+      try {
+        const paymentAmount = Math.round(qboPayment.TotalAmt * 100); // Convert dollars to cents
+        const payment = await storage.createPayment({
+          accountId,
+          invoiceId,
+          amount: paymentAmount,
+          paymentDate: new Date(qboPayment.TxnDate),
+          method: qboPayment.PaymentMethodRef?.name || "OTHER",
+          status: "COMPLETED",
+          externalPaymentId: qboPayment.Id,
+        });
+
+        // Track for invoice status update
+        if (invoiceId) {
+          newPayments.push({ invoiceId, amount: paymentAmount });
+        }
+
+        results.push({
+          success: true,
+          action: "created",
+          localId: payment.id,
+          externalId: qboPayment.Id,
+        });
+      } catch (error: any) {
+        results.push({
+          success: false,
+          action: "error",
+          localId: 0,
+          externalId: qboPayment.Id,
+          error: error.message,
+        });
+      }
+    }
+
+    // Update invoice statuses based on new payments (batch at end)
+    const invoicePaymentTotals = new Map<number, number>();
+    
+    // Sum existing completed payments per invoice
+    for (const payment of existingPayments) {
+      if (payment.invoiceId && (payment.status === "COMPLETED" || payment.status === "SUCCEEDED")) {
+        const current = invoicePaymentTotals.get(payment.invoiceId) || 0;
+        invoicePaymentTotals.set(payment.invoiceId, current + payment.amount);
+      }
+    }
+    
+    // Add newly created payments
+    for (const np of newPayments) {
+      const current = invoicePaymentTotals.get(np.invoiceId) || 0;
+      invoicePaymentTotals.set(np.invoiceId, current + np.amount);
+    }
+
+    // Update invoice statuses
+    const invoicesToUpdate = new Set(newPayments.map(np => np.invoiceId));
+    for (const invoiceId of invoicesToUpdate) {
+      const invoice = invoiceById.get(invoiceId);
+      const totalPaid = invoicePaymentTotals.get(invoiceId) || 0;
+      
+      if (invoice && totalPaid >= invoice.total) {
+        await storage.updateInvoice(invoiceId, { status: "PAID" });
+      } else if (invoice && totalPaid > 0 && totalPaid < invoice.total) {
+        await storage.updateInvoice(invoiceId, { status: "PARTIAL" });
+      }
+    }
+
+    // Update sync timestamp
+    await storage.updateAccountIntegration(integration.id, {
+      lastSyncAt: new Date(),
+    });
+
+    return results;
+  } catch (error: any) {
+    console.error("[PaymentSyncAgent] Error:", error);
+    return [{
+      success: false,
+      action: "error",
+      localId: 0,
+      error: error.message,
+    }];
+  }
+}
+
+// Batch sync all pending invoices
+export async function runBatchInvoiceSync(
+  accountId: number
+): Promise<{ total: number; synced: number; errors: number; results: SyncResult[] }> {
+  const results: SyncResult[] = [];
+  
+  // Get all invoices that haven't been synced
+  const invoices = await storage.getInvoices(accountId, {});
+  const unsyncedInvoices = invoices.filter(i => !i.externalInvoiceId && i.status !== "DRAFT");
+
+  for (const invoice of unsyncedInvoices) {
+    const result = await runInvoiceSyncAgent(accountId, invoice.id);
+    results.push(result);
+  }
+
+  return {
+    total: unsyncedInvoices.length,
+    synced: results.filter(r => r.action === "created").length,
+    errors: results.filter(r => r.action === "error").length,
+    results,
+  };
+}

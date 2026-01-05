@@ -9811,5 +9811,91 @@ Return JSON format:
     }
   });
 
+  // =====================================================
+  // QuickBooks Sync Routes (Phase B2)
+  // =====================================================
+
+  // POST /api/billing/sync/invoice/:id - Sync single invoice to QuickBooks
+  app.post("/api/billing/sync/invoice/:id", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+      const invoiceId = Number(req.params.id);
+
+      const { runInvoiceSyncAgent } = await import("./agents/billing");
+      const result = await runInvoiceSyncAgent(businessId, invoiceId);
+
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error: any) {
+      console.error("[QuickBooks] Error syncing invoice:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/billing/sync/invoices - Batch sync all pending invoices
+  app.post("/api/billing/sync/invoices", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+
+      const { runBatchInvoiceSync } = await import("./agents/billing");
+      const result = await runBatchInvoiceSync(businessId);
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[QuickBooks] Error batch syncing invoices:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/billing/sync/payments - Sync payments from QuickBooks
+  app.post("/api/billing/sync/payments", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+      const { since } = req.body;
+
+      const { runPaymentSyncAgent } = await import("./agents/billing");
+      const sinceDate = since ? new Date(since) : undefined;
+      const results = await runPaymentSyncAgent(businessId, sinceDate);
+
+      const summary = {
+        total: results.length,
+        created: results.filter(r => r.action === "created").length,
+        skipped: results.filter(r => r.action === "skipped").length,
+        errors: results.filter(r => r.action === "error").length,
+      };
+
+      res.json({ summary, results });
+    } catch (error: any) {
+      console.error("[QuickBooks] Error syncing payments:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/billing/integrations - Get integration status
+  app.get("/api/billing/integrations", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+
+      const integrations = await storage.getAccountIntegrations(businessId);
+      
+      // Don't expose tokens, just status
+      const safeIntegrations = integrations.map(i => ({
+        id: i.id,
+        provider: i.provider,
+        status: i.status,
+        lastSyncAt: i.lastSyncAt,
+        realmId: i.realmId,
+      }));
+
+      res.json(safeIntegrations);
+    } catch (error: any) {
+      console.error("[Billing] Error getting integrations:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }
