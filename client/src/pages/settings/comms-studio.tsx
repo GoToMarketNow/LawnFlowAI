@@ -458,7 +458,7 @@ export default function SettingsCommsStudioPage() {
       }
     >
       <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold flex items-center gap-2">
             <Radio className="h-6 w-6" />
@@ -468,6 +468,12 @@ export default function SettingsCommsStudioPage() {
             Manage automated communications for customers, leads, and crew
           </p>
         </div>
+        <a href="/settings/active-comms">
+          <Button variant="default" data-testid="button-active-comms">
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Active Comms
+          </Button>
+        </a>
       </div>
 
       <Tabs defaultValue="studio" className="space-y-6">

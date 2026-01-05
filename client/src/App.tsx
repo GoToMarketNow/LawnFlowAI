@@ -72,6 +72,7 @@ import SettingsUsersPage from "@/pages/settings/users";
 import SettingsTemplatesPage from "@/pages/settings/templates";
 import SettingsBillingConfigPage from "@/pages/settings/billing-config";
 import SettingsCommsStudioPage from "@/pages/settings/comms-studio";
+import SettingsActiveCommsPage from "@/pages/settings/active-comms";
 import BillingPage from "@/pages/billing";
 import BillingInvoicesPage from "@/pages/billing-invoices";
 import BillingPaymentsPage from "@/pages/billing-payments";
@@ -244,6 +245,7 @@ function AuthenticatedLayout() {
                       <Route path="/settings/templates" component={SettingsTemplatesPage} />
                       <Route path="/settings/billing-config" component={SettingsBillingConfigPage} />
                       <Route path="/settings/comms-studio" component={SettingsCommsStudioPage} />
+                      <Route path="/settings/active-comms" component={SettingsActiveCommsPage} />
                       <Route path="/agents">{() => <Redirect to="/settings/agents" />}</Route>
                       <Route path="/agents/:id" component={AgentDetailPage} />
                       <Route path="/learning">{() => <Redirect to="/settings/policies" />}</Route>

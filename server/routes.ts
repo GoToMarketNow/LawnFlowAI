@@ -10926,5 +10926,178 @@ Return JSON format:
     }
   });
 
+  // ============================================================
+  // Active Comms (Ops Triage View)
+  // ============================================================
+
+  // GET /api/ops/comms/threads - List threads with filtering
+  app.get("/api/ops/comms/threads", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const accountId = req.user.accountId;
+      
+      const filters: {
+        audienceType?: string;
+        status?: string;
+        urgencyMin?: number;
+        urgencyMax?: number;
+      } = {};
+      
+      if (req.query.audienceType && typeof req.query.audienceType === "string") {
+        filters.audienceType = req.query.audienceType;
+      }
+      if (req.query.status && typeof req.query.status === "string") {
+        filters.status = req.query.status;
+      }
+      if (req.query.urgencyMin) {
+        filters.urgencyMin = parseInt(req.query.urgencyMin as string);
+      }
+      if (req.query.urgencyMax) {
+        filters.urgencyMax = parseInt(req.query.urgencyMax as string);
+      }
+      
+      const sortBy = (req.query.sortBy as string) || "urgency";
+      const sortOrder = (req.query.sortOrder as string) === "asc" ? "asc" : "desc";
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
+      
+      const threads = await storage.getOpsCommsThreads(accountId, filters, sortBy, sortOrder as "asc" | "desc", limit, offset);
+      res.json(threads);
+    } catch (error: any) {
+      console.error("[ActiveComms] Error fetching threads:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/ops/comms/threads/:id - Get single thread with action items
+  app.get("/api/ops/comms/threads/:id", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const accountId = req.user.accountId;
+      const threadId = parseInt(req.params.id);
+      
+      const thread = await storage.getOpsCommsThread(threadId);
+      if (!thread || thread.accountId !== accountId) {
+        return res.status(404).json({ error: "Thread not found" });
+      }
+      
+      const actionItems = await storage.getOpsCommsActionItems(accountId, { threadId, state: "OPEN" });
+      
+      res.json({ thread, actionItems });
+    } catch (error: any) {
+      console.error("[ActiveComms] Error fetching thread:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/ops/comms/action-items - List action items with filtering
+  app.get("/api/ops/comms/action-items", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const accountId = req.user.accountId;
+      
+      const filters: {
+        threadId?: number;
+        state?: string;
+        type?: string;
+        assignedToUserId?: number;
+      } = {};
+      
+      if (req.query.threadId) {
+        filters.threadId = parseInt(req.query.threadId as string);
+      }
+      if (req.query.state && typeof req.query.state === "string") {
+        filters.state = req.query.state;
+      }
+      if (req.query.type && typeof req.query.type === "string") {
+        filters.type = req.query.type;
+      }
+      if (req.query.assignedToUserId) {
+        filters.assignedToUserId = parseInt(req.query.assignedToUserId as string);
+      }
+      
+      const items = await storage.getOpsCommsActionItems(accountId, filters);
+      res.json(items);
+    } catch (error: any) {
+      console.error("[ActiveComms] Error fetching action items:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PATCH /api/ops/comms/action-items/:id - Update action item (complete, dismiss, assign)
+  app.patch("/api/ops/comms/action-items/:id", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const accountId = req.user.accountId;
+      const itemId = parseInt(req.params.id);
+      
+      const item = await storage.getOpsCommsActionItem(itemId);
+      if (!item || item.accountId !== accountId) {
+        return res.status(404).json({ error: "Action item not found" });
+      }
+      
+      const updateSchema = z.object({
+        state: z.enum(["OPEN", "DONE", "DISMISSED"]).optional(),
+        assignedToUserId: z.number().nullable().optional(),
+      });
+      
+      const validated = updateSchema.safeParse(req.body);
+      if (!validated.success) {
+        return res.status(400).json({ error: "Invalid request body", details: validated.error.flatten() });
+      }
+      
+      const updates: any = {};
+      if (validated.data.state !== undefined) {
+        updates.state = validated.data.state;
+        if (validated.data.state === "DONE") {
+          updates.completedAt = new Date();
+          updates.completedByUserId = req.user.id;
+        }
+      }
+      if (validated.data.assignedToUserId !== undefined) {
+        updates.assignedToUserId = validated.data.assignedToUserId;
+      }
+      
+      const updated = await storage.updateOpsCommsActionItem(itemId, updates);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("[ActiveComms] Error updating action item:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/ops/comms/threads/:id/recompute-urgency - Recompute thread urgency
+  app.post("/api/ops/comms/threads/:id/recompute-urgency", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const accountId = req.user.accountId;
+      const threadId = parseInt(req.params.id);
+      
+      const thread = await storage.getOpsCommsThread(threadId);
+      if (!thread || thread.accountId !== accountId) {
+        return res.status(404).json({ error: "Thread not found" });
+      }
+      
+      const { recomputeThreadUrgency } = await import("./lib/comms/urgency-compute");
+      const urgencyUpdate = recomputeThreadUrgency(thread);
+      
+      const updated = await storage.updateOpsCommsThreadUrgency(threadId, urgencyUpdate);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("[ActiveComms] Error recomputing urgency:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }
