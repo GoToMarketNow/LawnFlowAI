@@ -10422,5 +10422,119 @@ Return JSON format:
     }
   });
 
+  // ============================================================
+  // Customer Service Preferences
+  // ============================================================
+
+  // GET /api/customers/:customerId/preferences - Get all preferences for a customer
+  app.get("/api/customers/:customerId/preferences", async (req, res) => {
+    try {
+      const accountId = 1; // TODO: Get from session
+      const customerId = parseInt(req.params.customerId);
+      const serviceId = req.query.serviceId ? parseInt(req.query.serviceId as string) : undefined;
+      const preferences = await storage.getCustomerServicePreferences(accountId, customerId, serviceId);
+      res.json(preferences);
+    } catch (error: any) {
+      console.error("[CustomerPreferences] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/customers/:customerId/preferences - Create or update preferences
+  app.post("/api/customers/:customerId/preferences", async (req, res) => {
+    try {
+      const accountId = 1; // TODO: Get from session
+      const customerId = parseInt(req.params.customerId);
+      const preference = await storage.upsertCustomerServicePreference({
+        ...req.body,
+        accountId,
+        customerId,
+      });
+      res.status(201).json(preference);
+    } catch (error: any) {
+      console.error("[CustomerPreferences] Error creating:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PATCH /api/customers/:customerId/preferences/:id - Update preference
+  app.patch("/api/customers/:customerId/preferences/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const preference = await storage.updateCustomerServicePreference(id, req.body);
+      if (!preference) {
+        return res.status(404).json({ error: "Preference not found" });
+      }
+      res.json(preference);
+    } catch (error: any) {
+      console.error("[CustomerPreferences] Error updating:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/customers/:customerId/preferences/:id - Delete preference
+  app.delete("/api/customers/:customerId/preferences/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteCustomerServicePreference(id);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("[CustomerPreferences] Error deleting:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================================
+  // Preference Agent
+  // ============================================================
+
+  // POST /api/agents/preference/learn - Learn preferences from interaction history
+  app.post("/api/agents/preference/learn", async (req, res) => {
+    try {
+      const { runPreferenceAgentLearn } = await import("./agents/preference");
+      const accountId = 1; // TODO: Get from session
+      const result = await runPreferenceAgentLearn({
+        accountId,
+        customerId: req.body.customerId,
+        interactions: req.body.interactions,
+      });
+      res.json(result);
+    } catch (error: any) {
+      console.error("[PreferenceAgent:Learn] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/agents/preference/apply - Apply preferences to a request
+  app.post("/api/agents/preference/apply", async (req, res) => {
+    try {
+      const { runPreferenceAgentApply } = await import("./agents/preference");
+      const accountId = 1; // TODO: Get from session
+      const result = await runPreferenceAgentApply({
+        accountId,
+        customerId: req.body.customerId,
+        request: req.body.request,
+      });
+      res.json(result);
+    } catch (error: any) {
+      console.error("[PreferenceAgent:Apply] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/agents/preference/summary/:customerId - Get preference summary
+  app.get("/api/agents/preference/summary/:customerId", async (req, res) => {
+    try {
+      const { getPreferenceSummary } = await import("./agents/preference");
+      const accountId = 1; // TODO: Get from session
+      const customerId = parseInt(req.params.customerId);
+      const summary = await getPreferenceSummary(accountId, customerId);
+      res.json(summary);
+    } catch (error: any) {
+      console.error("[PreferenceAgent:Summary] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }
