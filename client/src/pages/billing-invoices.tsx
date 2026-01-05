@@ -217,7 +217,7 @@ export default function BillingInvoicesPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
-    queryKey: ['/api/billing/invoices', { status: statusFilter !== 'all' ? statusFilter : undefined }],
+    queryKey: ['/api/billing/invoices-list', { status: statusFilter !== 'all' ? statusFilter : undefined }],
   });
 
   const filteredInvoices = invoices.filter(inv => {

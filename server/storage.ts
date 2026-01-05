@@ -165,6 +165,25 @@ import {
   type OnboardingAnswer,
   type InsertOnboardingAnswer,
   type OnboardingSessionWithAnswers,
+  accountIntegrations,
+  invoices,
+  invoiceLineItems,
+  payments,
+  billingIssues,
+  billingCustomers,
+  type AccountIntegration,
+  type InsertAccountIntegration,
+  type Invoice,
+  type InsertInvoice,
+  type InvoiceLineItem,
+  type InsertInvoiceLineItem,
+  type Payment,
+  type InsertPayment,
+  type BillingIssue,
+  type InsertBillingIssue,
+  type BillingCustomer,
+  type InsertBillingCustomer,
+  type BillingOverview,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, inArray, sql, and, gte, lte } from "drizzle-orm";
@@ -475,6 +494,46 @@ export interface IStorage {
   createPushSubscription(sub: InsertPushSubscription): Promise<PushSubscription>;
   deletePushSubscription(endpoint: string): Promise<boolean>;
   updatePushSubscriptionLastUsed(endpoint: string): Promise<void>;
+  
+  // Billing - Account Integrations
+  getAccountIntegration(businessId: number, provider: string): Promise<AccountIntegration | undefined>;
+  getAccountIntegrations(businessId: number): Promise<AccountIntegration[]>;
+  createAccountIntegration(integration: InsertAccountIntegration): Promise<AccountIntegration>;
+  updateAccountIntegration(id: number, updates: Partial<InsertAccountIntegration>): Promise<AccountIntegration>;
+  
+  // Billing - Invoices
+  getInvoices(businessId: number, options?: { status?: string; limit?: number }): Promise<Invoice[]>;
+  getInvoice(id: number): Promise<Invoice | undefined>;
+  getInvoiceByExternalId(externalId: string): Promise<Invoice | undefined>;
+  createInvoice(invoice: InsertInvoice): Promise<Invoice>;
+  updateInvoice(id: number, updates: Partial<InsertInvoice>): Promise<Invoice>;
+  
+  // Billing - Invoice Line Items
+  getInvoiceLineItems(invoiceId: number): Promise<InvoiceLineItem[]>;
+  createInvoiceLineItem(item: InsertInvoiceLineItem): Promise<InvoiceLineItem>;
+  
+  // Billing - Payments
+  getPayments(businessId: number, options?: { status?: string; limit?: number }): Promise<Payment[]>;
+  getPayment(id: number): Promise<Payment | undefined>;
+  getPaymentsByInvoice(invoiceId: number): Promise<Payment[]>;
+  createPayment(payment: InsertPayment): Promise<Payment>;
+  updatePayment(id: number, updates: Partial<InsertPayment>): Promise<Payment>;
+  
+  // Billing - Issues
+  getBillingIssues(businessId: number, options?: { status?: string; limit?: number }): Promise<BillingIssue[]>;
+  getBillingIssue(id: number): Promise<BillingIssue | undefined>;
+  createBillingIssue(issue: InsertBillingIssue): Promise<BillingIssue>;
+  updateBillingIssue(id: number, updates: Partial<InsertBillingIssue>): Promise<BillingIssue>;
+  
+  // Billing - Customers
+  getBillingCustomers(businessId: number): Promise<BillingCustomer[]>;
+  getBillingCustomer(id: number): Promise<BillingCustomer | undefined>;
+  getBillingCustomerByExternalId(externalId: string): Promise<BillingCustomer | undefined>;
+  createBillingCustomer(customer: InsertBillingCustomer): Promise<BillingCustomer>;
+  updateBillingCustomer(id: number, updates: Partial<InsertBillingCustomer>): Promise<BillingCustomer>;
+  
+  // Billing - Overview (computed)
+  getBillingOverview(businessId: number): Promise<BillingOverview>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2691,6 +2750,319 @@ export class DatabaseStorage implements IStorage {
     if (!session) return null;
     const answers = await this.getOnboardingAnswers(sessionId);
     return { ...session, answers };
+  }
+
+  // Billing - Account Integrations
+  async getAccountIntegration(businessId: number, provider: string): Promise<AccountIntegration | undefined> {
+    const [integration] = await db
+      .select()
+      .from(accountIntegrations)
+      .where(and(
+        eq(accountIntegrations.accountId, businessId),
+        eq(accountIntegrations.provider, provider)
+      ))
+      .limit(1);
+    return integration;
+  }
+
+  async getAccountIntegrations(businessId: number): Promise<AccountIntegration[]> {
+    return db
+      .select()
+      .from(accountIntegrations)
+      .where(eq(accountIntegrations.accountId, businessId))
+      .orderBy(desc(accountIntegrations.createdAt));
+  }
+
+  async createAccountIntegration(integration: InsertAccountIntegration): Promise<AccountIntegration> {
+    const [created] = await db
+      .insert(accountIntegrations)
+      .values(integration)
+      .returning();
+    return created;
+  }
+
+  async updateAccountIntegration(id: number, updates: Partial<InsertAccountIntegration>): Promise<AccountIntegration> {
+    const [updated] = await db
+      .update(accountIntegrations)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(accountIntegrations.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Billing - Invoices
+  async getInvoices(businessId: number, options?: { status?: string; limit?: number }): Promise<Invoice[]> {
+    const conditions = [eq(invoices.accountId, businessId)];
+    if (options?.status) {
+      conditions.push(eq(invoices.status, options.status));
+    }
+    
+    return db
+      .select()
+      .from(invoices)
+      .where(and(...conditions))
+      .orderBy(desc(invoices.createdAt))
+      .limit(options?.limit ?? 100);
+  }
+
+  async getInvoice(id: number): Promise<Invoice | undefined> {
+    const [invoice] = await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.id, id))
+      .limit(1);
+    return invoice;
+  }
+
+  async getInvoiceByExternalId(externalId: string): Promise<Invoice | undefined> {
+    const [invoice] = await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.externalInvoiceId, externalId))
+      .limit(1);
+    return invoice;
+  }
+
+  async createInvoice(invoice: InsertInvoice): Promise<Invoice> {
+    const [created] = await db
+      .insert(invoices)
+      .values(invoice)
+      .returning();
+    return created;
+  }
+
+  async updateInvoice(id: number, updates: Partial<InsertInvoice>): Promise<Invoice> {
+    const [updated] = await db
+      .update(invoices)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(invoices.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Billing - Invoice Line Items
+  async getInvoiceLineItems(invoiceId: number): Promise<InvoiceLineItem[]> {
+    return db
+      .select()
+      .from(invoiceLineItems)
+      .where(eq(invoiceLineItems.invoiceId, invoiceId))
+      .orderBy(asc(invoiceLineItems.createdAt));
+  }
+
+  async createInvoiceLineItem(item: InsertInvoiceLineItem): Promise<InvoiceLineItem> {
+    const [created] = await db
+      .insert(invoiceLineItems)
+      .values(item)
+      .returning();
+    return created;
+  }
+
+  // Billing - Payments
+  async getPayments(businessId: number, options?: { status?: string; limit?: number }): Promise<Payment[]> {
+    const conditions = [eq(payments.accountId, businessId)];
+    if (options?.status) {
+      conditions.push(eq(payments.status, options.status));
+    }
+    
+    return db
+      .select()
+      .from(payments)
+      .where(and(...conditions))
+      .orderBy(desc(payments.createdAt))
+      .limit(options?.limit ?? 100);
+  }
+
+  async getPayment(id: number): Promise<Payment | undefined> {
+    const [payment] = await db
+      .select()
+      .from(payments)
+      .where(eq(payments.id, id))
+      .limit(1);
+    return payment;
+  }
+
+  async getPaymentsByInvoice(invoiceId: number): Promise<Payment[]> {
+    return db
+      .select()
+      .from(payments)
+      .where(eq(payments.invoiceId, invoiceId))
+      .orderBy(desc(payments.createdAt));
+  }
+
+  async createPayment(payment: InsertPayment): Promise<Payment> {
+    const [created] = await db
+      .insert(payments)
+      .values(payment)
+      .returning();
+    return created;
+  }
+
+  async updatePayment(id: number, updates: Partial<InsertPayment>): Promise<Payment> {
+    const [updated] = await db
+      .update(payments)
+      .set(updates)
+      .where(eq(payments.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Billing - Issues
+  async getBillingIssues(businessId: number, options?: { status?: string; limit?: number }): Promise<BillingIssue[]> {
+    const conditions = [eq(billingIssues.accountId, businessId)];
+    if (options?.status) {
+      conditions.push(eq(billingIssues.status, options.status));
+    }
+    
+    return db
+      .select()
+      .from(billingIssues)
+      .where(and(...conditions))
+      .orderBy(desc(billingIssues.createdAt))
+      .limit(options?.limit ?? 100);
+  }
+
+  async getBillingIssue(id: number): Promise<BillingIssue | undefined> {
+    const [issue] = await db
+      .select()
+      .from(billingIssues)
+      .where(eq(billingIssues.id, id))
+      .limit(1);
+    return issue;
+  }
+
+  async createBillingIssue(issue: InsertBillingIssue): Promise<BillingIssue> {
+    const [created] = await db
+      .insert(billingIssues)
+      .values(issue)
+      .returning();
+    return created;
+  }
+
+  async updateBillingIssue(id: number, updates: Partial<InsertBillingIssue>): Promise<BillingIssue> {
+    const [updated] = await db
+      .update(billingIssues)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(billingIssues.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Billing - Customers
+  async getBillingCustomers(businessId: number): Promise<BillingCustomer[]> {
+    return db
+      .select()
+      .from(billingCustomers)
+      .where(eq(billingCustomers.accountId, businessId))
+      .orderBy(desc(billingCustomers.createdAt));
+  }
+
+  async getBillingCustomer(id: number): Promise<BillingCustomer | undefined> {
+    const [customer] = await db
+      .select()
+      .from(billingCustomers)
+      .where(eq(billingCustomers.id, id))
+      .limit(1);
+    return customer;
+  }
+
+  async getBillingCustomerByExternalId(externalId: string): Promise<BillingCustomer | undefined> {
+    const [customer] = await db
+      .select()
+      .from(billingCustomers)
+      .where(eq(billingCustomers.externalCustomerId, externalId))
+      .limit(1);
+    return customer;
+  }
+
+  async createBillingCustomer(customer: InsertBillingCustomer): Promise<BillingCustomer> {
+    const [created] = await db
+      .insert(billingCustomers)
+      .values(customer)
+      .returning();
+    return created;
+  }
+
+  async updateBillingCustomer(id: number, updates: Partial<InsertBillingCustomer>): Promise<BillingCustomer> {
+    const [updated] = await db
+      .update(billingCustomers)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(billingCustomers.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Billing - Overview (computed from real data)
+  async getBillingOverview(businessId: number): Promise<BillingOverview> {
+    // Get integration status
+    const integration = await this.getAccountIntegration(businessId, 'QUICKBOOKS');
+    
+    // Count invoices by status
+    const draftInvoices = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(invoices)
+      .where(and(
+        eq(invoices.accountId, businessId),
+        eq(invoices.status, 'DRAFT')
+      ));
+    
+    const overdueInvoices = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(invoices)
+      .where(and(
+        eq(invoices.accountId, businessId),
+        eq(invoices.status, 'OVERDUE')
+      ));
+    
+    // Count pending payments
+    const pendingPaymentsCount = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(payments)
+      .where(and(
+        eq(payments.accountId, businessId),
+        eq(payments.status, 'PENDING')
+      ));
+    
+    // Count open issues
+    const openIssues = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(billingIssues)
+      .where(and(
+        eq(billingIssues.accountId, businessId),
+        eq(billingIssues.status, 'OPEN')
+      ));
+    
+    // Calculate total outstanding (invoice totals minus completed/received payments)
+    // Get total of unpaid invoices
+    const invoiceTotals = await db
+      .select({ total: sql<number>`coalesce(sum(total), 0)` })
+      .from(invoices)
+      .where(and(
+        eq(invoices.accountId, businessId),
+        inArray(invoices.status, ['SENT', 'OVERDUE', 'PARTIAL'])
+      ));
+    
+    // Get total of completed payments for those invoices
+    const completedPayments = await db
+      .select({ total: sql<number>`coalesce(sum(${payments.amount}), 0)` })
+      .from(payments)
+      .innerJoin(invoices, eq(payments.invoiceId, invoices.id))
+      .where(and(
+        eq(payments.accountId, businessId),
+        inArray(payments.status, ['COMPLETED', 'RECEIVED']),
+        inArray(invoices.status, ['SENT', 'OVERDUE', 'PARTIAL'])
+      ));
+    
+    const totalOutstanding = Number(invoiceTotals[0]?.total ?? 0) - Number(completedPayments[0]?.total ?? 0);
+
+    return {
+      lastSyncStatus: integration?.status as any ?? null,
+      lastSyncAt: integration?.lastSyncAt ?? null,
+      totalOutstanding: Math.max(0, totalOutstanding), // Never negative
+      draftInvoices: Number(draftInvoices[0]?.count ?? 0),
+      overdueInvoices: Number(overdueInvoices[0]?.count ?? 0),
+      pendingPayments: Number(pendingPaymentsCount[0]?.count ?? 0),
+      openIssues: Number(openIssues[0]?.count ?? 0),
+    };
   }
 }
 

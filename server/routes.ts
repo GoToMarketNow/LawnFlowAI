@@ -9483,33 +9483,31 @@ Return JSON format:
   });
 
   // =====================================================
-  // Billing API Routes (Phase A1 - Stubs)
+  // Billing API Routes (Phase A2 - Real Data)
   // =====================================================
 
   // GET /api/billing/overview - Billing dashboard overview
   app.get("/api/billing/overview", async (req, res) => {
     try {
-      // TODO: Implement actual billing overview from database
-      res.json({
-        draftInvoices: 0,
-        overdueInvoices: 0,
-        openIssues: 0,
-        totalOutstanding: 0,
-        lastSyncStatus: null,
-        lastSyncAt: null,
-      });
+      const businessId = 1; // TODO: Get from session
+      const overview = await storage.getBillingOverview(businessId);
+      res.json(overview);
     } catch (error: any) {
       console.error("[Billing] Error fetching overview:", error);
       res.status(500).json({ error: error.message });
     }
   });
 
-  // GET /api/billing/invoices - List invoices
-  app.get("/api/billing/invoices", async (req, res) => {
+  // GET /api/billing/invoices - List invoices (skip duplicates from old billing routes)
+  app.get("/api/billing/invoices-list", async (req, res) => {
     try {
-      const { status, customerId, limit = 50 } = req.query;
-      // TODO: Implement actual invoice listing from database
-      res.json([]);
+      const businessId = 1; // TODO: Get from session
+      const { status, limit = 50 } = req.query;
+      const invoicesList = await storage.getInvoices(businessId, {
+        status: status as string | undefined,
+        limit: Number(limit),
+      });
+      res.json(invoicesList);
     } catch (error: any) {
       console.error("[Billing] Error fetching invoices:", error);
       res.status(500).json({ error: error.message });
@@ -9520,8 +9518,13 @@ Return JSON format:
   app.get("/api/billing/invoices/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      // TODO: Implement actual invoice fetch from database
-      res.status(404).json({ error: "Invoice not found" });
+      const invoice = await storage.getInvoice(Number(id));
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      // Get line items for the invoice
+      const lineItems = await storage.getInvoiceLineItems(Number(id));
+      res.json({ ...invoice, lineItems });
     } catch (error: any) {
       console.error("[Billing] Error fetching invoice:", error);
       res.status(500).json({ error: error.message });
@@ -9532,8 +9535,15 @@ Return JSON format:
   app.patch("/api/billing/invoices/:id/approve", async (req, res) => {
     try {
       const { id } = req.params;
-      // TODO: Implement invoice approval logic
-      res.json({ success: true, message: "Invoice approved" });
+      const invoice = await storage.getInvoice(Number(id));
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      if (invoice.status !== "DRAFT" && invoice.status !== "PENDING_APPROVAL") {
+        return res.status(400).json({ error: "Invoice is not in draft or pending status" });
+      }
+      const updated = await storage.updateInvoice(Number(id), { status: "SENT" });
+      res.json({ success: true, message: "Invoice approved", invoice: updated });
     } catch (error: any) {
       console.error("[Billing] Error approving invoice:", error);
       res.status(500).json({ error: error.message });
@@ -9544,8 +9554,15 @@ Return JSON format:
   app.patch("/api/billing/invoices/:id/send", async (req, res) => {
     try {
       const { id } = req.params;
-      // TODO: Implement invoice send logic
-      res.json({ success: true, message: "Invoice sent" });
+      const invoice = await storage.getInvoice(Number(id));
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      const updated = await storage.updateInvoice(Number(id), { 
+        status: "SENT",
+        sentAt: new Date(),
+      });
+      res.json({ success: true, message: "Invoice sent", invoice: updated });
     } catch (error: any) {
       console.error("[Billing] Error sending invoice:", error);
       res.status(500).json({ error: error.message });
@@ -9555,9 +9572,13 @@ Return JSON format:
   // GET /api/billing/payments - List payments
   app.get("/api/billing/payments", async (req, res) => {
     try {
-      const { status, invoiceId, limit = 50 } = req.query;
-      // TODO: Implement actual payment listing from database
-      res.json([]);
+      const businessId = 1; // TODO: Get from session
+      const { status, limit = 50 } = req.query;
+      const paymentsList = await storage.getPayments(businessId, {
+        status: status as string | undefined,
+        limit: Number(limit),
+      });
+      res.json(paymentsList);
     } catch (error: any) {
       console.error("[Billing] Error fetching payments:", error);
       res.status(500).json({ error: error.message });
@@ -9567,9 +9588,20 @@ Return JSON format:
   // POST /api/billing/payments - Record a payment
   app.post("/api/billing/payments", async (req, res) => {
     try {
+      const businessId = 1; // TODO: Get from session
       const { invoiceId, amount, method, occurredAt } = req.body;
-      // TODO: Implement payment recording logic
-      res.status(201).json({ success: true, message: "Payment recorded" });
+      if (!invoiceId || !amount) {
+        return res.status(400).json({ error: "invoiceId and amount are required" });
+      }
+      const payment = await storage.createPayment({
+        accountId: businessId,
+        invoiceId: Number(invoiceId),
+        amount: Number(amount),
+        method: method || "UNKNOWN",
+        status: "COMPLETED",
+        occurredAt: occurredAt ? new Date(occurredAt) : new Date(),
+      });
+      res.status(201).json(payment);
     } catch (error: any) {
       console.error("[Billing] Error recording payment:", error);
       res.status(500).json({ error: error.message });
@@ -9579,9 +9611,13 @@ Return JSON format:
   // GET /api/billing/issues - List billing issues
   app.get("/api/billing/issues", async (req, res) => {
     try {
-      const { status = "OPEN", severity, limit = 50 } = req.query;
-      // TODO: Implement actual billing issues listing from database
-      res.json([]);
+      const businessId = 1; // TODO: Get from session
+      const { status = "OPEN", limit = 50 } = req.query;
+      const issuesList = await storage.getBillingIssues(businessId, {
+        status: status as string | undefined,
+        limit: Number(limit),
+      });
+      res.json(issuesList);
     } catch (error: any) {
       console.error("[Billing] Error fetching issues:", error);
       res.status(500).json({ error: error.message });
@@ -9592,8 +9628,11 @@ Return JSON format:
   app.get("/api/billing/issues/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      // TODO: Implement actual billing issue fetch from database
-      res.status(404).json({ error: "Issue not found" });
+      const issue = await storage.getBillingIssue(Number(id));
+      if (!issue) {
+        return res.status(404).json({ error: "Issue not found" });
+      }
+      res.json(issue);
     } catch (error: any) {
       console.error("[Billing] Error fetching issue:", error);
       res.status(500).json({ error: error.message });
@@ -9605,8 +9644,15 @@ Return JSON format:
     try {
       const { id } = req.params;
       const { resolution } = req.body;
-      // TODO: Implement issue resolution logic
-      res.json({ success: true, message: "Issue resolved" });
+      const issue = await storage.getBillingIssue(Number(id));
+      if (!issue) {
+        return res.status(404).json({ error: "Issue not found" });
+      }
+      const updated = await storage.updateBillingIssue(Number(id), {
+        status: "RESOLVED",
+        resolvedAt: new Date(),
+      });
+      res.json({ success: true, message: "Issue resolved", issue: updated });
     } catch (error: any) {
       console.error("[Billing] Error resolving issue:", error);
       res.status(500).json({ error: error.message });

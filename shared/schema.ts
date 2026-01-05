@@ -3639,6 +3639,7 @@ export const accountIntegrations = pgTable("account_integrations", {
   refreshToken: text("refresh_token"), // encrypted
   tokenExpiresAt: timestamp("token_expires_at"),
   realmId: text("realm_id"), // QuickBooks company ID
+  lastSyncAt: timestamp("last_sync_at"), // last successful sync time
   metadataJson: jsonb("metadata_json"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
@@ -3827,6 +3828,7 @@ export type InsertBillingCustomer = z.infer<typeof insertBillingCustomerSchema>;
 export interface BillingOverview {
   draftInvoices: number;
   overdueInvoices: number;
+  pendingPayments: number;
   openIssues: number;
   lastSyncStatus: IntegrationStatus | null;
   lastSyncAt: Date | null;
