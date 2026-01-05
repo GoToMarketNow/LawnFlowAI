@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -7,6 +8,36 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { 
   Plus, 
   Settings2, 
@@ -20,8 +51,37 @@ import {
   Package,
   ChevronRight,
   Tag,
+  Loader2,
 } from "lucide-react";
-import type { Service, PromotionRule } from "@shared/schema";
+import type { Service, PromotionRule, InsertService } from "@shared/schema";
+
+const serviceFormSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  category: z.enum(["LAWN", "TREE", "SNOW", "CLEANUP", "CUSTOM"]),
+  description: z.string().optional(),
+  isActive: z.boolean().default(true),
+  serviceType: z.enum(["RECURRING", "ONE_TIME", "SEASONAL", "EVENT_BASED"]),
+  requiresManualQuote: z.boolean().default(false),
+  defaultDurationMinutes: z.coerce.number().min(0).optional().nullable(),
+  requiresLeadTime: z.boolean().default(false),
+  defaultLeadTimeDays: z.coerce.number().min(0).optional().nullable(),
+  includesMaterials: z.boolean().default(false),
+  requiresQualifiedCrew: z.boolean().default(false),
+});
+
+type ServiceFormValues = z.infer<typeof serviceFormSchema>;
+
+const promotionFormSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  appliesToCategory: z.string().optional().nullable(),
+  condition: z.enum(["FIRST_TIME_CUSTOMER", "RECURRING_COMMITMENT", "BUNDLE", "SEASONAL"]),
+  discountType: z.enum(["PERCENT", "FLAT"]),
+  discountValue: z.coerce.number(),
+  requiresFrequency: z.string().optional().nullable(),
+  isActive: z.boolean().default(true),
+});
+
+type PromotionFormValues = z.infer<typeof promotionFormSchema>;
 
 const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   LAWN: Leaf,
@@ -43,7 +103,629 @@ function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(0)}`;
 }
 
-function ServiceCard({ service }: { service: Service }) {
+function ServiceFormDialog({
+  open,
+  onOpenChange,
+  service,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  service?: Service | null;
+}) {
+  const { toast } = useToast();
+  const isEditing = !!service;
+
+  const form = useForm<ServiceFormValues>({
+    resolver: zodResolver(serviceFormSchema),
+    defaultValues: {
+      name: "",
+      category: "LAWN",
+      description: "",
+      isActive: true,
+      serviceType: "RECURRING",
+      requiresManualQuote: false,
+      defaultDurationMinutes: null,
+      requiresLeadTime: false,
+      defaultLeadTimeDays: null,
+      includesMaterials: false,
+      requiresQualifiedCrew: false,
+    },
+  });
+
+  useEffect(() => {
+    if (service) {
+      form.reset({
+        name: service.name || "",
+        category: (service.category as ServiceFormValues["category"]) || "LAWN",
+        description: service.description || "",
+        isActive: service.isActive ?? true,
+        serviceType: (service.serviceType as ServiceFormValues["serviceType"]) || "RECURRING",
+        requiresManualQuote: service.requiresManualQuote ?? false,
+        defaultDurationMinutes: service.defaultDurationMinutes ?? null,
+        requiresLeadTime: service.requiresLeadTime ?? false,
+        defaultLeadTimeDays: service.defaultLeadTimeDays ?? null,
+        includesMaterials: service.includesMaterials ?? false,
+        requiresQualifiedCrew: service.requiresQualifiedCrew ?? false,
+      });
+    } else {
+      form.reset({
+        name: "",
+        category: "LAWN",
+        description: "",
+        isActive: true,
+        serviceType: "RECURRING",
+        requiresManualQuote: false,
+        defaultDurationMinutes: null,
+        requiresLeadTime: false,
+        defaultLeadTimeDays: null,
+        includesMaterials: false,
+        requiresQualifiedCrew: false,
+      });
+    }
+  }, [service, form]);
+
+  const createMutation = useMutation({
+    mutationFn: (data: ServiceFormValues) =>
+      apiRequest("POST", "/api/services", { ...data, accountId: 1 }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      toast({ title: "Service created", description: "New service added to catalog" });
+      onOpenChange(false);
+      form.reset();
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to create service", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (data: ServiceFormValues) =>
+      apiRequest("PATCH", `/api/services/${service?.id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      toast({ title: "Service updated", description: "Changes saved successfully" });
+      onOpenChange(false);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update service", variant: "destructive" });
+    },
+  });
+
+  const onSubmit = (data: ServiceFormValues) => {
+    if (isEditing) {
+      updateMutation.mutate(data);
+    } else {
+      createMutation.mutate(data);
+    }
+  };
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isEditing ? "Edit Service" : "Add Service"}</DialogTitle>
+          <DialogDescription>
+            {isEditing
+              ? "Update service details and settings"
+              : "Create a new service for your catalog"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Service Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Weekly Lawn Mowing" {...field} data-testid="input-service-name" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-category">
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="LAWN">Lawn Care</SelectItem>
+                        <SelectItem value="TREE">Tree Service</SelectItem>
+                        <SelectItem value="SNOW">Snow Removal</SelectItem>
+                        <SelectItem value="CLEANUP">Cleanup</SelectItem>
+                        <SelectItem value="CUSTOM">Custom</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="serviceType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Service Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-service-type">
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="RECURRING">Recurring</SelectItem>
+                        <SelectItem value="ONE_TIME">One-Time</SelectItem>
+                        <SelectItem value="SEASONAL">Seasonal</SelectItem>
+                        <SelectItem value="EVENT_BASED">Event-Based</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Describe what this service includes..."
+                      className="resize-none"
+                      {...field}
+                      data-testid="textarea-description"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="defaultDurationMinutes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Duration (minutes)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="60"
+                        {...field}
+                        value={field.value ?? ""}
+                        data-testid="input-duration"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="defaultLeadTimeDays"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Lead Time (days)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        {...field}
+                        value={field.value ?? ""}
+                        data-testid="input-lead-time"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <FormField
+                control={form.control}
+                name="requiresManualQuote"
+                render={({ field }) => (
+                  <FormItem className="flex items-center gap-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="checkbox-manual-quote"
+                      />
+                    </FormControl>
+                    <div>
+                      <FormLabel className="font-normal">Requires manual quote</FormLabel>
+                      <FormDescription className="text-xs">
+                        Cannot be auto-quoted by AI
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="requiresLeadTime"
+                render={({ field }) => (
+                  <FormItem className="flex items-center gap-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="checkbox-lead-time"
+                      />
+                    </FormControl>
+                    <div>
+                      <FormLabel className="font-normal">Requires lead time</FormLabel>
+                      <FormDescription className="text-xs">
+                        Cannot be scheduled same-day
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="includesMaterials"
+                render={({ field }) => (
+                  <FormItem className="flex items-center gap-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="checkbox-materials"
+                      />
+                    </FormControl>
+                    <div>
+                      <FormLabel className="font-normal">Includes materials</FormLabel>
+                      <FormDescription className="text-xs">
+                        Service price includes material costs
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="requiresQualifiedCrew"
+                render={({ field }) => (
+                  <FormItem className="flex items-center gap-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="checkbox-qualified-crew"
+                      />
+                    </FormControl>
+                    <div>
+                      <FormLabel className="font-normal">Requires qualified crew</FormLabel>
+                      <FormDescription className="text-xs">
+                        Only certified crews can perform
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="isActive"
+                render={({ field }) => (
+                  <FormItem className="flex items-center gap-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="checkbox-active"
+                      />
+                    </FormControl>
+                    <div>
+                      <FormLabel className="font-normal">Active</FormLabel>
+                      <FormDescription className="text-xs">
+                        Available for quoting and scheduling
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <DialogFooter className="pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                data-testid="button-cancel"
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isPending} data-testid="button-save-service">
+                {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {isEditing ? "Save Changes" : "Create Service"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PromotionFormDialog({
+  open,
+  onOpenChange,
+  promotion,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  promotion?: PromotionRule | null;
+}) {
+  const { toast } = useToast();
+  const isEditing = !!promotion;
+
+  const form = useForm<PromotionFormValues>({
+    resolver: zodResolver(promotionFormSchema),
+    defaultValues: {
+      name: "",
+      appliesToCategory: null,
+      condition: "SEASONAL",
+      discountType: "PERCENT",
+      discountValue: 10,
+      requiresFrequency: null,
+      isActive: true,
+    },
+  });
+
+  useEffect(() => {
+    if (promotion) {
+      form.reset({
+        name: promotion.name || "",
+        appliesToCategory: promotion.appliesToCategory || null,
+        condition: (promotion.condition as PromotionFormValues["condition"]) || "SEASONAL",
+        discountType: (promotion.discountType as PromotionFormValues["discountType"]) || "PERCENT",
+        discountValue: promotion.discountValue ?? 10,
+        requiresFrequency: promotion.requiresFrequency || null,
+        isActive: promotion.isActive ?? true,
+      });
+    } else {
+      form.reset({
+        name: "",
+        appliesToCategory: null,
+        condition: "SEASONAL",
+        discountType: "PERCENT",
+        discountValue: 10,
+        requiresFrequency: null,
+        isActive: true,
+      });
+    }
+  }, [promotion, form]);
+
+  const createMutation = useMutation({
+    mutationFn: (data: PromotionFormValues) =>
+      apiRequest("POST", "/api/promotions", { ...data, accountId: 1 }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/promotions"] });
+      toast({ title: "Promotion created", description: "New promotion added" });
+      onOpenChange(false);
+      form.reset();
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to create promotion", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (data: PromotionFormValues) =>
+      apiRequest("PATCH", `/api/promotions/${promotion?.id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/promotions"] });
+      toast({ title: "Promotion updated", description: "Changes saved successfully" });
+      onOpenChange(false);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update promotion", variant: "destructive" });
+    },
+  });
+
+  const onSubmit = (data: PromotionFormValues) => {
+    if (isEditing) {
+      updateMutation.mutate(data);
+    } else {
+      createMutation.mutate(data);
+    }
+  };
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
+  const discountType = form.watch("discountType");
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{isEditing ? "Edit Promotion" : "Add Promotion"}</DialogTitle>
+          <DialogDescription>
+            {isEditing
+              ? "Update promotion settings"
+              : "Create a new discount or pricing rule"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Promotion Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Spring Special 20% Off" {...field} data-testid="input-promotion-name" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="condition"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Condition</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-condition">
+                        <SelectValue placeholder="Select condition" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="FIRST_TIME_CUSTOMER">First Time Customer</SelectItem>
+                      <SelectItem value="RECURRING_COMMITMENT">Recurring Commitment</SelectItem>
+                      <SelectItem value="BUNDLE">Bundle Discount</SelectItem>
+                      <SelectItem value="SEASONAL">Seasonal Offer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="appliesToCategory"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Applies To Category (optional)</FormLabel>
+                  <Select 
+                    onValueChange={(val) => field.onChange(val === "ALL" ? null : val)} 
+                    value={field.value || "ALL"}
+                  >
+                    <FormControl>
+                      <SelectTrigger data-testid="select-applies-category">
+                        <SelectValue placeholder="All categories" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Categories</SelectItem>
+                      <SelectItem value="LAWN">Lawn Care</SelectItem>
+                      <SelectItem value="TREE">Tree Service</SelectItem>
+                      <SelectItem value="SNOW">Snow Removal</SelectItem>
+                      <SelectItem value="CLEANUP">Cleanup</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="discountType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Discount Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-discount-type">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="PERCENT">Percentage</SelectItem>
+                        <SelectItem value="FLAT">Flat Amount</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="discountValue"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{discountType === "PERCENT" ? "Discount %" : "Amount (cents)"}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder={discountType === "PERCENT" ? "10" : "500"}
+                        {...field}
+                        data-testid="input-discount-value"
+                      />
+                    </FormControl>
+                    <FormDescription className="text-xs">
+                      {discountType === "PERCENT" ? "Negative = surcharge" : "Use cents (500 = $5)"}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="isActive"
+              render={({ field }) => (
+                <FormItem className="flex items-center gap-3 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      data-testid="checkbox-promotion-active"
+                    />
+                  </FormControl>
+                  <FormLabel className="font-normal">Active</FormLabel>
+                </FormItem>
+              )}
+            />
+
+            <DialogFooter className="pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                data-testid="button-cancel-promotion"
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isPending} data-testid="button-save-promotion">
+                {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {isEditing ? "Save Changes" : "Create Promotion"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ServiceCard({ service, onEdit }: { service: Service; onEdit: (s: Service) => void }) {
   const { toast } = useToast();
   const CategoryIcon = CATEGORY_ICONS[service.category || "CUSTOM"] || Package;
   
@@ -100,7 +782,12 @@ function ServiceCard({ service }: { service: Service }) {
               disabled={toggleActive.isPending}
               data-testid={`switch-service-active-${service.id}`}
             />
-            <Button size="icon" variant="ghost" data-testid={`button-edit-service-${service.id}`}>
+            <Button 
+              size="icon" 
+              variant="ghost" 
+              onClick={() => onEdit(service)}
+              data-testid={`button-edit-service-${service.id}`}
+            >
               <Settings2 className="h-4 w-4" />
             </Button>
           </div>
@@ -110,7 +797,7 @@ function ServiceCard({ service }: { service: Service }) {
   );
 }
 
-function PromotionCard({ promotion }: { promotion: PromotionRule }) {
+function PromotionCard({ promotion, onEdit }: { promotion: PromotionRule; onEdit: (p: PromotionRule) => void }) {
   const isDiscount = (promotion.discountValue || 0) >= 0;
   
   return (
@@ -136,6 +823,14 @@ function PromotionCard({ promotion }: { promotion: PromotionRule }) {
               )}
             </div>
           </div>
+          <Button 
+            size="icon" 
+            variant="ghost" 
+            onClick={() => onEdit(promotion)}
+            data-testid={`button-edit-promotion-${promotion.id}`}
+          >
+            <Settings2 className="h-4 w-4" />
+          </Button>
           <Badge variant={promotion.isActive ? "default" : "secondary"}>
             {promotion.isActive ? "Active" : "Inactive"}
           </Badge>
@@ -171,6 +866,11 @@ function LoadingSkeleton() {
 }
 
 export default function SettingsServicesPage() {
+  const [serviceDialogOpen, setServiceDialogOpen] = useState(false);
+  const [editingService, setEditingService] = useState<Service | null>(null);
+  const [promotionDialogOpen, setPromotionDialogOpen] = useState(false);
+  const [editingPromotion, setEditingPromotion] = useState<PromotionRule | null>(null);
+
   const { data: services, isLoading: servicesLoading } = useQuery<Service[]>({
     queryKey: ["/api/services"],
   });
@@ -181,6 +881,26 @@ export default function SettingsServicesPage() {
 
   const activeServices = services?.filter(s => s.isActive) || [];
   const inactiveServices = services?.filter(s => !s.isActive) || [];
+
+  const handleAddService = () => {
+    setEditingService(null);
+    setServiceDialogOpen(true);
+  };
+
+  const handleEditService = (service: Service) => {
+    setEditingService(service);
+    setServiceDialogOpen(true);
+  };
+
+  const handleAddPromotion = () => {
+    setEditingPromotion(null);
+    setPromotionDialogOpen(true);
+  };
+
+  const handleEditPromotion = (promotion: PromotionRule) => {
+    setEditingPromotion(promotion);
+    setPromotionDialogOpen(true);
+  };
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -193,7 +913,7 @@ export default function SettingsServicesPage() {
 
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-medium">Services</h2>
-        <Button data-testid="button-add-service">
+        <Button onClick={handleAddService} data-testid="button-add-service">
           <Plus className="h-4 w-4 mr-2" />
           Add Service
         </Button>
@@ -204,7 +924,7 @@ export default function SettingsServicesPage() {
       ) : (
         <div className="space-y-4 mb-8">
           {activeServices.map((service) => (
-            <ServiceCard key={service.id} service={service} />
+            <ServiceCard key={service.id} service={service} onEdit={handleEditService} />
           ))}
           
           {inactiveServices.length > 0 && (
@@ -214,7 +934,7 @@ export default function SettingsServicesPage() {
                 <span>Inactive Services ({inactiveServices.length})</span>
               </div>
               {inactiveServices.map((service) => (
-                <ServiceCard key={service.id} service={service} />
+                <ServiceCard key={service.id} service={service} onEdit={handleEditService} />
               ))}
             </>
           )}
@@ -227,7 +947,7 @@ export default function SettingsServicesPage() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Add your first service to start building quotes
                 </p>
-                <Button data-testid="button-add-first-service">
+                <Button onClick={handleAddService} data-testid="button-add-first-service">
                   <Plus className="h-4 w-4 mr-2" />
                   Add Service
                 </Button>
@@ -236,6 +956,12 @@ export default function SettingsServicesPage() {
           )}
         </div>
       )}
+
+      <ServiceFormDialog
+        open={serviceDialogOpen}
+        onOpenChange={setServiceDialogOpen}
+        service={editingService}
+      />
 
       <Separator className="my-8" />
 
@@ -246,7 +972,7 @@ export default function SettingsServicesPage() {
             Discounts and pricing rules applied automatically
           </p>
         </div>
-        <Button variant="outline" data-testid="button-add-promotion">
+        <Button variant="outline" onClick={handleAddPromotion} data-testid="button-add-promotion">
           <Plus className="h-4 w-4 mr-2" />
           Add Promotion
         </Button>
@@ -257,7 +983,7 @@ export default function SettingsServicesPage() {
       ) : (
         <div className="space-y-3">
           {promotions?.map((promotion) => (
-            <PromotionCard key={promotion.id} promotion={promotion} />
+            <PromotionCard key={promotion.id} promotion={promotion} onEdit={handleEditPromotion} />
           ))}
           
           {promotions?.length === 0 && (
@@ -273,6 +999,12 @@ export default function SettingsServicesPage() {
           )}
         </div>
       )}
+
+      <PromotionFormDialog
+        open={promotionDialogOpen}
+        onOpenChange={setPromotionDialogOpen}
+        promotion={editingPromotion}
+      />
 
       <div className="mt-8 p-4 bg-muted/50 rounded-md">
         <div className="flex items-center gap-2 text-sm">
