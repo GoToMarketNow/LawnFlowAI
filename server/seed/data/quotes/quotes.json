@@ -1,0 +1,87 @@
+[
+  {
+    "id": "quote_001",
+    "accountId": "acct_demo_001",
+    "leadId": "lead_003",
+    "customerId": null,
+    "status": "PENDING_APPROVAL",
+    "minPrice": 450,
+    "targetPrice": 525,
+    "maxPrice": 600,
+    "serviceCodes": [
+      "CLEAN_SEASON",
+      "TREE_BRUSH"
+    ],
+    "createdAt": "2026-01-04T16:00:00-05:00"
+  },
+  {
+    "id": "quote_002",
+    "accountId": "acct_demo_001",
+    "leadId": null,
+    "customerId": "cust_002",
+    "status": "SENT",
+    "minPrice": 85,
+    "targetPrice": 95,
+    "maxPrice": 110,
+    "serviceCodes": [
+      "LAWN_ONE"
+    ],
+    "createdAt": "2026-01-05T09:45:00-05:00"
+  },
+  {
+    "id": "quote_003",
+    "accountId": "acct_demo_001",
+    "leadId": null,
+    "customerId": "cust_001",
+    "status": "ACCEPTED",
+    "minPrice": 160,
+    "targetPrice": 180,
+    "maxPrice": 200,
+    "serviceCodes": [
+      "FIREWOOD"
+    ],
+    "createdAt": "2026-01-02T12:30:00-05:00"
+  },
+  {
+    "id": "quote_004",
+    "accountId": "acct_demo_001",
+    "leadId": null,
+    "customerId": "cust_005",
+    "status": "ACCEPTED",
+    "minPrice": 250,
+    "targetPrice": 290,
+    "maxPrice": 320,
+    "serviceCodes": [
+      "LAWN_RECUR"
+    ],
+    "createdAt": "2026-01-03T10:00:00-05:00"
+  },
+  {
+    "id": "quote_005",
+    "accountId": "acct_demo_001",
+    "leadId": null,
+    "customerId": "cust_010",
+    "status": "SENT",
+    "minPrice": 300,
+    "targetPrice": 350,
+    "maxPrice": 420,
+    "serviceCodes": [
+      "MULCH_INSTALL"
+    ],
+    "createdAt": "2026-01-05T10:00:00-05:00"
+  },
+  {
+    "id": "quote_006",
+    "accountId": "acct_demo_001",
+    "leadId": null,
+    "customerId": "cust_013",
+    "status": "DRAFT",
+    "minPrice": 55,
+    "targetPrice": 65,
+    "maxPrice": 75,
+    "serviceCodes": [
+      "LAWN_RECUR"
+    ],
+    "createdAt": "2026-01-05T11:00:00-05:00"
+  }
+]

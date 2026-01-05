@@ -1,0 +1,354 @@
+[
+  {
+    "id": "msg_0001",
+    "threadId": "thread_lead_001",
+    "direction": "INBOUND",
+    "channel": "SMS",
+    "body": "Hi, I need help with One-Time Lawn Mowing.",
+    "createdAt": "2026-01-05T09:25:00-05:00"
+  },
+  {
+    "id": "msg_0002",
+    "threadId": "thread_lead_001",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Thanks! What\u2019s the service address and when do you need it?",
+    "createdAt": "2026-01-05T09:26:00-05:00"
+  },
+  {
+    "id": "msg_0003",
+    "threadId": "thread_lead_002",
+    "direction": "INBOUND",
+    "channel": "EMAIL",
+    "body": "Hi, I need help with Mulch Delivery.",
+    "createdAt": "2026-01-05T09:25:00-05:00"
+  },
+  {
+    "id": "msg_0004",
+    "threadId": "thread_lead_002",
+    "direction": "OUTBOUND",
+    "channel": "EMAIL",
+    "body": "Thanks! What\u2019s the service address and when do you need it?",
+    "createdAt": "2026-01-05T09:26:00-05:00"
+  },
+  {
+    "id": "msg_0005",
+    "threadId": "thread_lead_003",
+    "direction": "INBOUND",
+    "channel": "EMAIL",
+    "body": "Hi, I need help with Seasonal Cleanup.",
+    "createdAt": "2026-01-05T09:25:00-05:00"
+  },
+  {
+    "id": "msg_0006",
+    "threadId": "thread_lead_003",
+    "direction": "OUTBOUND",
+    "channel": "EMAIL",
+    "body": "Thanks! What\u2019s the service address and when do you need it?",
+    "createdAt": "2026-01-05T09:26:00-05:00"
+  },
+  {
+    "id": "msg_0007",
+    "threadId": "thread_lead_004",
+    "direction": "INBOUND",
+    "channel": "SMS",
+    "body": "Hi, I need help with Snow Removal (Rotation).",
+    "createdAt": "2026-01-05T09:25:00-05:00"
+  },
+  {
+    "id": "msg_0008",
+    "threadId": "thread_lead_004",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Thanks! What\u2019s the service address and when do you need it?",
+    "createdAt": "2026-01-05T09:26:00-05:00"
+  },
+  {
+    "id": "msg_0009",
+    "threadId": "thread_cust_001",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_001 status: DRAFT. Total $600.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0010",
+    "threadId": "thread_cust_002",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_002 status: PENDING_APPROVAL. Total $600.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0011",
+    "threadId": "thread_cust_002",
+    "direction": "INBOUND",
+    "channel": "SMS",
+    "body": "Can you explain this invoice before it\u2019s sent?",
+    "createdAt": "2026-01-05T14:05:00-05:00"
+  },
+  {
+    "id": "msg_0012",
+    "threadId": "thread_cust_003",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_003 status: SENT. Total $180.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0013",
+    "threadId": "thread_cust_004",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_004 status: PAID. Total $600.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0014",
+    "threadId": "thread_cust_004",
+    "direction": "INBOUND",
+    "channel": "SMS",
+    "body": "Paid\u2014thank you!",
+    "createdAt": "2026-01-05T14:05:00-05:00"
+  },
+  {
+    "id": "msg_0015",
+    "threadId": "thread_cust_005",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_005 status: PARTIAL. Total $600.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0016",
+    "threadId": "thread_cust_006",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_006 status: OVERDUE. Total $900.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0017",
+    "threadId": "thread_cust_006",
+    "direction": "INBOUND",
+    "channel": "SMS",
+    "body": "Sorry\u2014can I pay Friday?",
+    "createdAt": "2026-01-05T14:05:00-05:00"
+  },
+  {
+    "id": "msg_0018",
+    "threadId": "thread_cust_007",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_007 status: VOID. Total $450.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0019",
+    "threadId": "thread_cust_008",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_008 status: DISPUTED. Total $120.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0020",
+    "threadId": "thread_cust_008",
+    "direction": "INBOUND",
+    "channel": "SMS",
+    "body": "I don\u2019t think the extra work was approved.",
+    "createdAt": "2026-01-05T14:05:00-05:00"
+  },
+  {
+    "id": "msg_0021",
+    "threadId": "thread_cust_009",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_009 status: FAILED_SYNC. Total $95.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0022",
+    "threadId": "thread_cust_009",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "We\u2019re finalizing your invoice\u2014minor processing delay.",
+    "createdAt": "2026-01-05T14:05:00-05:00"
+  },
+  {
+    "id": "msg_0023",
+    "threadId": "thread_cust_010",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_010 status: PAID. Total $260.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0024",
+    "threadId": "thread_cust_010",
+    "direction": "INBOUND",
+    "channel": "SMS",
+    "body": "Paid\u2014thank you!",
+    "createdAt": "2026-01-05T14:05:00-05:00"
+  },
+  {
+    "id": "msg_0025",
+    "threadId": "thread_cust_011",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_011 status: DRAFT. Total $260.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0026",
+    "threadId": "thread_cust_012",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_012 status: PAID. Total $340.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0027",
+    "threadId": "thread_cust_012",
+    "direction": "INBOUND",
+    "channel": "SMS",
+    "body": "Paid\u2014thank you!",
+    "createdAt": "2026-01-05T14:05:00-05:00"
+  },
+  {
+    "id": "msg_0028",
+    "threadId": "thread_cust_013",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_013 status: DRAFT. Total $340.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0029",
+    "threadId": "thread_cust_014",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_014 status: SENT. Total $340.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0030",
+    "threadId": "thread_cust_015",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_015 status: OVERDUE. Total $85.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0031",
+    "threadId": "thread_cust_015",
+    "direction": "INBOUND",
+    "channel": "SMS",
+    "body": "Sorry\u2014can I pay Friday?",
+    "createdAt": "2026-01-05T14:05:00-05:00"
+  },
+  {
+    "id": "msg_0032",
+    "threadId": "thread_cust_016",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_016 status: DRAFT. Total $85.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0033",
+    "threadId": "thread_cust_017",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_017 status: SENT. Total $85.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0034",
+    "threadId": "thread_cust_018",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_018 status: PAID. Total $85.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0035",
+    "threadId": "thread_cust_018",
+    "direction": "INBOUND",
+    "channel": "SMS",
+    "body": "Paid\u2014thank you!",
+    "createdAt": "2026-01-05T14:05:00-05:00"
+  },
+  {
+    "id": "msg_0036",
+    "threadId": "thread_cust_019",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_019 status: DRAFT. Total $85.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0037",
+    "threadId": "thread_cust_020",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Invoice inv_020 status: PAID. Total $480.",
+    "createdAt": "2026-01-05T14:00:00-05:00"
+  },
+  {
+    "id": "msg_0038",
+    "threadId": "thread_cust_020",
+    "direction": "INBOUND",
+    "channel": "SMS",
+    "body": "Paid\u2014thank you!",
+    "createdAt": "2026-01-05T14:05:00-05:00"
+  },
+  {
+    "id": "msg_0039",
+    "threadId": "thread_crew_cville_001",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Daily briefing: Charlottesville Crew starts at 8am. Check Today Plan.",
+    "createdAt": "2026-01-05T07:45:00-05:00"
+  },
+  {
+    "id": "msg_0040",
+    "threadId": "thread_crew_cville_001",
+    "direction": "INBOUND",
+    "channel": "SMS",
+    "body": "Copy that. Any schedule changes?",
+    "createdAt": "2026-01-05T07:50:00-05:00"
+  },
+  {
+    "id": "msg_0041",
+    "threadId": "thread_crew_albemarle_002",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Daily briefing: Albemarle Crew starts at 8am. Check Today Plan.",
+    "createdAt": "2026-01-05T07:45:00-05:00"
+  },
+  {
+    "id": "msg_0042",
+    "threadId": "thread_crew_albemarle_002",
+    "direction": "INBOUND",
+    "channel": "SMS",
+    "body": "Copy that. Any schedule changes?",
+    "createdAt": "2026-01-05T07:50:00-05:00"
+  },
+  {
+    "id": "msg_0043",
+    "threadId": "thread_crew_greene_003",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Daily briefing: Greene Crew starts at 8am. Check Today Plan.",
+    "createdAt": "2026-01-05T07:45:00-05:00"
+  },
+  {
+    "id": "msg_0044",
+    "threadId": "thread_crew_greene_003",
+    "direction": "INBOUND",
+    "channel": "SMS",
+    "body": "Copy that. Any schedule changes?",
+    "createdAt": "2026-01-05T07:50:00-05:00"
+  }
+]

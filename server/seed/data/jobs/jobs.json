@@ -1,0 +1,502 @@
+[
+  {
+    "id": "job_001",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_001",
+    "assignedCrewId": "crew_cville_001",
+    "title": "Tree Brush - Sarah Nguyen",
+    "serviceCodes": [
+      "TREE_BRUSH"
+    ],
+    "status": "SCHEDULED",
+    "scheduledStartAt": "2026-01-05T10:00:00-05:00",
+    "scheduledEndAt": "2026-01-05T11:30:00-05:00",
+    "windowStartAt": "2026-01-05T10:00:00-05:00",
+    "windowEndAt": "2026-01-05T11:30:00-05:00",
+    "address": {
+      "line1": "1200 Market St",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22902",
+      "lat": 38.0335,
+      "lng": -78.48
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_002",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_002",
+    "assignedCrewId": "crew_greene_003",
+    "title": "Lawn One - James Carter",
+    "serviceCodes": [
+      "LAWN_ONE"
+    ],
+    "status": "SCHEDULED",
+    "scheduledStartAt": "2026-01-03T14:00:00-05:00",
+    "scheduledEndAt": "2026-01-03T16:00:00-05:00",
+    "windowStartAt": "2026-01-03T14:00:00-05:00",
+    "windowEndAt": "2026-01-03T16:00:00-05:00",
+    "address": {
+      "line1": "85 Ivy Rd",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22903",
+      "lat": 38.046,
+      "lng": -78.53
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_003",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_003",
+    "assignedCrewId": "crew_cville_001",
+    "title": "Lawn One - La Tienda Coffee Roast",
+    "serviceCodes": [
+      "LAWN_ONE"
+    ],
+    "status": "COMPLETE",
+    "scheduledStartAt": "2026-01-03T09:00:00-05:00",
+    "scheduledEndAt": "2026-01-03T10:30:00-05:00",
+    "windowStartAt": "2026-01-03T09:00:00-05:00",
+    "windowEndAt": "2026-01-03T10:30:00-05:00",
+    "address": {
+      "line1": "300 Commerce Ave",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22911",
+      "lat": 38.0712,
+      "lng": -78.4363
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_004",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_004",
+    "assignedCrewId": "crew_greene_003",
+    "title": "Lawn Recur - Helen Brooks",
+    "serviceCodes": [
+      "LAWN_RECUR"
+    ],
+    "status": "SCHEDULED",
+    "scheduledStartAt": "2026-01-03T17:00:00-05:00",
+    "scheduledEndAt": "2026-01-03T18:30:00-05:00",
+    "windowStartAt": "2026-01-03T17:00:00-05:00",
+    "windowEndAt": "2026-01-03T18:30:00-05:00",
+    "address": {
+      "line1": "410 Ridge St",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22902",
+      "lat": 38.035,
+      "lng": -78.49
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_005",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_005",
+    "assignedCrewId": "crew_cville_001",
+    "title": "Lawn One - Oak Hill Dental",
+    "serviceCodes": [
+      "LAWN_ONE"
+    ],
+    "status": "COMPLETE",
+    "scheduledStartAt": "2026-01-04T08:00:00-05:00",
+    "scheduledEndAt": "2026-01-04T10:00:00-05:00",
+    "windowStartAt": "2026-01-04T08:00:00-05:00",
+    "windowEndAt": "2026-01-04T10:00:00-05:00",
+    "address": {
+      "line1": "900 Rio Rd E",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22901",
+      "lat": 38.0724,
+      "lng": -78.4922
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_006",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_006",
+    "assignedCrewId": "crew_albemarle_002",
+    "title": "Lawn One - Miguel Santos",
+    "serviceCodes": [
+      "LAWN_ONE"
+    ],
+    "status": "ON_SITE",
+    "scheduledStartAt": "2026-01-03T17:00:00-05:00",
+    "scheduledEndAt": "2026-01-03T18:00:00-05:00",
+    "windowStartAt": "2026-01-03T17:00:00-05:00",
+    "windowEndAt": "2026-01-03T18:00:00-05:00",
+    "address": {
+      "line1": "2100 Barracks Rd",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22903",
+      "lat": 38.06,
+      "lng": -78.507
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_007",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_007",
+    "assignedCrewId": "crew_albemarle_002",
+    "title": "Tree Brush - Emily Price",
+    "serviceCodes": [
+      "TREE_BRUSH"
+    ],
+    "status": "SCHEDULED",
+    "scheduledStartAt": "2026-01-07T09:00:00-05:00",
+    "scheduledEndAt": "2026-01-07T11:00:00-05:00",
+    "windowStartAt": "2026-01-07T09:00:00-05:00",
+    "windowEndAt": "2026-01-07T11:00:00-05:00",
+    "address": {
+      "line1": "55 Pantops Dr",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22911",
+      "lat": 38.0388,
+      "lng": -78.4475
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_008",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_008",
+    "assignedCrewId": "crew_albemarle_002",
+    "title": "Lawn Recur - Ruckersville Hardware",
+    "serviceCodes": [
+      "LAWN_RECUR"
+    ],
+    "status": "EN_ROUTE",
+    "scheduledStartAt": "2026-01-04T09:00:00-05:00",
+    "scheduledEndAt": "2026-01-04T11:00:00-05:00",
+    "windowStartAt": "2026-01-04T09:00:00-05:00",
+    "windowEndAt": "2026-01-04T11:00:00-05:00",
+    "address": {
+      "line1": "12 Main St",
+      "city": "Ruckersville",
+      "state": "VA",
+      "zip": "22968",
+      "lat": 38.233,
+      "lng": -78.369
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_009",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_009",
+    "assignedCrewId": "crew_cville_001",
+    "title": "Tree Brush - Thomas Greene",
+    "serviceCodes": [
+      "TREE_BRUSH"
+    ],
+    "status": "SCHEDULED",
+    "scheduledStartAt": "2026-01-07T09:00:00-05:00",
+    "scheduledEndAt": "2026-01-07T11:00:00-05:00",
+    "windowStartAt": "2026-01-07T09:00:00-05:00",
+    "windowEndAt": "2026-01-07T11:00:00-05:00",
+    "address": {
+      "line1": "640 Seminole Trl",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22901",
+      "lat": 38.083,
+      "lng": -78.497
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_010",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_010",
+    "assignedCrewId": "crew_albemarle_002",
+    "title": "Mulch Install - Ana Lopez",
+    "serviceCodes": [
+      "MULCH_INSTALL"
+    ],
+    "status": "COMPLETE",
+    "scheduledStartAt": "2026-01-04T16:00:00-05:00",
+    "scheduledEndAt": "2026-01-04T18:00:00-05:00",
+    "windowStartAt": "2026-01-04T16:00:00-05:00",
+    "windowEndAt": "2026-01-04T18:00:00-05:00",
+    "address": {
+      "line1": "1011 Crozet Ave",
+      "city": "Crozet",
+      "state": "VA",
+      "zip": "22932",
+      "lat": 38.071,
+      "lng": -78.7
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_011",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_011",
+    "assignedCrewId": "crew_albemarle_002",
+    "title": "Lawn One - Blue Ridge HOA",
+    "serviceCodes": [
+      "LAWN_ONE"
+    ],
+    "status": "SCHEDULED",
+    "scheduledStartAt": "2026-01-07T16:00:00-05:00",
+    "scheduledEndAt": "2026-01-07T17:15:00-05:00",
+    "windowStartAt": "2026-01-07T16:00:00-05:00",
+    "windowEndAt": "2026-01-07T17:15:00-05:00",
+    "address": {
+      "line1": "501 Skyline Dr",
+      "city": "Ruckersville",
+      "state": "VA",
+      "zip": "22968",
+      "lat": 38.2355,
+      "lng": -78.384
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_012",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_012",
+    "assignedCrewId": "crew_greene_003",
+    "title": "Mulch Install - Sunset Rentals",
+    "serviceCodes": [
+      "MULCH_INSTALL"
+    ],
+    "status": "ON_SITE",
+    "scheduledStartAt": "2026-01-04T11:00:00-05:00",
+    "scheduledEndAt": "2026-01-04T11:45:00-05:00",
+    "windowStartAt": "2026-01-04T11:00:00-05:00",
+    "windowEndAt": "2026-01-04T11:45:00-05:00",
+    "address": {
+      "line1": "77 East Main",
+      "city": "Stanardsville",
+      "state": "VA",
+      "zip": "22973",
+      "lat": 38.299,
+      "lng": -78.44
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_013",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_013",
+    "assignedCrewId": "crew_cville_001",
+    "title": "Tree Brush - Priya Patel",
+    "serviceCodes": [
+      "TREE_BRUSH"
+    ],
+    "status": "SCHEDULED",
+    "scheduledStartAt": "2026-01-05T16:00:00-05:00",
+    "scheduledEndAt": "2026-01-05T17:15:00-05:00",
+    "windowStartAt": "2026-01-05T16:00:00-05:00",
+    "windowEndAt": "2026-01-05T17:15:00-05:00",
+    "address": {
+      "line1": "800 High St",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22902",
+      "lat": 38.037,
+      "lng": -78.4805
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_014",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_014",
+    "assignedCrewId": "crew_cville_001",
+    "title": "Mulch Install - Carlos & Maria Home",
+    "serviceCodes": [
+      "MULCH_INSTALL"
+    ],
+    "status": "SCHEDULED",
+    "scheduledStartAt": "2026-01-06T10:00:00-05:00",
+    "scheduledEndAt": "2026-01-06T11:15:00-05:00",
+    "windowStartAt": "2026-01-06T10:00:00-05:00",
+    "windowEndAt": "2026-01-06T11:15:00-05:00",
+    "address": {
+      "line1": "15 Cherry Ave",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22903",
+      "lat": 38.03,
+      "lng": -78.495
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_015",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_015",
+    "assignedCrewId": "crew_greene_003",
+    "title": "Tree Brush - Willow Creek Church",
+    "serviceCodes": [
+      "TREE_BRUSH"
+    ],
+    "status": "SCHEDULED",
+    "scheduledStartAt": "2026-01-06T08:00:00-05:00",
+    "scheduledEndAt": "2026-01-06T08:45:00-05:00",
+    "windowStartAt": "2026-01-06T08:00:00-05:00",
+    "windowEndAt": "2026-01-06T08:45:00-05:00",
+    "address": {
+      "line1": "1180 Stony Point Rd",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22911",
+      "lat": 38.07,
+      "lng": -78.42
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_016",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_016",
+    "assignedCrewId": "crew_greene_003",
+    "title": "Mulch Install - Harrison Family",
+    "serviceCodes": [
+      "MULCH_INSTALL"
+    ],
+    "status": "COMPLETE",
+    "scheduledStartAt": "2026-01-05T14:00:00-05:00",
+    "scheduledEndAt": "2026-01-05T15:15:00-05:00",
+    "windowStartAt": "2026-01-05T14:00:00-05:00",
+    "windowEndAt": "2026-01-05T15:15:00-05:00",
+    "address": {
+      "line1": "4200 Ivy Rd",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22903",
+      "lat": 38.055,
+      "lng": -78.6
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_017",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_017",
+    "assignedCrewId": "crew_greene_003",
+    "title": "Firewood - Greene County Library",
+    "serviceCodes": [
+      "FIREWOOD"
+    ],
+    "status": "COMPLETE",
+    "scheduledStartAt": "2026-01-03T09:00:00-05:00",
+    "scheduledEndAt": "2026-01-03T10:15:00-05:00",
+    "windowStartAt": "2026-01-03T09:00:00-05:00",
+    "windowEndAt": "2026-01-03T10:15:00-05:00",
+    "address": {
+      "line1": "20 Library Ln",
+      "city": "Stanardsville",
+      "state": "VA",
+      "zip": "22973",
+      "lat": 38.297,
+      "lng": -78.4405
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_018",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_018",
+    "assignedCrewId": "crew_albemarle_002",
+    "title": "Firewood - Cville Fitness Club",
+    "serviceCodes": [
+      "FIREWOOD"
+    ],
+    "status": "COMPLETE",
+    "scheduledStartAt": "2026-01-03T08:00:00-05:00",
+    "scheduledEndAt": "2026-01-03T09:15:00-05:00",
+    "windowStartAt": "2026-01-03T08:00:00-05:00",
+    "windowEndAt": "2026-01-03T09:15:00-05:00",
+    "address": {
+      "line1": "200 Preston Ave",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22903",
+      "lat": 38.0385,
+      "lng": -78.4905
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_019",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_019",
+    "assignedCrewId": null,
+    "title": "New One-Time Mow - Monroe Meadows HOA",
+    "serviceCodes": [
+      "LAWN_ONE"
+    ],
+    "status": "UNASSIGNED",
+    "scheduledStartAt": "2026-01-06T11:00:00-05:00",
+    "scheduledEndAt": "2026-01-06T12:00:00-05:00",
+    "windowStartAt": "2026-01-06T11:00:00-05:00",
+    "windowEndAt": "2026-01-06T12:00:00-05:00",
+    "address": {
+      "line1": "2 Meadow Ct",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22911",
+      "lat": 38.075,
+      "lng": -78.44
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_020",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_020",
+    "assignedCrewId": "crew_albemarle_002",
+    "title": "Seasonal Cleanup - Julia Kim (Canceled)",
+    "serviceCodes": [
+      "CLEAN_SEASON"
+    ],
+    "status": "CANCELED",
+    "scheduledStartAt": "2026-01-04T15:00:00-05:00",
+    "scheduledEndAt": "2026-01-04T16:30:00-05:00",
+    "windowStartAt": "2026-01-04T15:00:00-05:00",
+    "windowEndAt": "2026-01-04T16:30:00-05:00",
+    "address": {
+      "line1": "909 Jefferson Park Ave",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22903",
+      "lat": 38.033,
+      "lng": -78.505
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  }
+]
