@@ -80,6 +80,20 @@ export async function runServiceSelectionAgent(
     if (prefs.length > 0) {
       const generalPref = prefs.find(p => !p.serviceId);
       const servicePrefs = prefs.filter(p => p.serviceId);
+      
+      const enrichedServicePrefs = await Promise.all(
+        servicePrefs.map(async (p) => {
+          const service = p.serviceId ? await storage.getService(p.serviceId) : null;
+          return {
+            serviceName: service?.name ?? `Service #${p.serviceId}`,
+            serviceId: p.serviceId,
+            frequency: p.preferredFrequency,
+            dayOfWeek: p.preferredDayOfWeek,
+            timeWindow: p.preferredTimeWindow,
+          };
+        })
+      );
+      
       customerPreferencesContext = `
 General preferences: ${generalPref ? JSON.stringify({
         frequency: generalPref.preferredFrequency,
@@ -87,11 +101,7 @@ General preferences: ${generalPref ? JSON.stringify({
         timeWindow: generalPref.preferredTimeWindow,
         priceFlexibility: generalPref.priceFlexibility,
       }) : 'None'}
-Service-specific preferences: ${servicePrefs.length > 0 ? JSON.stringify(servicePrefs.map(p => ({
-        serviceId: p.serviceId,
-        frequency: p.preferredFrequency,
-        timeWindow: p.preferredTimeWindow,
-      }))) : 'None'}`;
+Service-specific preferences: ${enrichedServicePrefs.length > 0 ? JSON.stringify(enrichedServicePrefs) : 'None'}`;
     }
   }
 

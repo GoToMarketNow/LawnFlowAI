@@ -106,7 +106,19 @@ Higher interaction counts and consistent patterns = higher confidence scores.`;
     const parsed = JSON.parse(content);
     const validated = learnedPreferencesSchema.parse(parsed);
 
+    const existingPrefMap = new Map(
+      existingPrefs.map(p => [`${p.serviceId ?? 'general'}`, p])
+    );
+    
     for (const pref of validated.preferences) {
+      const key = `${pref.serviceId ?? 'general'}`;
+      const existing = existingPrefMap.get(key);
+      
+      if (existing && (existing.confidenceScore ?? 0) > pref.confidenceScore) {
+        console.log(`[PreferenceAgent] Skipping lower-confidence update for ${key}: existing=${existing.confidenceScore}, new=${pref.confidenceScore}`);
+        continue;
+      }
+      
       await storage.upsertCustomerServicePreference({
         accountId: input.accountId,
         customerId: input.customerId,

@@ -121,20 +121,23 @@ export async function runPricingAgent(input: PricingInput): Promise<PricingAgent
     pricingTiers: d.pricing.map(p => ({
       pricingModel: p.pricingModel,
       frequency: p.appliesToFrequency,
-      minPrice: formatCents(p.minPrice),
-      targetPrice: formatCents(p.targetPrice),
-      maxPrice: formatCents(p.maxPrice),
-      materialCost: p.materialCostEstimate ? formatCents(p.materialCostEstimate) : null,
+      minPriceCents: p.minPrice,
+      targetPriceCents: p.targetPrice,
+      maxPriceCents: p.maxPrice,
+      minPriceDisplay: formatCents(p.minPrice),
+      targetPriceDisplay: formatCents(p.targetPrice),
+      maxPriceDisplay: formatCents(p.maxPrice),
+      materialCostCents: p.materialCostEstimate ?? null,
       materialIncluded: p.materialCostIncluded,
     })),
     frequencyOptions: d.frequencies.map(f => ({
       frequency: f.frequency,
-      priceModifier: `${f.priceModifierPercent}%`,
+      priceModifierPercent: f.priceModifierPercent,
       isDefault: f.isDefault,
     })),
     snowPolicy: d.snowPolicy ? {
       mode: d.snowPolicy.mode,
-      priceModifier: `${d.snowPolicy.priceModifierPercent}%`,
+      priceModifierPercent: d.snowPolicy.priceModifierPercent,
     } : null,
   }));
 
@@ -156,14 +159,15 @@ Requested services:
 ${JSON.stringify(input.serviceRequests, null, 2)}
 
 Pricing Rules:
-1. Use the target price as the base, adjust based on lot size if PER_SQFT model
-2. Apply frequency modifiers (negative = discount, positive = surcharge)
-3. Include material costs if specified
-4. Set confidence=LOW if lot size unknown and PER_SQFT pricing
-5. Set requiresManualReview=true for services with requiresManualQuote=true
-6. Consider customer price flexibility: BUDGET = use minPrice, PREMIUM = use maxPrice, STANDARD = use targetPrice
+1. Use the pricing tier cents values (minPriceCents, targetPriceCents, maxPriceCents)
+2. For customer price flexibility: BUDGET = use minPriceCents, PREMIUM = use maxPriceCents, STANDARD = use targetPriceCents
+3. Apply frequency modifiers as percentages (negative = discount, positive = surcharge)
+4. For PER_SQFT models, calculate: (lotSizeSqFt * pricePerSqFtCents)
+5. Include materialCostCents if specified and materialIncluded is false
+6. Set confidence=LOW if lot size unknown and PER_SQFT pricing
+7. Set requiresManualReview=true for services with requiresManualQuote=true
 
-All prices should be in cents (integers).
+IMPORTANT: All prices in output MUST be integers in cents. Use the *Cents fields for calculations.
 
 Respond in JSON format:
 {

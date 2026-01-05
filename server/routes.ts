@@ -10426,6 +10426,20 @@ Return JSON format:
   // Customer Service Preferences
   // ============================================================
 
+  const preferenceBodySchema = z.object({
+    serviceId: z.number().nullable().optional(),
+    preferredFrequency: z.string().nullable().optional(),
+    preferredDayOfWeek: z.string().nullable().optional(),
+    preferredTimeWindow: z.string().nullable().optional(),
+    preferredCrewId: z.number().nullable().optional(),
+    priceFlexibility: z.enum(["BUDGET", "STANDARD", "PREMIUM"]).optional(),
+    communicationPreference: z.enum(["SMS", "EMAIL", "PHONE"]).optional(),
+    seasonalPreference: z.string().nullable().optional(),
+    specialInstructions: z.string().nullable().optional(),
+    doNotContact: z.boolean().optional(),
+    confidenceScore: z.number().min(0).max(100).optional(),
+  });
+
   // GET /api/customers/:customerId/preferences - Get all preferences for a customer
   app.get("/api/customers/:customerId/preferences", async (req, res) => {
     try {
@@ -10445,8 +10459,14 @@ Return JSON format:
     try {
       const accountId = 1; // TODO: Get from session
       const customerId = parseInt(req.params.customerId);
+      
+      const validated = preferenceBodySchema.safeParse(req.body);
+      if (!validated.success) {
+        return res.status(400).json({ error: "Invalid request body", details: validated.error.flatten() });
+      }
+      
       const preference = await storage.upsertCustomerServicePreference({
-        ...req.body,
+        ...validated.data,
         accountId,
         customerId,
       });
@@ -10460,8 +10480,21 @@ Return JSON format:
   // PATCH /api/customers/:customerId/preferences/:id - Update preference
   app.patch("/api/customers/:customerId/preferences/:id", async (req, res) => {
     try {
+      const accountId = 1; // TODO: Get from session
+      const customerId = parseInt(req.params.customerId);
       const id = parseInt(req.params.id);
-      const preference = await storage.updateCustomerServicePreference(id, req.body);
+      
+      const validated = preferenceBodySchema.partial().safeParse(req.body);
+      if (!validated.success) {
+        return res.status(400).json({ error: "Invalid request body", details: validated.error.flatten() });
+      }
+      
+      const existing = await storage.getCustomerServicePreference(id);
+      if (!existing || existing.accountId !== accountId || existing.customerId !== customerId) {
+        return res.status(404).json({ error: "Preference not found" });
+      }
+      
+      const preference = await storage.updateCustomerServicePreference(id, validated.data);
       if (!preference) {
         return res.status(404).json({ error: "Preference not found" });
       }
@@ -10475,7 +10508,15 @@ Return JSON format:
   // DELETE /api/customers/:customerId/preferences/:id - Delete preference
   app.delete("/api/customers/:customerId/preferences/:id", async (req, res) => {
     try {
+      const accountId = 1; // TODO: Get from session
+      const customerId = parseInt(req.params.customerId);
       const id = parseInt(req.params.id);
+      
+      const existing = await storage.getCustomerServicePreference(id);
+      if (!existing || existing.accountId !== accountId || existing.customerId !== customerId) {
+        return res.status(404).json({ error: "Preference not found" });
+      }
+      
       await storage.deleteCustomerServicePreference(id);
       res.status(204).send();
     } catch (error: any) {
@@ -10488,15 +10529,36 @@ Return JSON format:
   // Preference Agent
   // ============================================================
 
+  const learnRequestSchema = z.object({
+    customerId: z.number(),
+    interactionHistory: z.array(z.object({
+      type: z.string(),
+      serviceId: z.number().optional(),
+      details: z.record(z.any()),
+      timestamp: z.string(),
+    })),
+  });
+
+  const applyRequestSchema = z.object({
+    customerId: z.number(),
+    serviceIds: z.array(z.number()).min(1, "At least one serviceId is required"),
+    context: z.string().optional(),
+  });
+
   // POST /api/agents/preference/learn - Learn preferences from interaction history
   app.post("/api/agents/preference/learn", async (req, res) => {
     try {
-      const { runPreferenceAgentLearn } = await import("./agents/preference");
+      const validated = learnRequestSchema.safeParse(req.body);
+      if (!validated.success) {
+        return res.status(400).json({ error: "Invalid request body", details: validated.error.flatten() });
+      }
+      
+      const { learnCustomerPreferences } = await import("./agents/preference");
       const accountId = 1; // TODO: Get from session
-      const result = await runPreferenceAgentLearn({
+      const result = await learnCustomerPreferences({
         accountId,
-        customerId: req.body.customerId,
-        interactions: req.body.interactions,
+        customerId: validated.data.customerId,
+        interactionHistory: validated.data.interactionHistory,
       });
       res.json(result);
     } catch (error: any) {
@@ -10508,12 +10570,18 @@ Return JSON format:
   // POST /api/agents/preference/apply - Apply preferences to a request
   app.post("/api/agents/preference/apply", async (req, res) => {
     try {
-      const { runPreferenceAgentApply } = await import("./agents/preference");
+      const validated = applyRequestSchema.safeParse(req.body);
+      if (!validated.success) {
+        return res.status(400).json({ error: "Invalid request body", details: validated.error.flatten() });
+      }
+      
+      const { applyCustomerPreferences } = await import("./agents/preference");
       const accountId = 1; // TODO: Get from session
-      const result = await runPreferenceAgentApply({
+      const result = await applyCustomerPreferences({
         accountId,
-        customerId: req.body.customerId,
-        request: req.body.request,
+        customerId: validated.data.customerId,
+        serviceIds: validated.data.serviceIds,
+        context: validated.data.context,
       });
       res.json(result);
     } catch (error: any) {
@@ -10525,10 +10593,10 @@ Return JSON format:
   // GET /api/agents/preference/summary/:customerId - Get preference summary
   app.get("/api/agents/preference/summary/:customerId", async (req, res) => {
     try {
-      const { getPreferenceSummary } = await import("./agents/preference");
+      const { getCustomerPreferenceSummary } = await import("./agents/preference");
       const accountId = 1; // TODO: Get from session
       const customerId = parseInt(req.params.customerId);
-      const summary = await getPreferenceSummary(accountId, customerId);
+      const summary = await getCustomerPreferenceSummary(accountId, customerId);
       res.json(summary);
     } catch (error: any) {
       console.error("[PreferenceAgent:Summary] Error:", error);
