@@ -3,12 +3,14 @@ import {
   dispatchPlans, 
   dispatchPlanEvents, 
   crewRoster,
+  crewZoneAssignments,
+  serviceZones,
   type DispatchPlan,
   type DispatchPlanResult 
 } from "@shared/schema";
 import { eq, and, gte, lte } from "drizzle-orm";
 import { JobberDispatchClient } from "../../connectors/jobber-dispatch-client";
-import { computeDispatchPlan, generateRouteUrl } from "./planningEngine";
+import { computeDispatchPlan, generateRouteUrl, type CrewZoneData } from "./planningEngine";
 
 type DispatchMode = "nightly" | "event";
 type PlanStatus = "draft" | "pending_apply" | "applied" | "rejected" | "failed";
@@ -107,8 +109,29 @@ async function processDispatch(request: DispatchRequest): Promise<DispatchPlan |
     return null;
   }
 
+  const zoneAssignments = await db
+    .select()
+    .from(crewZoneAssignments)
+    .innerJoin(serviceZones, eq(crewZoneAssignments.zoneId, serviceZones.id))
+    .where(eq(serviceZones.isActive, true));
+
+  const crewZoneData = new Map<number, CrewZoneData>();
+  for (const row of zoneAssignments) {
+    const crewId = row.crew_zone_assignments.crewId;
+    if (!crewZoneData.has(crewId)) {
+      crewZoneData.set(crewId, { crewId, zones: [] });
+    }
+    crewZoneData.get(crewId)!.zones.push({
+      zone: row.service_zones,
+      isPrimary: row.crew_zone_assignments.isPrimary ?? false,
+      priority: row.crew_zone_assignments.priority ?? 0,
+    });
+  }
+
+  console.log(`[Dispatcher] Loaded zone data for ${crewZoneData.size} crews`);
+
   const startTime = Date.now();
-  const planResult = computeDispatchPlan(jobs, crews, request.planDate);
+  const planResult = computeDispatchPlan(jobs, crews, request.planDate, crewZoneData);
   const computeTimeMs = Date.now() - startTime;
 
   const [plan] = await db
@@ -133,7 +156,7 @@ async function processDispatch(request: DispatchRequest): Promise<DispatchPlan |
       }, {} as Record<number, any[]>),
       totalDriveMinutes: planResult.totalDriveMins,
       utilizationPercent: planResult.overallUtilization,
-      algorithmVersion: "v1-greedy",
+      algorithmVersion: "v2-zone-aware",
       computeTimeMs,
     })
     .onConflictDoUpdate({

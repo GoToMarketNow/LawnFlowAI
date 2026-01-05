@@ -2,13 +2,91 @@ import type {
   CrewRoster, 
   RouteStop, 
   CrewAssignment, 
-  DispatchPlanResult 
+  DispatchPlanResult,
+  ServiceZone,
+  CrewZoneAssignment
 } from "@shared/schema";
 import type { JobForDispatch } from "../../connectors/jobber-dispatch-client";
 
 interface Coordinates {
   lat: number;
   lng: number;
+}
+
+export interface CrewZoneData {
+  crewId: number;
+  zones: Array<{
+    zone: ServiceZone;
+    isPrimary: boolean;
+    priority: number;
+  }>;
+}
+
+function isPointInBoundingBox(
+  lat: number,
+  lng: number,
+  zone: ServiceZone
+): boolean {
+  if (zone.minLat == null || zone.maxLat == null || zone.minLng == null || zone.maxLng == null) {
+    return false;
+  }
+  return (
+    lat >= Number(zone.minLat) &&
+    lat <= Number(zone.maxLat) &&
+    lng >= Number(zone.minLng) &&
+    lng <= Number(zone.maxLng)
+  );
+}
+
+function isPointInCircle(
+  lat: number,
+  lng: number,
+  zone: ServiceZone
+): boolean {
+  if (zone.centerLat == null || zone.centerLng == null || zone.radiusMiles == null) {
+    return false;
+  }
+  const distance = haversineDistance(
+    { lat, lng },
+    { lat: Number(zone.centerLat), lng: Number(zone.centerLng) }
+  );
+  return distance <= Number(zone.radiusMiles);
+}
+
+function isPointInZone(lat: number, lng: number, zone: ServiceZone): boolean {
+  if (!zone.isActive) return false;
+  const hasBoundingBox = zone.minLat != null && zone.maxLat != null && zone.minLng != null && zone.maxLng != null;
+  const hasCircle = zone.centerLat != null && zone.centerLng != null && zone.radiusMiles != null;
+  if (hasBoundingBox) {
+    return isPointInBoundingBox(lat, lng, zone);
+  }
+  if (hasCircle) {
+    return isPointInCircle(lat, lng, zone);
+  }
+  return false;
+}
+
+function getZoneMatchScore(
+  jobLat: number,
+  jobLng: number,
+  crewZones: CrewZoneData | undefined
+): { score: number; matchedZone: ServiceZone | null; isPrimary: boolean } {
+  if (!crewZones || crewZones.zones.length === 0) {
+    return { score: 0, matchedZone: null, isPrimary: false };
+  }
+  const primaryZones = crewZones.zones.filter(z => z.isPrimary).sort((a, b) => b.priority - a.priority);
+  for (const zoneData of primaryZones) {
+    if (isPointInZone(jobLat, jobLng, zoneData.zone)) {
+      return { score: 20, matchedZone: zoneData.zone, isPrimary: true };
+    }
+  }
+  const backupZones = crewZones.zones.filter(z => !z.isPrimary).sort((a, b) => b.priority - a.priority);
+  for (const zoneData of backupZones) {
+    if (isPointInZone(jobLat, jobLng, zoneData.zone)) {
+      return { score: 10, matchedZone: zoneData.zone, isPrimary: false };
+    }
+  }
+  return { score: 0, matchedZone: null, isPrimary: false };
 }
 
 function haversineDistance(coord1: Coordinates, coord2: Coordinates): number {
@@ -119,7 +197,8 @@ function checkEquipmentCompatibility(
 export function computeDispatchPlan(
   jobs: JobForDispatch[],
   crews: CrewRoster[],
-  planDate: Date
+  planDate: Date,
+  crewZoneData?: Map<number, CrewZoneData>
 ): DispatchPlanResult {
   const startTime = Date.now();
   const warnings: string[] = [];
@@ -170,11 +249,14 @@ export function computeDispatchPlan(
   });
 
   const unassignedJobs: string[] = [];
+  let zoneMatchedCount = 0;
+  let primaryZoneMatchedCount = 0;
 
   for (const job of sortedJobs) {
     let bestCrew: number | null = null;
     let bestScore = Infinity;
     let bestDriveMins = 0;
+    let bestZoneMatch = false;
 
     for (const entry of Array.from(crewState.entries())) {
       const [crewId, state] = entry;
@@ -195,12 +277,20 @@ export function computeDispatchPlan(
 
       const utilizationFactor = state.usedMinutes / state.availableMinutes;
       const loadBalancingPenalty = utilizationFactor * 10;
-      const score = driveMins * 1.5 + loadBalancingPenalty;
+      
+      let zoneBonus = 0;
+      if (crewZoneData && job.lat && job.lng) {
+        const zoneMatch = getZoneMatchScore(job.lat, job.lng, crewZoneData.get(crewId));
+        zoneBonus = zoneMatch.score;
+      }
+      
+      const score = driveMins * 1.5 + loadBalancingPenalty - zoneBonus;
 
       if (score < bestScore) {
         bestScore = score;
         bestCrew = crewId;
         bestDriveMins = driveMins;
+        bestZoneMatch = zoneBonus > 0;
       }
     }
 

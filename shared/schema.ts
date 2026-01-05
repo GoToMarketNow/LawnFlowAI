@@ -2322,6 +2322,44 @@ export const crewZoneAssignments = pgTable("crew_zone_assignments", {
   uniqueAssignment: uniqueIndex("crew_zone_unique_idx").on(table.crewId, table.zoneId),
 }));
 
+// Crew Analytics Snapshots - Daily performance metrics for each crew
+export const crewAnalyticsSnapshots = pgTable("crew_analytics_snapshots", {
+  id: serial("id").primaryKey(),
+  crewId: integer("crew_id").references(() => crews.id).notNull(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  snapshotDate: timestamp("snapshot_date").notNull(),
+  
+  // Job metrics
+  jobsCompleted: integer("jobs_completed").default(0).notNull(),
+  jobsAssigned: integer("jobs_assigned").default(0).notNull(),
+  jobsCancelled: integer("jobs_cancelled").default(0),
+  
+  // Time metrics (in minutes)
+  totalServiceMinutes: integer("total_service_minutes").default(0),
+  totalDriveMinutes: integer("total_drive_minutes").default(0),
+  totalAvailableMinutes: integer("total_available_minutes").default(0),
+  utilizationPercent: integer("utilization_percent").default(0),
+  
+  // Revenue metrics (in cents)
+  revenueGenerated: integer("revenue_generated").default(0),
+  averageJobRevenue: integer("average_job_revenue").default(0),
+  
+  // Zone performance
+  inZoneJobCount: integer("in_zone_job_count").default(0),
+  outOfZoneJobCount: integer("out_of_zone_job_count").default(0),
+  zoneCompliancePercent: integer("zone_compliance_percent").default(0),
+  
+  // Efficiency metrics
+  averageDriveMinutesPerJob: integer("avg_drive_minutes_per_job").default(0),
+  onTimeArrivalPercent: integer("on_time_arrival_percent").default(0),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  crewIdx: index("crew_analytics_crew_idx").on(table.crewId),
+  dateIdx: index("crew_analytics_date_idx").on(table.snapshotDate),
+  uniqueSnapshot: uniqueIndex("crew_analytics_unique_idx").on(table.crewId, table.snapshotDate),
+}));
+
 // Insert schemas for Skills & Equipment
 export const insertSkillSchema = createInsertSchema(skills).omit({
   id: true,
@@ -2370,6 +2408,11 @@ export const insertCrewZoneAssignmentSchema = createInsertSchema(crewZoneAssignm
   assignedAt: true,
 });
 
+export const insertCrewAnalyticsSnapshotSchema = createInsertSchema(crewAnalyticsSnapshots).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types for Skills & Equipment
 export type Skill = typeof skills.$inferSelect;
 export type InsertSkill = z.infer<typeof insertSkillSchema>;
@@ -2395,6 +2438,9 @@ export type InsertServiceZone = z.infer<typeof insertServiceZoneSchema>;
 
 export type CrewZoneAssignment = typeof crewZoneAssignments.$inferSelect;
 export type InsertCrewZoneAssignment = z.infer<typeof insertCrewZoneAssignmentSchema>;
+
+export type CrewAnalyticsSnapshot = typeof crewAnalyticsSnapshots.$inferSelect;
+export type InsertCrewAnalyticsSnapshot = z.infer<typeof insertCrewAnalyticsSnapshotSchema>;
 
 // Extended types with relations
 export type SkillWithCrews = Skill & { crewCount: number };

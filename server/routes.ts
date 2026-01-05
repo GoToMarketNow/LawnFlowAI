@@ -7076,6 +7076,183 @@ Return JSON format:
     }
   });
 
+  app.get("/api/ops/zones/crews-for-location", async (req, res) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    const role = (req.user as any)?.role;
+    if (!["OWNER", "ADMIN", "CREW_LEAD", "STAFF"].includes(role)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    try {
+      const lat = parseFloat(req.query.lat as string);
+      const lng = parseFloat(req.query.lng as string);
+      if (isNaN(lat) || isNaN(lng)) {
+        return res.status(400).json({ error: "Valid lat and lng query parameters are required" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const allZones = await storage.getServiceZones(profile.id);
+      const matchingZones: Array<{ zone: typeof allZones[0]; isPrimary: boolean }> = [];
+      for (const zone of allZones) {
+        if (!zone.isActive) continue;
+        const hasBoundingBox = zone.minLat != null && zone.maxLat != null && zone.minLng != null && zone.maxLng != null;
+        const hasCircle = zone.centerLat != null && zone.centerLng != null && zone.radiusMiles != null;
+        let isInZone = false;
+        if (hasBoundingBox) {
+          isInZone = lat >= Number(zone.minLat) && lat <= Number(zone.maxLat) && 
+                     lng >= Number(zone.minLng) && lng <= Number(zone.maxLng);
+        } else if (hasCircle) {
+          const R = 3959;
+          const dLat = (lat - Number(zone.centerLat)) * Math.PI / 180;
+          const dLng = (lng - Number(zone.centerLng)) * Math.PI / 180;
+          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(Number(zone.centerLat) * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
+                    Math.sin(dLng/2) * Math.sin(dLng/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          const distance = R * c;
+          isInZone = distance <= Number(zone.radiusMiles);
+        }
+        if (isInZone) {
+          matchingZones.push({ zone, isPrimary: false });
+        }
+      }
+      const matchingCrews: Array<{
+        crew: any;
+        zone: typeof allZones[0];
+        isPrimary: boolean;
+        priority: number;
+      }> = [];
+      for (const { zone } of matchingZones) {
+        const zoneCrews = await storage.getZoneCrewAssignments(zone.id);
+        for (const assignment of zoneCrews) {
+          const existingIdx = matchingCrews.findIndex(mc => mc.crew.id === assignment.crew.id);
+          if (existingIdx >= 0) {
+            if (assignment.isPrimary && !matchingCrews[existingIdx].isPrimary) {
+              matchingCrews[existingIdx] = {
+                crew: assignment.crew,
+                zone: zone,
+                isPrimary: assignment.isPrimary ?? false,
+                priority: assignment.priority ?? 0,
+              };
+            }
+          } else {
+            matchingCrews.push({
+              crew: assignment.crew,
+              zone: zone,
+              isPrimary: assignment.isPrimary ?? false,
+              priority: assignment.priority ?? 0,
+            });
+          }
+        }
+      }
+      matchingCrews.sort((a, b) => {
+        if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+        return b.priority - a.priority;
+      });
+      res.json({
+        location: { lat, lng },
+        matchingZones: matchingZones.map(mz => mz.zone),
+        eligibleCrews: matchingCrews,
+      });
+    } catch (error: any) {
+      console.error("[Zones] Error finding crews for location:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Ops API: Crew Analytics ---
+  app.get("/api/ops/crews/:crewId/analytics", async (req, res) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    const role = (req.user as any)?.role;
+    if (!["OWNER", "ADMIN", "CREW_LEAD", "STAFF"].includes(role)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    try {
+      const crewId = parseInt(req.params.crewId);
+      const days = parseInt(req.query.days as string) || 30;
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+      
+      const analytics = await storage.getCrewAnalytics(crewId, startDate, endDate);
+      const summary = await storage.getCrewAnalyticsSummary(crewId, days);
+      
+      res.json({ analytics, summary, period: { startDate, endDate, days } });
+    } catch (error: any) {
+      console.error("[Analytics] Error fetching crew analytics:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/ops/analytics/crews", async (req, res) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    const role = (req.user as any)?.role;
+    if (!["OWNER", "ADMIN"].includes(role)) {
+      return res.status(403).json({ error: "Only OWNER or ADMIN can view all crew analytics" });
+    }
+    try {
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const days = parseInt(req.query.days as string) || 30;
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+      
+      const analytics = await storage.getAllCrewsAnalytics(profile.id, startDate, endDate);
+      
+      const crewSummaries = new Map<number, {
+        crewId: number;
+        totalJobsCompleted: number;
+        totalRevenue: number;
+        avgUtilization: number;
+        avgZoneCompliance: number;
+        totalDriveMinutes: number;
+        snapshots: number;
+      }>();
+      
+      for (const snap of analytics) {
+        if (!crewSummaries.has(snap.crewId)) {
+          crewSummaries.set(snap.crewId, {
+            crewId: snap.crewId,
+            totalJobsCompleted: 0,
+            totalRevenue: 0,
+            avgUtilization: 0,
+            avgZoneCompliance: 0,
+            totalDriveMinutes: 0,
+            snapshots: 0,
+          });
+        }
+        const summary = crewSummaries.get(snap.crewId)!;
+        summary.totalJobsCompleted += snap.jobsCompleted || 0;
+        summary.totalRevenue += snap.revenueGenerated || 0;
+        summary.avgUtilization += snap.utilizationPercent || 0;
+        summary.avgZoneCompliance += snap.zoneCompliancePercent || 0;
+        summary.totalDriveMinutes += snap.totalDriveMinutes || 0;
+        summary.snapshots += 1;
+      }
+      
+      const summaries = Array.from(crewSummaries.values()).map(s => ({
+        ...s,
+        avgUtilization: s.snapshots > 0 ? Math.round(s.avgUtilization / s.snapshots) : 0,
+        avgZoneCompliance: s.snapshots > 0 ? Math.round(s.avgZoneCompliance / s.snapshots) : 0,
+      }));
+      
+      res.json({ summaries, period: { startDate, endDate, days } });
+    } catch (error: any) {
+      console.error("[Analytics] Error fetching all crews analytics:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // --- Ops API: Job Requests ---
   app.get("/api/ops/jobs", async (req, res) => {
     try {

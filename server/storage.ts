@@ -121,6 +121,9 @@ import {
   type InsertServiceZone,
   type CrewZoneAssignment,
   type InsertCrewZoneAssignment,
+  type CrewAnalyticsSnapshot,
+  type InsertCrewAnalyticsSnapshot,
+  crewAnalyticsSnapshots,
   type JobRequest,
   type InsertJobRequest,
   type ScheduleItem,
@@ -356,6 +359,18 @@ export interface IStorage {
   assignCrewToZone(crewId: number, zoneId: number, isPrimary?: boolean, priority?: number, assignedBy?: number): Promise<CrewZoneAssignment>;
   updateCrewZoneAssignment(id: number, updates: Partial<InsertCrewZoneAssignment>): Promise<CrewZoneAssignment>;
   removeCrewFromZone(crewId: number, zoneId: number): Promise<boolean>;
+  
+  // Crew Analytics
+  getCrewAnalytics(crewId: number, startDate: Date, endDate: Date): Promise<CrewAnalyticsSnapshot[]>;
+  getCrewAnalyticsSummary(crewId: number, days: number): Promise<{
+    totalJobsCompleted: number;
+    totalRevenue: number;
+    averageUtilization: number;
+    averageZoneCompliance: number;
+    totalDriveMinutes: number;
+  }>;
+  getAllCrewsAnalytics(businessId: number, startDate: Date, endDate: Date): Promise<CrewAnalyticsSnapshot[]>;
+  upsertCrewAnalyticsSnapshot(snapshot: InsertCrewAnalyticsSnapshot): Promise<CrewAnalyticsSnapshot>;
   
   // Route Optimizer - Job Requests
   getJobRequests(businessId: number): Promise<JobRequest[]>;
@@ -1876,6 +1891,101 @@ export class DatabaseStorage implements IStorage {
         eq(crewZoneAssignments.zoneId, zoneId)
       ));
     return true;
+  }
+
+  // Crew Analytics
+  async getCrewAnalytics(crewId: number, startDate: Date, endDate: Date): Promise<CrewAnalyticsSnapshot[]> {
+    return db
+      .select()
+      .from(crewAnalyticsSnapshots)
+      .where(and(
+        eq(crewAnalyticsSnapshots.crewId, crewId),
+        gte(crewAnalyticsSnapshots.snapshotDate, startDate),
+        lte(crewAnalyticsSnapshots.snapshotDate, endDate)
+      ))
+      .orderBy(desc(crewAnalyticsSnapshots.snapshotDate));
+  }
+
+  async getCrewAnalyticsSummary(crewId: number, days: number): Promise<{
+    totalJobsCompleted: number;
+    totalRevenue: number;
+    averageUtilization: number;
+    averageZoneCompliance: number;
+    totalDriveMinutes: number;
+  }> {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    
+    const snapshots = await db
+      .select()
+      .from(crewAnalyticsSnapshots)
+      .where(and(
+        eq(crewAnalyticsSnapshots.crewId, crewId),
+        gte(crewAnalyticsSnapshots.snapshotDate, startDate)
+      ));
+    
+    if (snapshots.length === 0) {
+      return {
+        totalJobsCompleted: 0,
+        totalRevenue: 0,
+        averageUtilization: 0,
+        averageZoneCompliance: 0,
+        totalDriveMinutes: 0,
+      };
+    }
+    
+    const totalJobsCompleted = snapshots.reduce((sum, s) => sum + (s.jobsCompleted || 0), 0);
+    const totalRevenue = snapshots.reduce((sum, s) => sum + (s.revenueGenerated || 0), 0);
+    const totalDriveMinutes = snapshots.reduce((sum, s) => sum + (s.totalDriveMinutes || 0), 0);
+    const averageUtilization = snapshots.reduce((sum, s) => sum + (s.utilizationPercent || 0), 0) / snapshots.length;
+    const averageZoneCompliance = snapshots.reduce((sum, s) => sum + (s.zoneCompliancePercent || 0), 0) / snapshots.length;
+    
+    return {
+      totalJobsCompleted,
+      totalRevenue,
+      averageUtilization: Math.round(averageUtilization),
+      averageZoneCompliance: Math.round(averageZoneCompliance),
+      totalDriveMinutes,
+    };
+  }
+
+  async getAllCrewsAnalytics(businessId: number, startDate: Date, endDate: Date): Promise<CrewAnalyticsSnapshot[]> {
+    return db
+      .select()
+      .from(crewAnalyticsSnapshots)
+      .where(and(
+        eq(crewAnalyticsSnapshots.businessId, businessId),
+        gte(crewAnalyticsSnapshots.snapshotDate, startDate),
+        lte(crewAnalyticsSnapshots.snapshotDate, endDate)
+      ))
+      .orderBy(desc(crewAnalyticsSnapshots.snapshotDate));
+  }
+
+  async upsertCrewAnalyticsSnapshot(snapshot: InsertCrewAnalyticsSnapshot): Promise<CrewAnalyticsSnapshot> {
+    const [result] = await db
+      .insert(crewAnalyticsSnapshots)
+      .values(snapshot)
+      .onConflictDoUpdate({
+        target: [crewAnalyticsSnapshots.crewId, crewAnalyticsSnapshots.snapshotDate],
+        set: {
+          jobsCompleted: snapshot.jobsCompleted,
+          jobsAssigned: snapshot.jobsAssigned,
+          jobsCancelled: snapshot.jobsCancelled,
+          totalServiceMinutes: snapshot.totalServiceMinutes,
+          totalDriveMinutes: snapshot.totalDriveMinutes,
+          totalAvailableMinutes: snapshot.totalAvailableMinutes,
+          utilizationPercent: snapshot.utilizationPercent,
+          revenueGenerated: snapshot.revenueGenerated,
+          averageJobRevenue: snapshot.averageJobRevenue,
+          inZoneJobCount: snapshot.inZoneJobCount,
+          outOfZoneJobCount: snapshot.outOfZoneJobCount,
+          zoneCompliancePercent: snapshot.zoneCompliancePercent,
+          averageDriveMinutesPerJob: snapshot.averageDriveMinutesPerJob,
+          onTimeArrivalPercent: snapshot.onTimeArrivalPercent,
+        },
+      })
+      .returning();
+    return result;
   }
 
   // Route Optimizer - Job Requests

@@ -53,6 +53,10 @@ import {
   Truck,
   ClipboardList,
   Map,
+  TrendingUp,
+  DollarSign,
+  Gauge,
+  Navigation,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -72,6 +76,146 @@ type CrewWithMembers = Crew & {
   memberCount?: number;
   leader?: CrewMember | null;
 };
+
+interface AnalyticsData {
+  analytics: Array<{
+    id: number;
+    crewId: number;
+    snapshotDate: string;
+    jobsCompleted: number;
+    jobsAssigned: number;
+    totalServiceMinutes: number;
+    totalDriveMinutes: number;
+    utilizationPercent: number;
+    revenueGenerated: number;
+    zoneCompliancePercent: number;
+  }>;
+  summary: {
+    totalJobsCompleted: number;
+    totalRevenue: number;
+    averageUtilization: number;
+    averageZoneCompliance: number;
+    totalDriveMinutes: number;
+  };
+  period: {
+    startDate: string;
+    endDate: string;
+    days: number;
+  };
+}
+
+function CrewAnalyticsSection({ crewId }: { crewId: number }) {
+  const [days, setDays] = useState(30);
+  
+  const { data, isLoading } = useQuery<AnalyticsData>({
+    queryKey: ["/api/ops/crews", crewId, "analytics", days],
+    queryFn: async () => {
+      const res = await fetch(`/api/ops/crews/${crewId}/analytics?days=${days}`);
+      if (!res.ok) throw new Error("Failed to fetch analytics");
+      return res.json();
+    },
+  });
+
+  const formatCurrency = (cents: number) => {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+  };
+
+  const formatMinutes = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}h ${mins}m`;
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Performance Analytics
+            </CardTitle>
+            <CardDescription>
+              Crew performance metrics and trends
+            </CardDescription>
+          </div>
+          <Select value={days.toString()} onValueChange={(v) => setDays(parseInt(v))}>
+            <SelectTrigger className="w-[130px]" data-testid="select-analytics-period">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">Last 7 days</SelectItem>
+              <SelectItem value="14">Last 14 days</SelectItem>
+              <SelectItem value="30">Last 30 days</SelectItem>
+              <SelectItem value="90">Last 90 days</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-20 rounded-md" />
+            ))}
+          </div>
+        ) : !data || !data.summary ? (
+          <div className="text-center py-6 text-muted-foreground">
+            <TrendingUp className="h-8 w-8 mx-auto opacity-30 mb-2" />
+            <p className="text-sm">No analytics data available yet</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div className="p-3 rounded-md bg-muted/50" data-testid="analytics-jobs">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <ClipboardList className="h-3.5 w-3.5" />
+                  <span className="text-xs">Jobs Completed</span>
+                </div>
+                <p className="text-2xl font-semibold">{data.summary.totalJobsCompleted}</p>
+              </div>
+              <div className="p-3 rounded-md bg-muted/50" data-testid="analytics-revenue">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <DollarSign className="h-3.5 w-3.5" />
+                  <span className="text-xs">Revenue</span>
+                </div>
+                <p className="text-2xl font-semibold">{formatCurrency(data.summary.totalRevenue)}</p>
+              </div>
+              <div className="p-3 rounded-md bg-muted/50" data-testid="analytics-utilization">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <Gauge className="h-3.5 w-3.5" />
+                  <span className="text-xs">Avg Utilization</span>
+                </div>
+                <p className="text-2xl font-semibold">{data.summary.averageUtilization}%</p>
+              </div>
+              <div className="p-3 rounded-md bg-muted/50" data-testid="analytics-drive-time">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <Navigation className="h-3.5 w-3.5" />
+                  <span className="text-xs">Drive Time</span>
+                </div>
+                <p className="text-2xl font-semibold">{formatMinutes(data.summary.totalDriveMinutes)}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 p-3 rounded-md border">
+              <div className="flex-1">
+                <span className="text-xs text-muted-foreground">Zone Compliance</span>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-primary rounded-full transition-all" 
+                      style={{ width: `${data.summary.averageZoneCompliance}%` }}
+                    />
+                  </div>
+                  <span className="text-sm font-medium">{data.summary.averageZoneCompliance}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function CrewDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -918,6 +1062,8 @@ export default function CrewDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      <CrewAnalyticsSection crewId={parseInt(id!)} />
 
       <Card>
         <CardHeader>

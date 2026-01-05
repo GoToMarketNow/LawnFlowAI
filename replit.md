@@ -28,8 +28,9 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
 - **Policy System:** A tiered automation policy system with configurable rules for various business operations and confidence thresholds.
 - **Lot Size Resolver:** Multi-tier caching and ArcGIS integration for accurate property data.
 - **Jobber Integration:** Full production-ready FSM connector with OAuth 2.0, GraphQL API client, webhook processing, and a Quote-to-Job Orchestrator.
-- **Dispatch & Routing Worker:** Intelligent route planning and crew dispatch with event-driven and nightly modes, employing a greedy optimization algorithm.
-- **Crew Management Module:** Comprehensive CRUD operations for crews, skills, equipment, schedules, and service zones with RBAC enforcement.
+- **Dispatch & Routing Worker:** Intelligent route planning and crew dispatch with event-driven and nightly modes, employing a zone-aware greedy optimization algorithm (v2-zone-aware). Scoring prioritizes primary zones (20-point bonus) and backup zones (10-point bonus) using Haversine distance for circular zones and lat/lng bounds for bounding box zones.
+- **Crew Management Module:** Comprehensive CRUD operations for crews, skills, equipment, schedules, and service zones with RBAC enforcement. Includes zone-aware routing, crew-to-zone assignments, and performance analytics.
+- **Crew Analytics System:** Daily performance snapshots tracking 15+ metrics including jobs completed, utilization, revenue, zone compliance, drive time efficiency, and on-time arrival rates. API endpoints at `/api/ops/crews/:id/analytics` and `/api/ops/analytics/crews` with period filtering.
 - **Route Optimizer:** Multi-agent job assignment system with job request tracking and simulation-based scheduling, including a decision workflow.
 - **Optimizer Orchestrator Agent:** Manages the end-to-end decision workflow for job assignments, including creation, approval, and writeback.
 - **Reconciliation Worker:** Validates invoice/payment integrity and updates Jobber custom fields, including a Dead Letter Queue for failed webhooks.
