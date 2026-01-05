@@ -9303,5 +9303,184 @@ Return JSON format:
     }
   });
 
+  // ============================================
+  // UI Refactor V1 - New Command Center APIs
+  // ============================================
+
+  app.get("/api/ops/kpis", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.json({
+          leadsToday: { new: 0, pending: 0, escalated: 0 },
+          quotesOut: { awaitingApproval: 0, sent: 0, accepted: 0 },
+          jobsToday: { scheduled: 0, atRisk: 0, unassigned: 0 },
+          crewStatus: { available: 0, onSite: 0, delayed: 0 },
+        });
+      }
+
+      const pendingActions = await storage.getPendingActions();
+      const jobs = await storage.getJobs();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const todayJobs = jobs.filter(j => {
+        const jobDate = new Date(j.scheduledDate || j.createdAt);
+        jobDate.setHours(0, 0, 0, 0);
+        return jobDate.getTime() === today.getTime();
+      });
+      
+      const quoteApprovals = pendingActions.filter(a => 
+        a.type?.toLowerCase().includes('quote') && a.status === 'pending'
+      ).length;
+
+      const unassignedJobs = todayJobs.filter(j => !j.assignedCrewId).length;
+      const atRiskJobs = todayJobs.filter(j => j.status === 'at_risk').length;
+
+      const crewsResult = await db.query.crews.findMany({
+        where: eq(sql`${sql.identifier("businessId")}`, profile.id),
+      }).catch(() => []);
+
+      res.json({
+        leadsToday: { 
+          new: pendingActions.filter(a => a.type?.toLowerCase().includes('lead') && a.status === 'pending').length,
+          pending: pendingActions.filter(a => a.status === 'pending').length,
+          escalated: pendingActions.filter(a => a.priority === 'high' && a.status === 'pending').length
+        },
+        quotesOut: { 
+          awaitingApproval: quoteApprovals, 
+          sent: 0, 
+          accepted: 0 
+        },
+        jobsToday: { 
+          scheduled: todayJobs.length, 
+          atRisk: atRiskJobs, 
+          unassigned: unassignedJobs 
+        },
+        crewStatus: { 
+          available: crewsResult.length, 
+          onSite: 0, 
+          delayed: 0 
+        },
+      });
+    } catch (error: any) {
+      console.error("[OpsKPIs] Error fetching KPIs:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/work-queue", async (req, res) => {
+    try {
+      const { status = "all", priority = "all", type = "all", limit = 50 } = req.query;
+      
+      const pendingActions = await storage.getPendingActions();
+      
+      const mapType = (t?: string): "LEAD" | "QUOTE" | "SCHEDULE" | "CREW" | "COMMS" => {
+        if (!t) return "LEAD";
+        const lower = t.toLowerCase();
+        if (lower.includes("quote")) return "QUOTE";
+        if (lower.includes("schedule")) return "SCHEDULE";
+        if (lower.includes("crew")) return "CREW";
+        if (lower.includes("comms") || lower.includes("message")) return "COMMS";
+        return "LEAD";
+      };
+      
+      const mapPriority = (p?: string): "LOW" | "MED" | "HIGH" => {
+        if (!p) return "MED";
+        const lower = p.toLowerCase();
+        if (lower === "high") return "HIGH";
+        if (lower === "low") return "LOW";
+        return "MED";
+      };
+      
+      let items = pendingActions.map(action => ({
+        id: `action-${action.id}`,
+        type: mapType(action.type),
+        title: action.title || `Action #${action.id}`,
+        status: action.status || "pending",
+        priority: mapPriority(action.priority),
+        confidence: action.metadata?.confidence || 80,
+        recommendedAction: action.metadata?.recommendedAction || "Review and approve",
+        dueAt: action.slaDeadline || undefined,
+        deepLink: `/approvals?id=${action.id}`,
+        contextJson: action.metadata || {},
+        createdAt: action.createdAt || new Date().toISOString(),
+      }));
+
+      if (status !== "all") {
+        items = items.filter(i => i.status === status);
+      }
+      if (priority !== "all") {
+        items = items.filter(i => i.priority === priority.toString().toUpperCase());
+      }
+      if (type !== "all") {
+        items = items.filter(i => i.type === type.toString().toUpperCase());
+      }
+
+      items = items.slice(0, Number(limit));
+
+      res.json({
+        items,
+        total: items.length,
+        byPriority: {
+          HIGH: items.filter(i => i.priority === "HIGH").length,
+          MED: items.filter(i => i.priority === "MED").length,
+          LOW: items.filter(i => i.priority === "LOW").length,
+        },
+      });
+    } catch (error: any) {
+      console.error("[WorkQueue] Error fetching queue:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/approvals", async (req, res) => {
+    try {
+      const { status = "pending" } = req.query;
+      
+      const pendingActions = await storage.getPendingActions();
+      
+      const mapApprovalType = (t?: string): "QUOTE" | "SCHEDULE" | "CREW" | "ESCALATION" => {
+        if (!t) return "QUOTE";
+        const lower = t.toLowerCase();
+        if (lower.includes("quote")) return "QUOTE";
+        if (lower.includes("schedule")) return "SCHEDULE";
+        if (lower.includes("crew")) return "CREW";
+        if (lower.includes("escalat")) return "ESCALATION";
+        return "QUOTE";
+      };
+      
+      let approvals = pendingActions;
+
+      if (status !== "all") {
+        approvals = approvals.filter(a => a.status === status);
+      }
+
+      const items = approvals.map(a => ({
+        id: String(a.id),
+        type: mapApprovalType(a.type),
+        title: a.title || `Approval #${a.id}`,
+        description: a.description || "",
+        changes: a.metadata?.changes || [],
+        reason: a.metadata?.reason || "Agent recommendation",
+        requestedBy: a.metadata?.requestedBy || "AI Agent",
+        requestedAt: a.createdAt || new Date().toISOString(),
+        dueAt: a.slaDeadline || undefined,
+        contextJson: a.metadata || {},
+      }));
+
+      res.json({
+        items,
+        total: items.length,
+        pending: pendingActions.filter(a => a.status === "pending").length,
+        approved: pendingActions.filter(a => a.status === "approved").length,
+        rejected: pendingActions.filter(a => a.status === "rejected").length,
+      });
+    } catch (error: any) {
+      console.error("[Approvals] Error fetching approvals:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }

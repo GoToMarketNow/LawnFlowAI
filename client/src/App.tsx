@@ -58,10 +58,20 @@ import ZonesPage from "@/pages/zones";
 import SettingsPage from "@/pages/settings";
 import CrewInboxPage from "@/pages/crew-inbox";
 import AgentSetupPage from "@/pages/agent-setup";
+import HomePage from "@/pages/home";
+import WorkQueuePage from "@/pages/work-queue";
+import ApprovalsPage from "@/pages/approvals";
+import SettingsAgentsPage from "@/pages/settings/agents";
+import SettingsPoliciesPage from "@/pages/settings/policies";
+import SettingsPricingPage from "@/pages/settings/pricing";
+import SettingsIntegrationsPage from "@/pages/settings/integrations";
+import SettingsObservabilityPage from "@/pages/settings/observability";
+import SettingsExportsPage from "@/pages/settings/exports";
 import NotFound from "@/pages/not-found";
 import { Loader2, AlertCircle } from "lucide-react";
 import { useUserRole } from "@/components/role-gate";
 import { canAccess, accessLevels } from "@/lib/ui/tokens";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 
 function OnboardingCheck({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -205,9 +215,40 @@ function AuthenticatedLayout() {
             <ErrorBoundary>
               <div className="max-w-7xl mx-auto">
                 <Switch>
-                  <Route path="/" component={Dashboard} />
-                  <Route path="/dashboard" component={Dashboard} />
-                  <Route path="/inbox" component={InboxPage} />
+                  {isFeatureEnabled('UI_REFACTOR_V1') ? (
+                    <>
+                      <Route path="/" component={HomePage} />
+                      <Route path="/home" component={HomePage} />
+                      <Route path="/dashboard">{() => <Redirect to="/home" />}</Route>
+                      <Route path="/work" component={WorkQueuePage} />
+                      <Route path="/inbox">{() => <Redirect to="/work" />}</Route>
+                      <Route path="/approvals" component={ApprovalsPage} />
+                      <Route path="/settings" component={SettingsPage} />
+                      <Route path="/settings/agents" component={SettingsAgentsPage} />
+                      <Route path="/settings/policies" component={SettingsPoliciesPage} />
+                      <Route path="/settings/pricing" component={SettingsPricingPage} />
+                      <Route path="/settings/integrations" component={SettingsIntegrationsPage} />
+                      <Route path="/settings/observability" component={SettingsObservabilityPage} />
+                      <Route path="/settings/exports" component={SettingsExportsPage} />
+                      <Route path="/agents">{() => <Redirect to="/settings/agents" />}</Route>
+                      <Route path="/agents/:id" component={AgentDetailPage} />
+                      <Route path="/learning">{() => <Redirect to="/settings/policies" />}</Route>
+                      <Route path="/pricing">{() => <Redirect to="/settings/pricing" />}</Route>
+                      <Route path="/audit">{() => <Redirect to="/settings/observability" />}</Route>
+                    </>
+                  ) : (
+                    <>
+                      <Route path="/" component={Dashboard} />
+                      <Route path="/dashboard" component={Dashboard} />
+                      <Route path="/inbox" component={InboxPage} />
+                      <Route path="/agents" component={AgentsPage} />
+                      <Route path="/agents/:id" component={AgentDetailPage} />
+                      <Route path="/settings" component={SettingsPage} />
+                      <Route path="/pricing" component={PricingControlCenter} />
+                      <Route path="/audit" component={AuditLogPage} />
+                      <Route path="/learning" component={LearningDashboard} />
+                    </>
+                  )}
                   <Route path="/jobs" component={JobsPage} />
                   <Route path="/quotes" component={QuotesPage} />
                   <Route path="/quote-builder" component={QuoteBuilder} />
@@ -218,15 +259,9 @@ function AuthenticatedLayout() {
                   <Route path="/operations/crews/:id" component={CrewDetailPage} />
                   <Route path="/operations/zones" component={ZonesPage} />
                   <Route path="/crew-inbox" component={CrewInboxPage} />
-                  <Route path="/agents" component={AgentsPage} />
-                  <Route path="/agents/:id" component={AgentDetailPage} />
-                  <Route path="/settings" component={SettingsPage} />
                   <Route path="/profile" component={BusinessProfilePage} />
                   <Route path="/simulator" component={SimulatorPage} />
-                  <Route path="/audit" component={AuditLogPage} />
-                  <Route path="/pricing" component={PricingControlCenter} />
                   <Route path="/ops" component={OpsDashboard} />
-                  <Route path="/learning" component={LearningDashboard} />
                   <Route path="/comms" component={CommsStudio} />
                   <Route path="/admin/coverage" component={AdminCoveragePage} />
                   <Route path="/conversations" component={ConversationsPage} />

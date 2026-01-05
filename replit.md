@@ -20,6 +20,13 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
 - User authentication with session management and auth-aware routing.
 - Onboarding-aware navigation.
 - Interactive Service Area Builder with Google Maps integration.
+- **UI Refactor V1** (feature-flagged via `VITE_UI_REFACTOR_V1`):
+  - New navigation structure: Command Center (`/home`), Work Queue (`/work`), Approvals (`/approvals`)
+  - Settings sub-pages: `/settings/agents`, `/settings/policies`, `/settings/pricing`, `/settings/integrations`, `/settings/observability`, `/settings/exports`
+  - Role-based menus in `client/src/lib/ui/nav-v2.ts` for OWNER_ADMIN, CREW_LEAD, CREW_MEMBER
+  - Legacy routes remain functional when flag is off; redirects active when flag is on
+  - API endpoints: `/api/ops/kpis`, `/api/work-queue`, `/api/approvals`
+  - See `docs/ui-refactor.md` for full route mapping and implementation phases
 
 **Technical Implementations & Feature Specifications:**
 - **Lead-to-Cash Orchestrator:** A 10-stage deterministic workflow managing the full lead lifecycle from intake to job booking, featuring human-in-the-loop approvals.

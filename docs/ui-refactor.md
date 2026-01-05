@@ -97,14 +97,23 @@ Note: CREW_MEMBER is a new role-level (below STAFF in the refactor context).
 
 ## Implementation Phases
 
-1. **Phase 0 (Prep)**: This document + feature flag ✓
-2. **Phase 1**: New navigation config + route setup
-3. **Phase 2**: Home → Command Center
-4. **Phase 3**: Work Queue unified inbox
-5. **Phase 4**: Approvals interface
-6. **Phase 5**: Schedule → Day Plan
-7. **Phase 6**: Crews + Comms polish + Agents to Settings
-8. **Phase 7**: Cleanup + QA
+1. **Phase 0 (Prep)**: This document + feature flag - COMPLETE
+2. **Phase 1**: New navigation config + route setup - COMPLETE
+   - Feature flag system in `client/src/lib/feature-flags.ts`
+   - Nav config with role-based menus in `client/src/lib/ui/nav-v2.ts`
+   - Updated `AppSidebar` with conditional rendering
+   - New routes in `App.tsx` with redirects
+   - Settings sub-pages created
+   - Backend API stubs: `/api/ops/kpis`, `/api/work-queue`, `/api/approvals`
+3. **Phase 2**: Home (Command Center) - COMPLETE
+   - `HomePage` with KPI tiles, Work Queue preview, Approval queue preview
+4. **Phase 3**: Work Queue unified inbox - COMPLETE
+   - `WorkQueuePage` with filtering by status/priority
+5. **Phase 4**: Approvals interface - COMPLETE  
+   - `ApprovalsPage` with fast approve/reject actions
+6. **Phase 5**: Schedule (Day Plan) - Pending
+7. **Phase 6**: Crews + Comms polish + Agents to Settings - Pending
+8. **Phase 7**: Cleanup + QA - Pending
 
 ## Testing by Role
 

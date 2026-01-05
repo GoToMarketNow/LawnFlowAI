@@ -12,6 +12,13 @@ import {
   Zap,
   Brain,
   MessageSquare,
+  CheckCircle,
+  Bell,
+  DollarSign,
+  Plug,
+  Activity,
+  Download,
+  Map,
 } from "lucide-react";
 import {
   Sidebar,
@@ -29,6 +36,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useUserRole } from "@/components/role-gate";
 import { getFilteredNavigation } from "@/lib/ui/nav";
+import { getFilteredNavigationV2, shouldUseV2Navigation } from "@/lib/ui/nav-v2";
 import { Badge } from "@/components/ui/badge";
 import { SystemStatus } from "@/components/system-status";
 import { Separator } from "@/components/ui/separator";
@@ -44,6 +52,13 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Settings,
   Brain,
   MessageSquare,
+  CheckCircle,
+  Bell,
+  DollarSign,
+  Plug,
+  Activity,
+  Download,
+  Map,
 };
 
 interface AppSidebarProps {
@@ -54,6 +69,7 @@ export function AppSidebar({ isOnboardingComplete }: AppSidebarProps) {
   const [location] = useLocation();
   const userRole = useUserRole();
   const { state } = useSidebar();
+  const useV2 = shouldUseV2Navigation();
   
   const { data: pendingActions } = useQuery<any[]>({
     queryKey: ["/api/pending-actions"],
@@ -66,13 +82,21 @@ export function AppSidebar({ isOnboardingComplete }: AppSidebarProps) {
     : 0;
 
   const isActive = (url: string) => {
-    if (url === "/") {
-      return location === "/" || location === "/dashboard";
+    if (useV2) {
+      if (url === "/home") {
+        return location === "/" || location === "/home" || location === "/dashboard";
+      }
+    } else {
+      if (url === "/") {
+        return location === "/" || location === "/dashboard";
+      }
     }
     return location === url || location.startsWith(url + "/");
   };
 
-  const filteredNavigation = getFilteredNavigation(userRole);
+  const filteredNavigation = useV2 
+    ? getFilteredNavigationV2(userRole) 
+    : getFilteredNavigation(userRole);
 
   return (
     <Sidebar aria-label="Primary" collapsible="icon">
@@ -87,7 +111,7 @@ export function AppSidebar({ isOnboardingComplete }: AppSidebarProps) {
                 LawnFlow AI
               </span>
               <span className="text-xs text-muted-foreground truncate">
-                Agentic Automation
+                {useV2 ? 'Command Center' : 'Agentic Automation'}
               </span>
             </div>
           )}
@@ -104,7 +128,8 @@ export function AppSidebar({ isOnboardingComplete }: AppSidebarProps) {
               <SidebarMenu>
                 {group.items.map((item) => {
                   const Icon = iconMap[item.icon] || LayoutDashboard;
-                  const disabled = !isOnboardingComplete && item.id !== "dashboard";
+                  const homeId = useV2 ? "home" : "dashboard";
+                  const disabled = !isOnboardingComplete && item.id !== homeId;
                   const showBadge = item.badge === "count" && pendingCount > 0;
                   
                   return (
@@ -155,8 +180,8 @@ export function AppSidebar({ isOnboardingComplete }: AppSidebarProps) {
           <div className="p-3 space-y-3">
             <SystemStatus />
             <Separator />
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>MVP v1.0</span>
+            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>{useV2 ? 'v2.0' : 'MVP v1.0'}</span>
               <Badge variant="outline" className="text-xs">
                 {userRole}
               </Badge>
