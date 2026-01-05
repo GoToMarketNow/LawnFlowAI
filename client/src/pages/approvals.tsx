@@ -43,6 +43,14 @@ interface ApprovalItem {
   contextJson?: any;
 }
 
+interface ApprovalsResponse {
+  items: ApprovalItem[];
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+}
+
 const typeLabels: Record<ApprovalType, string> = {
   QUOTE: 'Quote Approval',
   SCHEDULE: 'Schedule Change',
@@ -253,7 +261,7 @@ export default function ApprovalsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const { data: approvals, isLoading, error } = useQuery<ApprovalItem[]>({
+  const { data: response, isLoading, error } = useQuery<ApprovalsResponse>({
     queryKey: ["/api/approvals"],
     staleTime: 30000,
   });
@@ -288,7 +296,7 @@ export default function ApprovalsPage() {
     },
   });
 
-  const items = approvals || [];
+  const items = response?.items || [];
   const selectedItem = items.find(item => item.id === selectedId) || null;
 
   if (error) {
