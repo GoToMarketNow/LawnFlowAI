@@ -148,7 +148,7 @@ export default function SettingsUsersPage() {
                       <div className="flex items-center gap-3">
                         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
                           <span className="text-sm font-medium">
-                            {user.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                            {(user.name || "").split(" ").map((n) => n?.[0] || "").join("").slice(0, 2).toUpperCase()}
                           </span>
                         </div>
                         <div>
