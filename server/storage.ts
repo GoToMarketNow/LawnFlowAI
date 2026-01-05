@@ -229,6 +229,13 @@ import {
   type InsertCommsDeliveryLog,
   type CommsAudienceIndex,
   type InsertCommsAudienceIndex,
+  // Ops Comms (Active Comms triage)
+  opsCommsThreads,
+  opsCommsActionItems,
+  type OpsCommsThread,
+  type InsertOpsCommsThread,
+  type OpsCommsActionItem,
+  type InsertOpsCommsActionItem,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, inArray, sql, and, gte, lte } from "drizzle-orm";
@@ -667,6 +674,35 @@ export interface IStorage {
   // Comms Studio - Audience Index
   getCommsAudienceIndex(accountId: number, filters?: { audienceType?: string; crewId?: number }): Promise<CommsAudienceIndex[]>;
   upsertCommsAudienceIndex(entry: InsertCommsAudienceIndex): Promise<CommsAudienceIndex>;
+
+  // Ops Comms - Threads (Active Comms triage)
+  getOpsCommsThreads(accountId: number, filters?: { 
+    audienceType?: string; 
+    urgencyLevel?: string; 
+    status?: string; 
+    primaryChannel?: string;
+    excludeResolved?: boolean;
+    limit?: number;
+    sortBy?: 'urgency' | 'lastMessage' | 'slaDeadline';
+  }): Promise<OpsCommsThread[]>;
+  getOpsCommsThread(id: number): Promise<OpsCommsThread | undefined>;
+  createOpsCommsThread(thread: InsertOpsCommsThread): Promise<OpsCommsThread>;
+  updateOpsCommsThread(id: number, updates: Partial<InsertOpsCommsThread>): Promise<OpsCommsThread>;
+  updateOpsCommsThreadUrgency(id: number, urgencyScore: number, urgencyLevel: string, urgencyReason: string): Promise<OpsCommsThread>;
+
+  // Ops Comms - Action Items
+  getOpsCommsActionItems(accountId: number, filters?: { 
+    threadId?: number; 
+    state?: string; 
+    type?: string;
+    assignedToUserId?: number;
+    limit?: number;
+  }): Promise<OpsCommsActionItem[]>;
+  getOpsCommsActionItem(id: number): Promise<OpsCommsActionItem | undefined>;
+  createOpsCommsActionItem(actionItem: InsertOpsCommsActionItem): Promise<OpsCommsActionItem>;
+  updateOpsCommsActionItem(id: number, updates: Partial<InsertOpsCommsActionItem>): Promise<OpsCommsActionItem>;
+  completeOpsCommsActionItem(id: number, userId: number): Promise<OpsCommsActionItem>;
+  dismissOpsCommsActionItem(id: number): Promise<OpsCommsActionItem>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3641,6 +3677,189 @@ export class DatabaseStorage implements IStorage {
     }
     const [created] = await db.insert(commsAudienceIndex).values(entry).returning();
     return created;
+  }
+
+  // ============================================
+  // Ops Comms - Threads (Active Comms triage)
+  // ============================================
+  async getOpsCommsThreads(accountId: number, filters?: { 
+    audienceType?: string; 
+    urgencyLevel?: string; 
+    status?: string; 
+    primaryChannel?: string;
+    excludeResolved?: boolean;
+    limit?: number;
+    sortBy?: 'urgency' | 'lastMessage' | 'slaDeadline';
+  }): Promise<OpsCommsThread[]> {
+    const conditions = [eq(opsCommsThreads.accountId, accountId)];
+    if (filters?.audienceType) {
+      conditions.push(eq(opsCommsThreads.audienceType, filters.audienceType));
+    }
+    if (filters?.urgencyLevel) {
+      conditions.push(eq(opsCommsThreads.urgencyLevel, filters.urgencyLevel));
+    }
+    if (filters?.status) {
+      conditions.push(eq(opsCommsThreads.status, filters.status));
+    }
+    if (filters?.primaryChannel) {
+      conditions.push(eq(opsCommsThreads.primaryChannel, filters.primaryChannel));
+    }
+    if (filters?.excludeResolved) {
+      conditions.push(sql`${opsCommsThreads.status} != 'RESOLVED'`);
+    }
+    
+    let orderBy;
+    switch (filters?.sortBy) {
+      case 'slaDeadline':
+        orderBy = asc(opsCommsThreads.slaDeadlineAt);
+        break;
+      case 'lastMessage':
+        orderBy = desc(opsCommsThreads.lastMessageAt);
+        break;
+      case 'urgency':
+      default:
+        orderBy = desc(opsCommsThreads.urgencyScore);
+        break;
+    }
+    
+    const query = db.select().from(opsCommsThreads)
+      .where(and(...conditions))
+      .orderBy(orderBy);
+    
+    if (filters?.limit) {
+      return query.limit(filters.limit);
+    }
+    return query;
+  }
+
+  async getOpsCommsThread(id: number): Promise<OpsCommsThread | undefined> {
+    const [thread] = await db.select().from(opsCommsThreads).where(eq(opsCommsThreads.id, id));
+    return thread;
+  }
+
+  async createOpsCommsThread(thread: InsertOpsCommsThread): Promise<OpsCommsThread> {
+    const [created] = await db.insert(opsCommsThreads).values(thread).returning();
+    return created;
+  }
+
+  async updateOpsCommsThread(id: number, updates: Partial<InsertOpsCommsThread>): Promise<OpsCommsThread> {
+    const [updated] = await db.update(opsCommsThreads)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(opsCommsThreads.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateOpsCommsThreadUrgency(id: number, urgencyScore: number, urgencyLevel: string, urgencyReason: string): Promise<OpsCommsThread> {
+    const [updated] = await db.update(opsCommsThreads)
+      .set({ urgencyScore, urgencyLevel, urgencyReason, updatedAt: new Date() })
+      .where(eq(opsCommsThreads.id, id))
+      .returning();
+    return updated;
+  }
+
+  // ============================================
+  // Ops Comms - Action Items
+  // ============================================
+  async getOpsCommsActionItems(accountId: number, filters?: { 
+    threadId?: number; 
+    state?: string; 
+    type?: string;
+    assignedToUserId?: number;
+    limit?: number;
+  }): Promise<OpsCommsActionItem[]> {
+    const conditions = [eq(opsCommsActionItems.accountId, accountId)];
+    if (filters?.threadId) {
+      conditions.push(eq(opsCommsActionItems.threadId, filters.threadId));
+    }
+    if (filters?.state) {
+      conditions.push(eq(opsCommsActionItems.state, filters.state));
+    }
+    if (filters?.type) {
+      conditions.push(eq(opsCommsActionItems.type, filters.type));
+    }
+    if (filters?.assignedToUserId) {
+      conditions.push(eq(opsCommsActionItems.assignedToUserId, filters.assignedToUserId));
+    }
+    
+    const query = db.select().from(opsCommsActionItems)
+      .where(and(...conditions))
+      .orderBy(desc(opsCommsActionItems.priority), desc(opsCommsActionItems.createdAt));
+    
+    if (filters?.limit) {
+      return query.limit(filters.limit);
+    }
+    return query;
+  }
+
+  async getOpsCommsActionItem(id: number): Promise<OpsCommsActionItem | undefined> {
+    const [item] = await db.select().from(opsCommsActionItems).where(eq(opsCommsActionItems.id, id));
+    return item;
+  }
+
+  async createOpsCommsActionItem(actionItem: InsertOpsCommsActionItem): Promise<OpsCommsActionItem> {
+    const [created] = await db.insert(opsCommsActionItems).values(actionItem).returning();
+    // Update thread's pending action count
+    await db.update(opsCommsThreads)
+      .set({ 
+        pendingActionCount: sql`${opsCommsThreads.pendingActionCount} + 1`,
+        updatedAt: new Date()
+      })
+      .where(eq(opsCommsThreads.id, actionItem.threadId));
+    return created;
+  }
+
+  async updateOpsCommsActionItem(id: number, updates: Partial<InsertOpsCommsActionItem>): Promise<OpsCommsActionItem> {
+    const [updated] = await db.update(opsCommsActionItems)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(opsCommsActionItems.id, id))
+      .returning();
+    return updated;
+  }
+
+  async completeOpsCommsActionItem(id: number, userId: number): Promise<OpsCommsActionItem> {
+    const item = await this.getOpsCommsActionItem(id);
+    if (!item) throw new Error("Action item not found");
+    
+    const [updated] = await db.update(opsCommsActionItems)
+      .set({ 
+        state: 'DONE', 
+        completedAt: new Date(), 
+        completedByUserId: userId,
+        updatedAt: new Date()
+      })
+      .where(eq(opsCommsActionItems.id, id))
+      .returning();
+    
+    // Decrement thread's pending action count
+    await db.update(opsCommsThreads)
+      .set({ 
+        pendingActionCount: sql`GREATEST(0, ${opsCommsThreads.pendingActionCount} - 1)`,
+        updatedAt: new Date()
+      })
+      .where(eq(opsCommsThreads.id, item.threadId));
+    
+    return updated;
+  }
+
+  async dismissOpsCommsActionItem(id: number): Promise<OpsCommsActionItem> {
+    const item = await this.getOpsCommsActionItem(id);
+    if (!item) throw new Error("Action item not found");
+    
+    const [updated] = await db.update(opsCommsActionItems)
+      .set({ state: 'DISMISSED', updatedAt: new Date() })
+      .where(eq(opsCommsActionItems.id, id))
+      .returning();
+    
+    // Decrement thread's pending action count
+    await db.update(opsCommsThreads)
+      .set({ 
+        pendingActionCount: sql`GREATEST(0, ${opsCommsThreads.pendingActionCount} - 1)`,
+        updatedAt: new Date()
+      })
+      .where(eq(opsCommsThreads.id, item.threadId));
+    
+    return updated;
   }
 }
 

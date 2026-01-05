@@ -4297,18 +4297,18 @@ export type CommsAudienceIndex = typeof commsAudienceIndex.$inferSelect;
 export type InsertCommsAudienceIndex = z.infer<typeof insertCommsAudienceIndexSchema>;
 
 // ============================================
-// CommsThread - Active conversation threads for ops triage
+// OpsCommsThread - Active conversation threads for ops triage
 // ============================================
-export const COMMS_THREAD_AUDIENCE_TYPES = ["LEAD", "CUSTOMER", "CREW"] as const;
-export type CommsThreadAudienceType = typeof COMMS_THREAD_AUDIENCE_TYPES[number];
+export const OPS_COMMS_THREAD_AUDIENCE_TYPES = ["LEAD", "CUSTOMER", "CREW"] as const;
+export type OpsCommsThreadAudienceType = typeof OPS_COMMS_THREAD_AUDIENCE_TYPES[number];
 
-export const COMMS_THREAD_CHANNELS = ["SMS", "EMAIL", "IN_APP", "PUSH"] as const;
-export type CommsThreadChannel = typeof COMMS_THREAD_CHANNELS[number];
+export const OPS_COMMS_THREAD_CHANNELS = ["SMS", "EMAIL", "IN_APP", "PUSH"] as const;
+export type OpsCommsThreadChannel = typeof OPS_COMMS_THREAD_CHANNELS[number];
 
-export const COMMS_THREAD_URGENCY_LEVELS = ["LOW", "MEDIUM", "HIGH"] as const;
-export type CommsThreadUrgencyLevel = typeof COMMS_THREAD_URGENCY_LEVELS[number];
+export const OPS_COMMS_THREAD_URGENCY_LEVELS = ["LOW", "MEDIUM", "HIGH"] as const;
+export type OpsCommsThreadUrgencyLevel = typeof OPS_COMMS_THREAD_URGENCY_LEVELS[number];
 
-export const COMMS_THREAD_STATUSES = [
+export const OPS_COMMS_THREAD_STATUSES = [
   "NEEDS_RESPONSE",
   "WAITING_ON_CUSTOMER",
   "WAITING_ON_CREW", 
@@ -4316,9 +4316,9 @@ export const COMMS_THREAD_STATUSES = [
   "APPROVAL_NEEDED",
   "RESOLVED"
 ] as const;
-export type CommsThreadStatus = typeof COMMS_THREAD_STATUSES[number];
+export type OpsCommsThreadStatus = typeof OPS_COMMS_THREAD_STATUSES[number];
 
-export const commsThreads = pgTable("comms_threads", {
+export const opsCommsThreads = pgTable("ops_comms_threads", {
   id: serial("id").primaryKey(),
   accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
   audienceType: text("audience_type").notNull(), // LEAD | CUSTOMER | CREW
@@ -4352,26 +4352,26 @@ export const commsThreads = pgTable("comms_threads", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => ({
-  accountIdx: index("comms_thread_account_idx").on(table.accountId),
-  audienceIdx: index("comms_thread_audience_idx").on(table.audienceType),
-  audienceIdIdx: index("comms_thread_audience_id_idx").on(table.audienceType, table.audienceId),
-  urgencyIdx: index("comms_thread_urgency_idx").on(table.urgencyLevel, table.urgencyScore),
-  statusIdx: index("comms_thread_status_idx").on(table.status),
-  channelIdx: index("comms_thread_channel_idx").on(table.primaryChannel),
-  lastMsgIdx: index("comms_thread_last_msg_idx").on(table.lastMessageAt),
-  slaIdx: index("comms_thread_sla_idx").on(table.slaDeadlineAt),
-  relatedJobIdx: index("comms_thread_job_idx").on(table.relatedJobId),
-  relatedQuoteIdx: index("comms_thread_quote_idx").on(table.relatedQuoteId),
+  accountIdx: index("ops_thread_account_idx").on(table.accountId),
+  audienceIdx: index("ops_thread_audience_idx").on(table.audienceType),
+  audienceIdIdx: index("ops_thread_audience_id_idx").on(table.audienceType, table.audienceId),
+  urgencyIdx: index("ops_thread_urgency_idx").on(table.urgencyLevel, table.urgencyScore),
+  statusIdx: index("ops_thread_status_idx").on(table.status),
+  channelIdx: index("ops_thread_channel_idx").on(table.primaryChannel),
+  lastMsgIdx: index("ops_thread_last_msg_idx").on(table.lastMessageAt),
+  slaIdx: index("ops_thread_sla_idx").on(table.slaDeadlineAt),
+  relatedJobIdx: index("ops_thread_job_idx").on(table.relatedJobId),
+  relatedQuoteIdx: index("ops_thread_quote_idx").on(table.relatedQuoteId),
 }));
 
-export const insertCommsThreadSchema = createInsertSchema(commsThreads).omit({ id: true, createdAt: true, updatedAt: true });
-export type CommsThread = typeof commsThreads.$inferSelect;
-export type InsertCommsThread = z.infer<typeof insertCommsThreadSchema>;
+export const insertOpsCommsThreadSchema = createInsertSchema(opsCommsThreads).omit({ id: true, createdAt: true, updatedAt: true });
+export type OpsCommsThread = typeof opsCommsThreads.$inferSelect;
+export type InsertOpsCommsThread = z.infer<typeof insertOpsCommsThreadSchema>;
 
 // ============================================
-// CommsActionItem - Actions required on threads
+// OpsCommsActionItem - Actions required on threads
 // ============================================
-export const COMMS_ACTION_TYPES = [
+export const OPS_COMMS_ACTION_TYPES = [
   "APPROVE_QUOTE",
   "SCHEDULE_VISIT",
   "REQUEST_PHOTOS",
@@ -4385,15 +4385,15 @@ export const COMMS_ACTION_TYPES = [
   "ESCALATE",
   "OTHER"
 ] as const;
-export type CommsActionType = typeof COMMS_ACTION_TYPES[number];
+export type OpsCommsActionType = typeof OPS_COMMS_ACTION_TYPES[number];
 
-export const COMMS_ACTION_STATES = ["OPEN", "DONE", "DISMISSED"] as const;
-export type CommsActionState = typeof COMMS_ACTION_STATES[number];
+export const OPS_COMMS_ACTION_STATES = ["OPEN", "DONE", "DISMISSED"] as const;
+export type OpsCommsActionState = typeof OPS_COMMS_ACTION_STATES[number];
 
-export const commsActionItems = pgTable("comms_action_items", {
+export const opsCommsActionItems = pgTable("ops_comms_action_items", {
   id: serial("id").primaryKey(),
   accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
-  threadId: integer("thread_id").references(() => commsThreads.id, { onDelete: "cascade" }).notNull(),
+  threadId: integer("thread_id").references(() => opsCommsThreads.id, { onDelete: "cascade" }).notNull(),
   type: text("type").notNull(), // APPROVE_QUOTE | SCHEDULE_VISIT | etc.
   title: text("title").notNull(),
   description: text("description"),
@@ -4411,15 +4411,15 @@ export const commsActionItems = pgTable("comms_action_items", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => ({
-  accountIdx: index("comms_action_account_idx").on(table.accountId),
-  threadIdx: index("comms_action_thread_idx").on(table.threadId),
-  stateIdx: index("comms_action_state_idx").on(table.state),
-  typeIdx: index("comms_action_type_idx").on(table.type),
-  priorityIdx: index("comms_action_priority_idx").on(table.priority),
-  dueIdx: index("comms_action_due_idx").on(table.dueAt),
-  assignedIdx: index("comms_action_assigned_idx").on(table.assignedToUserId),
+  accountIdx: index("ops_action_account_idx").on(table.accountId),
+  threadIdx: index("ops_action_thread_idx").on(table.threadId),
+  stateIdx: index("ops_action_state_idx").on(table.state),
+  typeIdx: index("ops_action_type_idx").on(table.type),
+  priorityIdx: index("ops_action_priority_idx").on(table.priority),
+  dueIdx: index("ops_action_due_idx").on(table.dueAt),
+  assignedIdx: index("ops_action_assigned_idx").on(table.assignedToUserId),
 }));
 
-export const insertCommsActionItemSchema = createInsertSchema(commsActionItems).omit({ id: true, createdAt: true, updatedAt: true });
-export type CommsActionItem = typeof commsActionItems.$inferSelect;
-export type InsertCommsActionItem = z.infer<typeof insertCommsActionItemSchema>;
+export const insertOpsCommsActionItemSchema = createInsertSchema(opsCommsActionItems).omit({ id: true, createdAt: true, updatedAt: true });
+export type OpsCommsActionItem = typeof opsCommsActionItems.$inferSelect;
+export type InsertOpsCommsActionItem = z.infer<typeof insertOpsCommsActionItemSchema>;
