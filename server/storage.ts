@@ -209,6 +209,13 @@ import {
   customerServicePreferences,
   type CustomerServicePreference,
   type InsertCustomerServicePreference,
+  // Message Templates & Billing Config (Phase 2 Settings)
+  messageTemplates,
+  type MessageTemplate,
+  type InsertMessageTemplate,
+  billingConfigs,
+  type BillingConfig,
+  type InsertBillingConfig,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, inArray, sql, and, gte, lte } from "drizzle-orm";
@@ -612,6 +619,19 @@ export interface IStorage {
   updateCustomerServicePreference(id: number, updates: Partial<InsertCustomerServicePreference>): Promise<CustomerServicePreference>;
   deleteCustomerServicePreference(id: number): Promise<boolean>;
   upsertCustomerServicePreference(pref: InsertCustomerServicePreference): Promise<CustomerServicePreference>;
+  
+  // Message Templates (Phase 2 Settings)
+  getMessageTemplates(accountId: number, options?: { type?: string; category?: string; isActive?: boolean }): Promise<MessageTemplate[]>;
+  getMessageTemplate(id: number): Promise<MessageTemplate | undefined>;
+  createMessageTemplate(template: InsertMessageTemplate): Promise<MessageTemplate>;
+  updateMessageTemplate(id: number, updates: Partial<InsertMessageTemplate>): Promise<MessageTemplate>;
+  deleteMessageTemplate(id: number): Promise<boolean>;
+  
+  // Billing Configuration (Phase 2 Settings)
+  getBillingConfig(accountId: number): Promise<BillingConfig | undefined>;
+  createBillingConfig(config: InsertBillingConfig): Promise<BillingConfig>;
+  updateBillingConfig(id: number, updates: Partial<InsertBillingConfig>): Promise<BillingConfig>;
+  upsertBillingConfig(accountId: number, config: Partial<InsertBillingConfig>): Promise<BillingConfig>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3373,6 +3393,86 @@ export class DatabaseStorage implements IStorage {
       });
     }
     return this.createCustomerServicePreference(pref);
+  }
+
+  // Message Templates (Phase 2 Settings)
+  async getMessageTemplates(accountId: number, options?: { type?: string; category?: string; isActive?: boolean }): Promise<MessageTemplate[]> {
+    let query = db.select().from(messageTemplates).where(eq(messageTemplates.accountId, accountId));
+    
+    if (options?.type) {
+      query = query.where(and(
+        eq(messageTemplates.accountId, accountId),
+        eq(messageTemplates.type, options.type)
+      )) as typeof query;
+    }
+    if (options?.category) {
+      query = query.where(and(
+        eq(messageTemplates.accountId, accountId),
+        eq(messageTemplates.category, options.category)
+      )) as typeof query;
+    }
+    if (options?.isActive !== undefined) {
+      query = query.where(and(
+        eq(messageTemplates.accountId, accountId),
+        eq(messageTemplates.isActive, options.isActive)
+      )) as typeof query;
+    }
+    
+    return query.orderBy(asc(messageTemplates.type), asc(messageTemplates.name));
+  }
+
+  async getMessageTemplate(id: number): Promise<MessageTemplate | undefined> {
+    const [template] = await db.select().from(messageTemplates).where(eq(messageTemplates.id, id));
+    return template;
+  }
+
+  async createMessageTemplate(template: InsertMessageTemplate): Promise<MessageTemplate> {
+    const [created] = await db.insert(messageTemplates).values(template).returning();
+    return created;
+  }
+
+  async updateMessageTemplate(id: number, updates: Partial<InsertMessageTemplate>): Promise<MessageTemplate> {
+    const [updated] = await db.update(messageTemplates)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(messageTemplates.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteMessageTemplate(id: number): Promise<boolean> {
+    const [template] = await db.select().from(messageTemplates).where(eq(messageTemplates.id, id));
+    if (template?.isSystem) {
+      throw new Error("Cannot delete system templates");
+    }
+    await db.delete(messageTemplates).where(eq(messageTemplates.id, id));
+    return true;
+  }
+
+  // Billing Configuration (Phase 2 Settings)
+  async getBillingConfig(accountId: number): Promise<BillingConfig | undefined> {
+    const [config] = await db.select().from(billingConfigs).where(eq(billingConfigs.accountId, accountId));
+    return config;
+  }
+
+  async createBillingConfig(config: InsertBillingConfig): Promise<BillingConfig> {
+    const [created] = await db.insert(billingConfigs).values(config).returning();
+    return created;
+  }
+
+  async updateBillingConfig(id: number, updates: Partial<InsertBillingConfig>): Promise<BillingConfig> {
+    const [updated] = await db.update(billingConfigs)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(billingConfigs.id, id))
+      .returning();
+    return updated;
+  }
+
+  async upsertBillingConfig(accountId: number, config: Partial<InsertBillingConfig>): Promise<BillingConfig> {
+    const existing = await this.getBillingConfig(accountId);
+    if (existing) {
+      return this.updateBillingConfig(existing.id, config);
+    }
+    return this.createBillingConfig({ accountId, ...config } as InsertBillingConfig);
   }
 }
 
