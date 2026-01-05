@@ -78,6 +78,17 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
   - Language preferences stored in crewCommsPreferences table
   - API endpoints at `/api/crew-comms/*` for notifications, preferences, push subscriptions, and broadcasts
   - UI components: NotificationBell in header, CrewInboxPage at `/crew-inbox`
+- **Service Catalog System (Sprint 1):**
+  - 7 database tables: services, servicePricing, serviceFrequencyOptions, promotionRules, snowServicePolicies, mulchProfiles, firewoodProfiles
+  - 10 seeded services covering lawn care, cleanup, snow removal, mulch, firewood, custom projects
+  - 4 promotion rules: seasonal, bundle discounts, new customer offers
+  - Pricing models: per-visit, per-sqft, per-load, per-event with frequency modifiers
+  - Snow service policies for ROTATION vs ON_DEMAND modes
+  - Material tracking for mulch (type, color, cubic yards) and firewood (cord sizes, species)
+  - Lead-time requirements for specialized services
+  - Agent contracts: ServiceSelectionAgent, PricingAgent, PromotionAgent
+  - API endpoints at `/api/services`, `/api/services/:id/pricing`, `/api/promotions`, etc.
+  - Settings UI at `/settings/services` with service cards and promotion display
 - **Key Features:** Dashboard with ROI metrics, conversation overview, human approval actions, business profile configuration, event simulator, job tracking, and audit logging.
 
 **System Design Choices:**
