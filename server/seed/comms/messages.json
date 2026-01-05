@@ -1,0 +1,42 @@
+[
+  {
+    "id": "msg_001",
+    "threadId": "thread_lead_001",
+    "direction": "INBOUND",
+    "channel": "SMS",
+    "body": "Hey can you mow today? I\u2019m near Hydraulic Rd.",
+    "createdAt": "2026-01-05T09:20:00-05:00"
+  },
+  {
+    "id": "msg_002",
+    "threadId": "thread_lead_001",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "Absolutely\u2014what\u2019s your address and is it a one-time mow or recurring?",
+    "createdAt": "2026-01-05T09:21:00-05:00"
+  },
+  {
+    "id": "msg_003",
+    "threadId": "thread_cust_001",
+    "direction": "OUTBOUND",
+    "channel": "SMS",
+    "body": "We\u2019re on-site now. Do you want cleanup added today?",
+    "createdAt": "2026-01-05T13:05:00-05:00"
+  },
+  {
+    "id": "msg_004",
+    "threadId": "thread_cust_001",
+    "direction": "INBOUND",
+    "channel": "SMS",
+    "body": "Yes please\u2014also can you trim the front hedge?",
+    "createdAt": "2026-01-05T13:10:00-05:00"
+  },
+  {
+    "id": "msg_005",
+    "threadId": "thread_crew_001",
+    "direction": "INBOUND",
+    "channel": "SMS",
+    "body": "Customer asked to add hedge trim. OK to add 30 mins?",
+    "createdAt": "2026-01-05T13:05:00-05:00"
+  }
+]

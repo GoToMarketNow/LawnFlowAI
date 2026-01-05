@@ -1,0 +1,64 @@
+[
+  {
+    "id": "lead_001",
+    "accountId": "acct_demo_001",
+    "name": "Mark Wilson",
+    "phoneE164": "+14345550711",
+    "email": null,
+    "addressText": "2500 Hydraulic Rd, Charlottesville, VA 22901",
+    "zip": "22901",
+    "source": "SMS",
+    "status": "NEW",
+    "requestedServices": [
+      "One-Time Lawn Mowing"
+    ],
+    "createdAt": "2026-01-05T09:15:00-05:00"
+  },
+  {
+    "id": "lead_002",
+    "accountId": "acct_demo_001",
+    "name": "Ana Lopez",
+    "phoneE164": "+14345550712",
+    "email": "ana.lopez@example.com",
+    "addressText": "Crozet, VA 22932",
+    "zip": "22932",
+    "source": "WEB",
+    "status": "QUALIFYING",
+    "requestedServices": [
+      "Mulch Delivery",
+      "Mulch Installation"
+    ],
+    "createdAt": "2026-01-05T10:05:00-05:00"
+  },
+  {
+    "id": "lead_003",
+    "accountId": "acct_demo_001",
+    "name": "Blue Ridge HOA",
+    "phoneE164": "+14345550713",
+    "email": "board@blueridgehoa.example.com",
+    "addressText": "Ruckersville, VA 22968",
+    "zip": "22968",
+    "source": "EMAIL",
+    "status": "QUOTE_PENDING_APPROVAL",
+    "requestedServices": [
+      "Seasonal Cleanup",
+      "Brush Clearing"
+    ],
+    "createdAt": "2026-01-04T15:30:00-05:00"
+  },
+  {
+    "id": "lead_004",
+    "accountId": "acct_demo_001",
+    "name": "Tom Garcia",
+    "phoneE164": "+14345550714",
+    "email": null,
+    "addressText": "Stanardsville, VA 22973",
+    "zip": "22973",
+    "source": "SMS",
+    "status": "FOLLOWUP_NEEDED",
+    "requestedServices": [
+      "Snow Removal (Rotation)"
+    ],
+    "createdAt": "2026-01-03T11:10:00-05:00"
+  }
+]

@@ -1,0 +1,103 @@
+[
+  {
+    "id": "cust_001",
+    "accountId": "acct_demo_001",
+    "name": "Sarah Nguyen",
+    "phoneE164": "+14345550901",
+    "email": "sarah.nguyen@example.com",
+    "address": {
+      "line1": "1200 Market St",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22902",
+      "lat": 38.0335,
+      "lng": -78.48
+    },
+    "tags": [
+      "RECURRENT",
+      "HIGH_NPS"
+    ],
+    "language": "EN",
+    "sitePreferences": {
+      "mulch": {
+        "mulchType": "Black hardwood",
+        "averageVolume": 4,
+        "volumeUnit": "YARDS",
+        "installZones": "Front beds + side walkway",
+        "crewNotes": "Gate code 2580; avoid sprinkler heads",
+        "lastInstallAt": "2025-05-10T10:00:00-05:00"
+      },
+      "firewood": {
+        "preferredCordSize": "HALF",
+        "stackingRequired": true,
+        "deliveryLocationNotes": "Stack under back porch; watch for dog",
+        "frequency": "SEASONAL"
+      }
+    },
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_002",
+    "accountId": "acct_demo_001",
+    "name": "James Carter",
+    "phoneE164": "+14345550902",
+    "email": "j.carter@example.com",
+    "address": {
+      "line1": "85 Ivy Rd",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22903",
+      "lat": 38.046,
+      "lng": -78.53
+    },
+    "tags": [
+      "ONE_TIME"
+    ],
+    "language": "EN",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_003",
+    "accountId": "acct_demo_001",
+    "name": "La Tienda Coffee Roasters",
+    "phoneE164": "+14345550903",
+    "email": "ops@latienda.example.com",
+    "address": {
+      "line1": "300 Commerce Ave",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22911",
+      "lat": 38.0712,
+      "lng": -78.4363
+    },
+    "tags": [
+      "COMMERCIAL",
+      "RECURRING"
+    ],
+    "language": "ES",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_004",
+    "accountId": "acct_demo_001",
+    "name": "Helen Brooks",
+    "phoneE164": "+14345550904",
+    "email": "helen.brooks@example.com",
+    "address": {
+      "line1": "410 Ridge St",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22902",
+      "lat": 38.035,
+      "lng": -78.49
+    },
+    "tags": [
+      "RECURRENT"
+    ],
+    "language": "EN",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  }
+]
