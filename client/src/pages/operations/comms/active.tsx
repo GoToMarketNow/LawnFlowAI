@@ -3,7 +3,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -28,7 +27,6 @@ import {
   FileText,
   XCircle,
   RefreshCw,
-  ChevronRight,
   Frown,
   Meh,
   Smile,
@@ -454,8 +452,6 @@ export default function ActiveCommsPage() {
     },
   });
   
-  const selectedThread = threadsQuery.data?.find(t => t.id === selectedThreadId);
-  
   const threadDetailQuery = useQuery<{ thread: OpsCommsThread; actionItems: OpsCommsActionItem[] }>({
     queryKey: ["/api/ops/comms/threads", selectedThreadId],
     queryFn: async () => {
@@ -481,15 +477,15 @@ export default function ActiveCommsPage() {
       <div className="h-full flex flex-col">
         <div className="p-4 border-b flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
-            <Link href="/settings/comms-studio">
-              <Button variant="ghost" size="sm" data-testid="link-back-comms-studio">
+            <Link href="/operations/comms">
+              <Button variant="ghost" size="sm" data-testid="link-back-comms-hub">
                 <ArrowLeft className="h-4 w-4 mr-1" />
-                Comms Studio
+                Comms
               </Button>
             </Link>
             <div>
-              <h1 className="text-xl font-semibold">Active Comms</h1>
-              <p className="text-sm text-muted-foreground">Operations triage view</p>
+              <h1 className="text-xl font-semibold">Active Triage</h1>
+              <p className="text-sm text-muted-foreground">Operations communications triage</p>
             </div>
           </div>
           

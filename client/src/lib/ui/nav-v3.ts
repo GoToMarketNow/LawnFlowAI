@@ -95,12 +95,12 @@ const navigationV3Admin: NavGroupV3[] = [
       { 
         id: 'comms', 
         label: 'Comms', 
-        href: '/comms', 
+        href: '/operations/comms', 
         icon: 'MessageSquare', 
         badge: 'count',
-        roles: ['OWNER', 'ADMIN', 'CREW_LEAD'],
+        roles: ['OWNER', 'ADMIN'],
         shortcut: 'g m',
-        description: 'Inbox and Studio for customer/crew messaging',
+        description: 'Communications intelligence and triage',
       },
       { 
         id: 'customers', 
@@ -278,12 +278,12 @@ const navigationV3CrewLead: NavGroupV3[] = [
       { 
         id: 'crew-inbox', 
         label: 'Crew Inbox', 
-        href: '/comms', 
+        href: '/crew-inbox', 
         icon: 'MessageSquare', 
         badge: 'count',
         roles: ['CREW_LEAD'],
         shortcut: 'g m',
-        description: 'Messages from dispatch and customers',
+        description: 'Messages from dispatch and office',
       },
       { 
         id: 'notifications', 

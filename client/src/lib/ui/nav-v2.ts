@@ -93,11 +93,11 @@ const navigationV2Admin: NavGroupV2[] = [
       { 
         id: 'comms', 
         label: 'Comms', 
-        href: '/comms', 
+        href: '/operations/comms', 
         icon: 'MessageSquare', 
-        roles: ['OWNER', 'ADMIN', 'CREW_LEAD'],
+        roles: ['OWNER', 'ADMIN'],
         shortcut: 'g m',
-        description: 'Customer and crew messaging',
+        description: 'Communications intelligence and triage',
       },
       { 
         id: 'customers', 
@@ -195,12 +195,12 @@ const navigationV2CrewLead: NavGroupV2[] = [
       },
       { 
         id: 'comms', 
-        label: 'Comms', 
-        href: '/comms', 
+        label: 'Inbox', 
+        href: '/crew-inbox', 
         icon: 'MessageSquare', 
         roles: ['CREW_LEAD'],
         shortcut: 'g m',
-        description: 'Team messaging',
+        description: 'Messages from dispatch and office',
       },
       { 
         id: 'notifications', 

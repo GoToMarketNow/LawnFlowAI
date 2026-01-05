@@ -469,10 +469,10 @@ export default function SettingsCommsStudioPage() {
             Manage automated communications for customers, leads, and crew
           </p>
         </div>
-        <Link href="/settings/active-comms">
-          <Button variant="default" data-testid="button-active-comms">
+        <Link href="/operations/comms">
+          <Button variant="outline" data-testid="button-ops-comms">
             <MessageSquare className="h-4 w-4 mr-2" />
-            Active Comms
+            Ops Comms
           </Button>
         </Link>
       </div>
