@@ -4295,3 +4295,131 @@ export const commsAudienceIndex = pgTable("comms_audience_index", {
 export const insertCommsAudienceIndexSchema = createInsertSchema(commsAudienceIndex).omit({ id: true, createdAt: true, updatedAt: true });
 export type CommsAudienceIndex = typeof commsAudienceIndex.$inferSelect;
 export type InsertCommsAudienceIndex = z.infer<typeof insertCommsAudienceIndexSchema>;
+
+// ============================================
+// CommsThread - Active conversation threads for ops triage
+// ============================================
+export const COMMS_THREAD_AUDIENCE_TYPES = ["LEAD", "CUSTOMER", "CREW"] as const;
+export type CommsThreadAudienceType = typeof COMMS_THREAD_AUDIENCE_TYPES[number];
+
+export const COMMS_THREAD_CHANNELS = ["SMS", "EMAIL", "IN_APP", "PUSH"] as const;
+export type CommsThreadChannel = typeof COMMS_THREAD_CHANNELS[number];
+
+export const COMMS_THREAD_URGENCY_LEVELS = ["LOW", "MEDIUM", "HIGH"] as const;
+export type CommsThreadUrgencyLevel = typeof COMMS_THREAD_URGENCY_LEVELS[number];
+
+export const COMMS_THREAD_STATUSES = [
+  "NEEDS_RESPONSE",
+  "WAITING_ON_CUSTOMER",
+  "WAITING_ON_CREW", 
+  "ESCALATED",
+  "APPROVAL_NEEDED",
+  "RESOLVED"
+] as const;
+export type CommsThreadStatus = typeof COMMS_THREAD_STATUSES[number];
+
+export const commsThreads = pgTable("comms_threads", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  audienceType: text("audience_type").notNull(), // LEAD | CUSTOMER | CREW
+  audienceId: integer("audience_id"), // FK to lead/customer/crew member
+  audienceName: text("audience_name"), // Display name or phone if unknown
+  phoneE164: text("phone_e164"),
+  email: text("email"),
+  primaryChannel: text("primary_channel").notNull().default("SMS"), // SMS | EMAIL | IN_APP | PUSH
+  lastMessageAt: timestamp("last_message_at"),
+  lastInboundAt: timestamp("last_inbound_at"),
+  lastOutboundAt: timestamp("last_outbound_at"),
+  lastMessageSnippet: text("last_message_snippet"),
+  messageCount: integer("message_count").default(0).notNull(),
+  urgencyScore: integer("urgency_score").default(0).notNull(), // 0-100
+  urgencyLevel: text("urgency_level").notNull().default("LOW"), // LOW | MEDIUM | HIGH
+  urgencyReason: text("urgency_reason"), // Why this urgency level
+  status: text("status").notNull().default("NEEDS_RESPONSE"), // NEEDS_RESPONSE | WAITING_ON_CUSTOMER | etc.
+  slaDeadlineAt: timestamp("sla_deadline_at"), // When response is needed by
+  relatedJobId: integer("related_job_id"),
+  relatedQuoteId: integer("related_quote_id"),
+  relatedInvoiceId: integer("related_invoice_id"),
+  relatedLeadId: integer("related_lead_id"),
+  stage: text("stage"), // lead | quote | schedule | billing
+  sentimentScore: integer("sentiment_score"), // -100 to 100
+  hasNegativeSentiment: boolean("has_negative_sentiment").default(false).notNull(),
+  hasPendingApproval: boolean("has_pending_approval").default(false).notNull(),
+  pendingApprovalCount: integer("pending_approval_count").default(0).notNull(),
+  pendingActionCount: integer("pending_action_count").default(0).notNull(),
+  assignedToUserId: integer("assigned_to_user_id"),
+  contextJson: jsonb("context_json"), // Additional context for agents
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountIdx: index("comms_thread_account_idx").on(table.accountId),
+  audienceIdx: index("comms_thread_audience_idx").on(table.audienceType),
+  audienceIdIdx: index("comms_thread_audience_id_idx").on(table.audienceType, table.audienceId),
+  urgencyIdx: index("comms_thread_urgency_idx").on(table.urgencyLevel, table.urgencyScore),
+  statusIdx: index("comms_thread_status_idx").on(table.status),
+  channelIdx: index("comms_thread_channel_idx").on(table.primaryChannel),
+  lastMsgIdx: index("comms_thread_last_msg_idx").on(table.lastMessageAt),
+  slaIdx: index("comms_thread_sla_idx").on(table.slaDeadlineAt),
+  relatedJobIdx: index("comms_thread_job_idx").on(table.relatedJobId),
+  relatedQuoteIdx: index("comms_thread_quote_idx").on(table.relatedQuoteId),
+}));
+
+export const insertCommsThreadSchema = createInsertSchema(commsThreads).omit({ id: true, createdAt: true, updatedAt: true });
+export type CommsThread = typeof commsThreads.$inferSelect;
+export type InsertCommsThread = z.infer<typeof insertCommsThreadSchema>;
+
+// ============================================
+// CommsActionItem - Actions required on threads
+// ============================================
+export const COMMS_ACTION_TYPES = [
+  "APPROVE_QUOTE",
+  "SCHEDULE_VISIT",
+  "REQUEST_PHOTOS",
+  "CALL_CUSTOMER",
+  "RESOLVE_DISPUTE",
+  "ASSIGN_CREW",
+  "SEND_REMINDER",
+  "FOLLOW_UP",
+  "COLLECT_PAYMENT",
+  "UPDATE_SCOPE",
+  "ESCALATE",
+  "OTHER"
+] as const;
+export type CommsActionType = typeof COMMS_ACTION_TYPES[number];
+
+export const COMMS_ACTION_STATES = ["OPEN", "DONE", "DISMISSED"] as const;
+export type CommsActionState = typeof COMMS_ACTION_STATES[number];
+
+export const commsActionItems = pgTable("comms_action_items", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  threadId: integer("thread_id").references(() => commsThreads.id, { onDelete: "cascade" }).notNull(),
+  type: text("type").notNull(), // APPROVE_QUOTE | SCHEDULE_VISIT | etc.
+  title: text("title").notNull(),
+  description: text("description"),
+  state: text("state").notNull().default("OPEN"), // OPEN | DONE | DISMISSED
+  priority: integer("priority").default(50).notNull(), // 0-100, higher = more urgent
+  assignedToUserId: integer("assigned_to_user_id"),
+  suggestedByAgent: text("suggested_by_agent"), // Which agent created this
+  agentConfidence: integer("agent_confidence"), // 0-100
+  agentRationale: text("agent_rationale"),
+  relatedApprovalId: integer("related_approval_id"), // FK to approvals table if applicable
+  payloadJson: jsonb("payload_json"), // Action-specific data
+  dueAt: timestamp("due_at"),
+  completedAt: timestamp("completed_at"),
+  completedByUserId: integer("completed_by_user_id"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountIdx: index("comms_action_account_idx").on(table.accountId),
+  threadIdx: index("comms_action_thread_idx").on(table.threadId),
+  stateIdx: index("comms_action_state_idx").on(table.state),
+  typeIdx: index("comms_action_type_idx").on(table.type),
+  priorityIdx: index("comms_action_priority_idx").on(table.priority),
+  dueIdx: index("comms_action_due_idx").on(table.dueAt),
+  assignedIdx: index("comms_action_assigned_idx").on(table.assignedToUserId),
+}));
+
+export const insertCommsActionItemSchema = createInsertSchema(commsActionItems).omit({ id: true, createdAt: true, updatedAt: true });
+export type CommsActionItem = typeof commsActionItems.$inferSelect;
+export type InsertCommsActionItem = z.infer<typeof insertCommsActionItemSchema>;
