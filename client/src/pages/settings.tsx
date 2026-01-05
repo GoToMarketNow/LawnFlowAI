@@ -15,6 +15,7 @@ import {
   Package,
   CreditCard,
   MessageSquare,
+  Radio,
 } from "lucide-react";
 import { RoleGate } from "@/components/role-gate";
 
@@ -110,6 +111,13 @@ const settingsSections: SettingsSection[] = [
     description: "Team members, permissions, and access control",
     icon: Users,
     href: "/settings/users",
+  },
+  {
+    id: "comms-studio",
+    title: "Comms Studio",
+    description: "Unified communications automations and delivery logs",
+    icon: Radio,
+    href: "/settings/comms-studio",
   },
 ];
 

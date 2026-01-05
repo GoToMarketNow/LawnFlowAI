@@ -6317,6 +6317,110 @@ Return JSON format:
     }
   });
 
+  // ============================================
+  // Comms Studio API Routes
+  // ============================================
+
+  // Get all automations
+  app.get("/api/comms/automations", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const filters: { audienceType?: string; state?: string } = {};
+      if (req.query.audienceType) filters.audienceType = req.query.audienceType as string;
+      if (req.query.state) filters.state = req.query.state as string;
+      const automations = await storage.getCommsAutomations(profile.id, filters);
+      res.json(automations);
+    } catch (error: any) {
+      console.error("[CommsStudio] Error fetching automations:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get single automation
+  app.get("/api/comms/automations/:id", async (req, res) => {
+    try {
+      const automation = await storage.getCommsAutomation(parseInt(req.params.id));
+      if (!automation) {
+        return res.status(404).json({ error: "Automation not found" });
+      }
+      res.json(automation);
+    } catch (error: any) {
+      console.error("[CommsStudio] Error fetching automation:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update automation (toggle state, etc.)
+  app.patch("/api/comms/automations/:id", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can update automations" });
+      }
+      const automation = await storage.updateCommsAutomation(parseInt(req.params.id), req.body);
+      if (!automation) {
+        return res.status(404).json({ error: "Automation not found" });
+      }
+      res.json(automation);
+    } catch (error: any) {
+      console.error("[CommsStudio] Error updating automation:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get all template sets
+  app.get("/api/comms/template-sets", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const filters: { language?: string; channel?: string } = {};
+      if (req.query.language) filters.language = req.query.language as string;
+      if (req.query.channel) filters.channel = req.query.channel as string;
+      const templateSets = await storage.getCommsTemplateSets(profile.id, filters);
+      res.json(templateSets);
+    } catch (error: any) {
+      console.error("[CommsStudio] Error fetching template sets:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get delivery logs
+  app.get("/api/comms/delivery-logs", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const filters: { automationId?: number; audienceType?: string; status?: string } = {};
+      if (req.query.automationId) filters.automationId = parseInt(req.query.automationId as string);
+      if (req.query.audienceType) filters.audienceType = req.query.audienceType as string;
+      if (req.query.status) filters.status = req.query.status as string;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const logs = await storage.getCommsDeliveryLogs(profile.id, filters, limit);
+      res.json(logs);
+    } catch (error: any) {
+      console.error("[CommsStudio] Error fetching delivery logs:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // --- Ops API: Crews ---
   app.get("/api/ops/crews", async (req, res) => {
     try {
