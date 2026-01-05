@@ -9482,5 +9482,136 @@ Return JSON format:
     }
   });
 
+  // =====================================================
+  // Billing API Routes (Phase A1 - Stubs)
+  // =====================================================
+
+  // GET /api/billing/overview - Billing dashboard overview
+  app.get("/api/billing/overview", async (req, res) => {
+    try {
+      // TODO: Implement actual billing overview from database
+      res.json({
+        draftInvoices: 0,
+        overdueInvoices: 0,
+        openIssues: 0,
+        totalOutstanding: 0,
+        lastSyncStatus: null,
+        lastSyncAt: null,
+      });
+    } catch (error: any) {
+      console.error("[Billing] Error fetching overview:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/billing/invoices - List invoices
+  app.get("/api/billing/invoices", async (req, res) => {
+    try {
+      const { status, customerId, limit = 50 } = req.query;
+      // TODO: Implement actual invoice listing from database
+      res.json([]);
+    } catch (error: any) {
+      console.error("[Billing] Error fetching invoices:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/billing/invoices/:id - Get single invoice
+  app.get("/api/billing/invoices/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      // TODO: Implement actual invoice fetch from database
+      res.status(404).json({ error: "Invoice not found" });
+    } catch (error: any) {
+      console.error("[Billing] Error fetching invoice:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PATCH /api/billing/invoices/:id/approve - Approve a draft invoice
+  app.patch("/api/billing/invoices/:id/approve", async (req, res) => {
+    try {
+      const { id } = req.params;
+      // TODO: Implement invoice approval logic
+      res.json({ success: true, message: "Invoice approved" });
+    } catch (error: any) {
+      console.error("[Billing] Error approving invoice:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PATCH /api/billing/invoices/:id/send - Send invoice to customer
+  app.patch("/api/billing/invoices/:id/send", async (req, res) => {
+    try {
+      const { id } = req.params;
+      // TODO: Implement invoice send logic
+      res.json({ success: true, message: "Invoice sent" });
+    } catch (error: any) {
+      console.error("[Billing] Error sending invoice:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/billing/payments - List payments
+  app.get("/api/billing/payments", async (req, res) => {
+    try {
+      const { status, invoiceId, limit = 50 } = req.query;
+      // TODO: Implement actual payment listing from database
+      res.json([]);
+    } catch (error: any) {
+      console.error("[Billing] Error fetching payments:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/billing/payments - Record a payment
+  app.post("/api/billing/payments", async (req, res) => {
+    try {
+      const { invoiceId, amount, method, occurredAt } = req.body;
+      // TODO: Implement payment recording logic
+      res.status(201).json({ success: true, message: "Payment recorded" });
+    } catch (error: any) {
+      console.error("[Billing] Error recording payment:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/billing/issues - List billing issues
+  app.get("/api/billing/issues", async (req, res) => {
+    try {
+      const { status = "OPEN", severity, limit = 50 } = req.query;
+      // TODO: Implement actual billing issues listing from database
+      res.json([]);
+    } catch (error: any) {
+      console.error("[Billing] Error fetching issues:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/billing/issues/:id - Get single billing issue
+  app.get("/api/billing/issues/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      // TODO: Implement actual billing issue fetch from database
+      res.status(404).json({ error: "Issue not found" });
+    } catch (error: any) {
+      console.error("[Billing] Error fetching issue:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PATCH /api/billing/issues/:id/resolve - Resolve a billing issue
+  app.patch("/api/billing/issues/:id/resolve", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { resolution } = req.body;
+      // TODO: Implement issue resolution logic
+      res.json({ success: true, message: "Issue resolved" });
+    } catch (error: any) {
+      console.error("[Billing] Error resolving issue:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }
