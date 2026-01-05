@@ -4072,3 +4072,64 @@ export const customerServicePreferences = pgTable("customer_service_preferences"
 export const insertCustomerServicePreferenceSchema = createInsertSchema(customerServicePreferences).omit({ id: true, createdAt: true, updatedAt: true });
 export type CustomerServicePreference = typeof customerServicePreferences.$inferSelect;
 export type InsertCustomerServicePreference = z.infer<typeof insertCustomerServicePreferenceSchema>;
+
+// ============================================
+// MESSAGE TEMPLATES (Phase 2 Settings)
+// ============================================
+
+export const messageTemplates = pgTable("message_templates", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  name: text("name").notNull(), // e.g. "Quote Follow-up", "Job Reminder"
+  type: text("type").notNull(), // SMS, EMAIL, BRIEFING
+  category: text("category").notNull(), // CUSTOMER, CREW, SYSTEM
+  subjectEn: text("subject_en"), // Email subject (EN)
+  subjectEs: text("subject_es"), // Email subject (ES)
+  bodyEn: text("body_en").notNull(), // Message body (EN)
+  bodyEs: text("body_es"), // Message body (ES)
+  variables: text("variables").array(), // Available template variables like {{customer_name}}
+  isActive: boolean("is_active").default(true).notNull(),
+  isSystem: boolean("is_system").default(false).notNull(), // System templates cannot be deleted
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountIdx: index("msg_template_account_idx").on(table.accountId),
+  typeIdx: index("msg_template_type_idx").on(table.type),
+  categoryIdx: index("msg_template_category_idx").on(table.category),
+}));
+
+export const insertMessageTemplateSchema = createInsertSchema(messageTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export type MessageTemplate = typeof messageTemplates.$inferSelect;
+export type InsertMessageTemplate = z.infer<typeof insertMessageTemplateSchema>;
+
+// ============================================
+// BILLING CONFIGURATION (Phase 2 Settings)
+// ============================================
+
+export const billingConfigs = pgTable("billing_configs", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull().unique(),
+  // Invoice Terms
+  defaultInvoiceTerms: text("default_invoice_terms").default("net_7").notNull(), // due_on_receipt, net_7, net_14, net_30
+  paymentMethods: text("payment_methods").array().default(sql`ARRAY['card', 'ach']`).notNull(), // card, ach, cash, check
+  lateFeePercent: integer("late_fee_percent").default(0).notNull(), // 0-100
+  lateFeeGraceDays: integer("late_fee_grace_days").default(7).notNull(),
+  // Collections Cadence
+  reminderDays: integer("reminder_days").array().default(sql`ARRAY[3, 7, 14]`).notNull(), // Days after due date
+  collectionsStartDay: integer("collections_start_day").default(30).notNull(), // Day to escalate to collections
+  autoReminders: boolean("auto_reminders").default(false).notNull(),
+  reminderTone: text("reminder_tone").default("friendly").notNull(), // friendly, firm, urgent
+  // Tax Settings
+  defaultTaxRatePercent: integer("default_tax_rate_percent").default(0).notNull(), // Stored as 750 = 7.50%
+  taxEnabled: boolean("tax_enabled").default(false).notNull(),
+  // QuickBooks Integration
+  quickbooksConnected: boolean("quickbooks_connected").default(false).notNull(),
+  quickbooksCompanyId: text("quickbooks_company_id"),
+  quickbooksLastSync: timestamp("quickbooks_last_sync"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const insertBillingConfigSchema = createInsertSchema(billingConfigs).omit({ id: true, createdAt: true, updatedAt: true });
+export type BillingConfig = typeof billingConfigs.$inferSelect;
+export type InsertBillingConfig = z.infer<typeof insertBillingConfigSchema>;
