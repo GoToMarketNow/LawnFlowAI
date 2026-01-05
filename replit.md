@@ -89,6 +89,19 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
   - Agent contracts: ServiceSelectionAgent, PricingAgent, PromotionAgent
   - API endpoints at `/api/services`, `/api/services/:id/pricing`, `/api/promotions`, etc.
   - Settings UI at `/settings/services` with service cards and promotion display
+- **Customer Service Preferences System (Sprint 4):**
+  - Database table: `customerServicePreferences` with 20+ tracked fields
+  - Per-customer/per-service preference tracking: frequency, timing, crew, price flexibility
+  - Communication preferences: SMS/EMAIL/PHONE, do-not-contact flags
+  - Confidence scoring (0-100) for AI-learned vs manually set preferences
+  - **PreferenceAgent:** AI-powered preference learning from interaction history
+    - `learn`: Extracts preferences from conversation/booking patterns with confidence checks
+    - `apply`: Enriches service requests with stored preferences for personalization
+    - `summary`: Generates human-readable preference summaries for operators
+  - Integration with ServiceSelectionAgent (enriches service names for context)
+  - Integration with PricingAgent (uses minPriceCents/targetPriceCents/maxPriceCents based on priceFlexibility)
+  - CRUD API endpoints at `/api/customers/:customerId/preferences` with Zod validation and ownership checks
+  - Agent API endpoints at `/api/agents/preference/learn`, `/api/agents/preference/apply`, `/api/agents/preference/summary/:customerId`
 - **Key Features:** Dashboard with ROI metrics, conversation overview, human approval actions, business profile configuration, event simulator, job tracking, and audit logging.
 
 **System Design Choices:**
