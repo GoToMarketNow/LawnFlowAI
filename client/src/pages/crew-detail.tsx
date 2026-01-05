@@ -52,11 +52,12 @@ import {
   Star,
   Truck,
   ClipboardList,
+  Map,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import type { Crew, CrewMember, User, Skill, Equipment, CrewSkill, CrewEquipment, CrewAvailability, TimeOffRequest } from "@shared/schema";
+import type { Crew, CrewMember, User, Skill, Equipment, CrewSkill, CrewEquipment, CrewAvailability, TimeOffRequest, ServiceZone, CrewZoneAssignment } from "@shared/schema";
 import { format } from "date-fns";
 import { Calendar, Check, X, CalendarOff, CheckCircle, XCircle, Clock as ClockIcon } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -64,6 +65,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 type CrewSkillWithSkill = CrewSkill & { skill: Skill };
 type CrewEquipmentWithEquipment = CrewEquipment & { equipment: Equipment };
+type CrewZoneWithZone = CrewZoneAssignment & { zone: ServiceZone };
 
 type CrewWithMembers = Crew & {
   members?: CrewMember[];
@@ -88,6 +90,10 @@ export default function CrewDetailPage() {
   
   const [showAddEquipmentDialog, setShowAddEquipmentDialog] = useState(false);
   const [selectedEquipmentId, setSelectedEquipmentId] = useState("");
+  
+  const [showAddZoneDialog, setShowAddZoneDialog] = useState(false);
+  const [selectedZoneId, setSelectedZoneId] = useState("");
+  const [zoneIsPrimary, setZoneIsPrimary] = useState(true);
   
   const [editingCapacity, setEditingCapacity] = useState(false);
   const [capacityHours, setCapacityHours] = useState("");
@@ -135,6 +141,15 @@ export default function CrewDetailPage() {
 
   const { data: crewEquipmentList } = useQuery<CrewEquipmentWithEquipment[]>({
     queryKey: ["/api/ops/crews", id, "equipment"],
+    enabled: !!id,
+  });
+
+  const { data: allZones } = useQuery<ServiceZone[]>({
+    queryKey: ["/api/ops/zones"],
+  });
+
+  const { data: crewZones } = useQuery<CrewZoneWithZone[]>({
+    queryKey: ["/api/ops/crews", id, "zones"],
     enabled: !!id,
   });
 
@@ -246,6 +261,35 @@ export default function CrewDetailPage() {
     },
     onError: (error: any) => {
       toast({ title: "Failed to remove equipment", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const addZoneMutation = useMutation({
+    mutationFn: async (data: { zoneId: number; isPrimary: boolean }) => {
+      return apiRequest("POST", `/api/ops/crews/${id}/zones`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id, "zones"] });
+      setShowAddZoneDialog(false);
+      setSelectedZoneId("");
+      setZoneIsPrimary(true);
+      toast({ title: "Zone assigned to crew" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to assign zone", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const removeZoneMutation = useMutation({
+    mutationFn: async (zoneId: number) => {
+      return apiRequest("DELETE", `/api/ops/crews/${id}/zones/${zoneId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id, "zones"] });
+      toast({ title: "Zone removed from crew" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to remove zone", description: error.message, variant: "destructive" });
     },
   });
 
@@ -805,6 +849,81 @@ export default function CrewDetailPage() {
           <div className="flex items-center justify-between gap-4">
             <div>
               <CardTitle className="text-base flex items-center gap-2">
+                <Map className="h-4 w-4" />
+                Service Zones
+              </CardTitle>
+              <CardDescription>
+                {crewZones?.length ?? 0} zone{(crewZones?.length ?? 0) !== 1 ? "s" : ""} assigned
+              </CardDescription>
+            </div>
+            {canEdit && (
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => setShowAddZoneDialog(true)}
+                disabled={!allZones || allZones.filter(z => !crewZones?.some(cz => cz.zoneId === z.id)).length === 0}
+                data-testid="button-add-zone"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Add Zone
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!crewZones || crewZones.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground">
+              <Map className="h-8 w-8 mx-auto opacity-30 mb-2" />
+              <p className="text-sm">No zones assigned</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {crewZones.map((cz) => (
+                <div 
+                  key={cz.id} 
+                  className="flex items-center justify-between p-2 rounded-md bg-muted/50"
+                  data-testid={`zone-item-${cz.zoneId}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-4 h-4 rounded-sm" 
+                      style={{ backgroundColor: cz.zone.color || "#22c55e" }}
+                    />
+                    <span className="text-sm font-medium">{cz.zone.name}</span>
+                    {cz.isPrimary && (
+                      <Badge variant="secondary" className="text-xs">Primary</Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {cz.zone.radiusMiles && (
+                      <Badge variant="outline" className="text-xs">
+                        {cz.zone.radiusMiles} mi
+                      </Badge>
+                    )}
+                    {canEdit && (
+                      <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        className="h-7 w-7"
+                        onClick={() => removeZoneMutation.mutate(cz.zoneId)}
+                        data-testid={`button-remove-zone-${cz.zoneId}`}
+                      >
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
                 <ClipboardList className="h-4 w-4" />
                 Capacity Settings
               </CardTitle>
@@ -1315,6 +1434,71 @@ export default function CrewDetailPage() {
               data-testid="button-confirm-add-equipment"
             >
               {addEquipmentMutation.isPending ? "Assigning..." : "Assign Equipment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAddZoneDialog} onOpenChange={setShowAddZoneDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Zone to Crew</DialogTitle>
+            <DialogDescription>
+              Assign a service zone to this crew
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Select Zone</Label>
+              <Select value={selectedZoneId} onValueChange={setSelectedZoneId}>
+                <SelectTrigger data-testid="select-zone">
+                  <SelectValue placeholder="Choose zone..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {allZones?.filter(z => !crewZones?.some(cz => cz.zoneId === z.id)).map((zone) => (
+                    <SelectItem 
+                      key={zone.id} 
+                      value={zone.id.toString()}
+                      data-testid={`option-zone-${zone.id}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-sm" 
+                          style={{ backgroundColor: zone.color || "#22c55e" }}
+                        />
+                        {zone.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="zone-primary"
+                checked={zoneIsPrimary}
+                onChange={(e) => setZoneIsPrimary(e.target.checked)}
+                className="h-4 w-4 rounded border-input"
+                data-testid="checkbox-zone-primary"
+              />
+              <Label htmlFor="zone-primary" className="text-sm">Primary zone (crew's main service area)</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowAddZoneDialog(false)}
+              data-testid="button-cancel-add-zone"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => addZoneMutation.mutate({ zoneId: parseInt(selectedZoneId), isPrimary: zoneIsPrimary })}
+              disabled={!selectedZoneId || addZoneMutation.isPending}
+              data-testid="button-confirm-add-zone"
+            >
+              {addZoneMutation.isPending ? "Assigning..." : "Assign Zone"}
             </Button>
           </DialogFooter>
         </DialogContent>

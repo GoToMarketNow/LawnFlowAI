@@ -100,6 +100,15 @@ export const navigation: NavGroup[] = [
         description: 'Crew management',
         readOnly: true,
       },
+      { 
+        id: 'zones', 
+        label: 'Zones', 
+        href: '/operations/zones', 
+        icon: 'Map', 
+        roles: ['OWNER', 'ADMIN'],
+        shortcut: 'g z',
+        description: 'Service zones',
+      },
     ],
   },
   {

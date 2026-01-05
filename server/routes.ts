@@ -6856,6 +6856,226 @@ Return JSON format:
     }
   });
 
+  // --- Ops API: Service Zones ---
+  app.get("/api/ops/zones", async (req, res) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    const role = (req.user as any)?.role;
+    if (!["OWNER", "ADMIN", "CREW_LEAD", "STAFF"].includes(role)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    try {
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const zones = await storage.getServiceZones(profile.id);
+      res.json(zones);
+    } catch (error: any) {
+      console.error("[Zones] Error fetching service zones:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/ops/zones/:id", async (req, res) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    const role = (req.user as any)?.role;
+    if (!["OWNER", "ADMIN", "CREW_LEAD", "STAFF"].includes(role)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    try {
+      const zone = await storage.getServiceZone(parseInt(req.params.id));
+      if (!zone) {
+        return res.status(404).json({ error: "Zone not found" });
+      }
+      res.json(zone);
+    } catch (error: any) {
+      console.error("[Zones] Error fetching zone:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ops/zones", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role;
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can create zones" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const { name, description, minLat, maxLat, minLng, maxLng, centerLat, centerLng, radiusMiles, color, priority } = req.body;
+      if (!name) {
+        return res.status(400).json({ error: "Zone name is required" });
+      }
+      const zone = await storage.createServiceZone({
+        businessId: profile.id,
+        name,
+        description,
+        minLat,
+        maxLat,
+        minLng,
+        maxLng,
+        centerLat,
+        centerLng,
+        radiusMiles,
+        color: color || "#22c55e",
+        priority: priority || 0,
+        isActive: true,
+      });
+      res.status(201).json(zone);
+    } catch (error: any) {
+      console.error("[Zones] Error creating zone:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/ops/zones/:id", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role;
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can update zones" });
+      }
+      const id = parseInt(req.params.id);
+      const { name, description, minLat, maxLat, minLng, maxLng, centerLat, centerLng, radiusMiles, color, priority, isActive } = req.body;
+      const zone = await storage.updateServiceZone(id, {
+        name,
+        description,
+        minLat,
+        maxLat,
+        minLng,
+        maxLng,
+        centerLat,
+        centerLng,
+        radiusMiles,
+        color,
+        priority,
+        isActive,
+      });
+      res.json(zone);
+    } catch (error: any) {
+      console.error("[Zones] Error updating zone:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/ops/zones/:id", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role;
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can delete zones" });
+      }
+      const id = parseInt(req.params.id);
+      await storage.deleteServiceZone(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Zones] Error deleting zone:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get crews assigned to a zone
+  app.get("/api/ops/zones/:id/crews", async (req, res) => {
+    try {
+      const zoneId = parseInt(req.params.id);
+      const assignments = await storage.getZoneCrewAssignments(zoneId);
+      res.json(assignments);
+    } catch (error: any) {
+      console.error("[Zones] Error fetching zone crews:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Ops API: Crew Zone Assignments ---
+  app.get("/api/ops/crews/:crewId/zones", async (req, res) => {
+    try {
+      const crewId = parseInt(req.params.crewId);
+      const assignments = await storage.getCrewZoneAssignments(crewId);
+      res.json(assignments);
+    } catch (error: any) {
+      console.error("[Zones] Error fetching crew zones:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ops/crews/:crewId/zones", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role;
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can assign crews to zones" });
+      }
+      const crewId = parseInt(req.params.crewId);
+      const { zoneId, isPrimary, priority } = req.body;
+      if (!zoneId) {
+        return res.status(400).json({ error: "Zone ID is required" });
+      }
+      const userId = (req.user as any)?.id;
+      const assignment = await storage.assignCrewToZone(crewId, zoneId, isPrimary ?? true, priority ?? 0, userId);
+      res.status(201).json(assignment);
+    } catch (error: any) {
+      console.error("[Zones] Error assigning crew to zone:", error);
+      // Handle unique constraint violation
+      if (error.message?.includes("unique") || error.code === "23505") {
+        return res.status(409).json({ error: "Crew is already assigned to this zone" });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/ops/crew-zones/:id", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role;
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can update zone assignments" });
+      }
+      const id = parseInt(req.params.id);
+      const { isPrimary, priority } = req.body;
+      const assignment = await storage.updateCrewZoneAssignment(id, { isPrimary, priority });
+      res.json(assignment);
+    } catch (error: any) {
+      console.error("[Zones] Error updating zone assignment:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/ops/crews/:crewId/zones/:zoneId", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const role = (req.user as any)?.role;
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can remove zone assignments" });
+      }
+      const crewId = parseInt(req.params.crewId);
+      const zoneId = parseInt(req.params.zoneId);
+      await storage.removeCrewFromZone(crewId, zoneId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Zones] Error removing crew from zone:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // --- Ops API: Job Requests ---
   app.get("/api/ops/jobs", async (req, res) => {
     try {

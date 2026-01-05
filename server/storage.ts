@@ -94,6 +94,8 @@ import {
   crewEquipment,
   crewAvailability,
   timeOffRequests,
+  serviceZones,
+  crewZoneAssignments,
   jobRequests,
   scheduleItems,
   assignmentSimulations,
@@ -115,6 +117,10 @@ import {
   type InsertCrewAvailability,
   type TimeOffRequest,
   type InsertTimeOffRequest,
+  type ServiceZone,
+  type InsertServiceZone,
+  type CrewZoneAssignment,
+  type InsertCrewZoneAssignment,
   type JobRequest,
   type InsertJobRequest,
   type ScheduleItem,
@@ -336,6 +342,20 @@ export interface IStorage {
   approveTimeOffRequest(id: number, approvedBy: number, notes?: string): Promise<TimeOffRequest>;
   denyTimeOffRequest(id: number, approvedBy: number, notes?: string): Promise<TimeOffRequest>;
   deleteTimeOffRequest(id: number): Promise<boolean>;
+  
+  // Service Zones
+  getServiceZones(businessId: number): Promise<ServiceZone[]>;
+  getServiceZone(id: number): Promise<ServiceZone | undefined>;
+  createServiceZone(zone: InsertServiceZone): Promise<ServiceZone>;
+  updateServiceZone(id: number, updates: Partial<InsertServiceZone>): Promise<ServiceZone>;
+  deleteServiceZone(id: number): Promise<boolean>;
+  
+  // Crew Zone Assignments
+  getCrewZoneAssignments(crewId: number): Promise<(CrewZoneAssignment & { zone: ServiceZone })[]>;
+  getZoneCrewAssignments(zoneId: number): Promise<(CrewZoneAssignment & { crew: Crew })[]>;
+  assignCrewToZone(crewId: number, zoneId: number, isPrimary?: boolean, priority?: number, assignedBy?: number): Promise<CrewZoneAssignment>;
+  updateCrewZoneAssignment(id: number, updates: Partial<InsertCrewZoneAssignment>): Promise<CrewZoneAssignment>;
+  removeCrewFromZone(crewId: number, zoneId: number): Promise<boolean>;
   
   // Route Optimizer - Job Requests
   getJobRequests(businessId: number): Promise<JobRequest[]>;
@@ -1756,6 +1776,105 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTimeOffRequest(id: number): Promise<boolean> {
     const result = await db.delete(timeOffRequests).where(eq(timeOffRequests.id, id));
+    return true;
+  }
+
+  // Service Zones
+  async getServiceZones(businessId: number): Promise<ServiceZone[]> {
+    return db
+      .select()
+      .from(serviceZones)
+      .where(and(
+        eq(serviceZones.businessId, businessId),
+        eq(serviceZones.isActive, true)
+      ))
+      .orderBy(desc(serviceZones.priority), serviceZones.name);
+  }
+
+  async getServiceZone(id: number): Promise<ServiceZone | undefined> {
+    const [zone] = await db.select().from(serviceZones).where(eq(serviceZones.id, id));
+    return zone;
+  }
+
+  async createServiceZone(zone: InsertServiceZone): Promise<ServiceZone> {
+    const [created] = await db.insert(serviceZones).values(zone).returning();
+    return created;
+  }
+
+  async updateServiceZone(id: number, updates: Partial<InsertServiceZone>): Promise<ServiceZone> {
+    const [updated] = await db
+      .update(serviceZones)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(serviceZones.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteServiceZone(id: number): Promise<boolean> {
+    // Soft delete by setting isActive to false
+    await db.update(serviceZones).set({ isActive: false, updatedAt: new Date() }).where(eq(serviceZones.id, id));
+    return true;
+  }
+
+  // Crew Zone Assignments
+  async getCrewZoneAssignments(crewId: number): Promise<(CrewZoneAssignment & { zone: ServiceZone })[]> {
+    const results = await db
+      .select()
+      .from(crewZoneAssignments)
+      .innerJoin(serviceZones, eq(crewZoneAssignments.zoneId, serviceZones.id))
+      .where(eq(crewZoneAssignments.crewId, crewId))
+      .orderBy(desc(crewZoneAssignments.isPrimary), desc(crewZoneAssignments.priority));
+    
+    return results.map(r => ({
+      ...r.crew_zone_assignments,
+      zone: r.service_zones,
+    }));
+  }
+
+  async getZoneCrewAssignments(zoneId: number): Promise<(CrewZoneAssignment & { crew: Crew })[]> {
+    const results = await db
+      .select()
+      .from(crewZoneAssignments)
+      .innerJoin(crews, eq(crewZoneAssignments.crewId, crews.id))
+      .where(eq(crewZoneAssignments.zoneId, zoneId))
+      .orderBy(desc(crewZoneAssignments.isPrimary), desc(crewZoneAssignments.priority));
+    
+    return results.map(r => ({
+      ...r.crew_zone_assignments,
+      crew: r.crews,
+    }));
+  }
+
+  async assignCrewToZone(
+    crewId: number, 
+    zoneId: number, 
+    isPrimary: boolean = true, 
+    priority: number = 0, 
+    assignedBy?: number
+  ): Promise<CrewZoneAssignment> {
+    const [assignment] = await db
+      .insert(crewZoneAssignments)
+      .values({ crewId, zoneId, isPrimary, priority, assignedBy })
+      .returning();
+    return assignment;
+  }
+
+  async updateCrewZoneAssignment(id: number, updates: Partial<InsertCrewZoneAssignment>): Promise<CrewZoneAssignment> {
+    const [updated] = await db
+      .update(crewZoneAssignments)
+      .set(updates)
+      .where(eq(crewZoneAssignments.id, id))
+      .returning();
+    return updated;
+  }
+
+  async removeCrewFromZone(crewId: number, zoneId: number): Promise<boolean> {
+    await db
+      .delete(crewZoneAssignments)
+      .where(and(
+        eq(crewZoneAssignments.crewId, crewId),
+        eq(crewZoneAssignments.zoneId, zoneId)
+      ));
     return true;
   }
 
