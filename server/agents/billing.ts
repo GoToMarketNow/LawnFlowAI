@@ -1236,3 +1236,920 @@ export async function runBatchInvoiceSync(
     results,
   };
 }
+
+// ============================================================================
+// REMEDIATION AGENT (Phase A6)
+// Handles disputes, credits, redo visits
+// ============================================================================
+
+export interface RemediationInput {
+  accountId: number;
+  billingIssueId: number;
+  invoice?: Invoice | null;
+  job?: Job | null;
+  customerMessages?: string[];
+  crewNotes?: string;
+}
+
+export interface ResolutionOption {
+  type: "CREDIT" | "REDO_VISIT" | "CALL_CUSTOMER" | "ADJUST_INVOICE" | "WAIVE_FEES";
+  amount?: number;
+  reason: string;
+  scheduleSuggestion?: {
+    preferredDate?: string;
+    estimatedDuration?: number;
+  };
+}
+
+export interface RemediationOutput {
+  rootCause: "SCOPE_MISMATCH" | "QUALITY_ISSUE" | "PRICING_SURPRISE" | "PAYMENT_ERROR" | "COMMUNICATION_BREAKDOWN" | "UNKNOWN";
+  resolutionOptions: ResolutionOption[];
+  recommended: ResolutionOption;
+  requiresHumanApproval: boolean;
+  approvalReason?: string;
+  confidence: number;
+  nextAction: "CREATE_CREDIT_MEMO" | "SCHEDULE_REVISIT" | "ADJUST_INVOICE" | "ESCALATE" | "CONTACT_CUSTOMER";
+}
+
+const remediationOutputSchema = z.object({
+  rootCause: z.enum(["SCOPE_MISMATCH", "QUALITY_ISSUE", "PRICING_SURPRISE", "PAYMENT_ERROR", "COMMUNICATION_BREAKDOWN", "UNKNOWN"]),
+  resolutionOptions: z.array(z.object({
+    type: z.enum(["CREDIT", "REDO_VISIT", "CALL_CUSTOMER", "ADJUST_INVOICE", "WAIVE_FEES"]),
+    amount: z.number().optional(),
+    reason: z.string(),
+    scheduleSuggestion: z.object({
+      preferredDate: z.string().optional(),
+      estimatedDuration: z.number().optional(),
+    }).optional(),
+  })),
+  recommended: z.object({
+    type: z.enum(["CREDIT", "REDO_VISIT", "CALL_CUSTOMER", "ADJUST_INVOICE", "WAIVE_FEES"]),
+    amount: z.number().optional(),
+    reason: z.string(),
+  }),
+  requiresHumanApproval: z.boolean(),
+  approvalReason: z.string().optional(),
+  confidence: z.number().min(0).max(1),
+  nextAction: z.enum(["CREATE_CREDIT_MEMO", "SCHEDULE_REVISIT", "ADJUST_INVOICE", "ESCALATE", "CONTACT_CUSTOMER"]),
+});
+
+export async function runRemediationAgent(input: RemediationInput): Promise<RemediationOutput> {
+  const { accountId, billingIssueId } = input;
+  
+  // Get the billing issue
+  const issue = await storage.getBillingIssue(billingIssueId);
+  if (!issue) {
+    throw new Error(`Billing issue ${billingIssueId} not found`);
+  }
+
+  // Get related data
+  const invoice = input.invoice || (issue.relatedInvoiceId ? await storage.getInvoice(issue.relatedInvoiceId) : null);
+  const job = input.job || (issue.relatedJobId ? await storage.getJob(issue.relatedJobId) : null);
+  const customer = issue.relatedCustomerId ? await storage.getCustomer(issue.relatedCustomerId) : null;
+
+  // Get business profile for policy thresholds (optional parameter)
+  const businessProfile = await storage.getBusinessProfile(accountId);
+  const creditThresholdDollars = 50; // Default: credits above $50 require approval
+  const creditThresholdCents = creditThresholdDollars * 100;
+
+  const systemPrompt = `You are RemediationAgent for LawnFlow.ai, a landscaping business automation platform.
+
+Your role is to analyze billing disputes and issues, then recommend appropriate resolutions.
+
+CRITICAL RULES:
+1. Preserve customer trust while protecting business margin
+2. Prefer low-cost resolutions first when appropriate
+3. Any credit/refund above $${creditThresholdDollars} requires human approval
+4. Never create credits that exceed the original invoice amount
+5. Consider customer lifetime value when recommending resolutions
+6. Be specific about root causes - don't guess if uncertain
+
+RESOLUTION PRIORITY (prefer in this order):
+1. CALL_CUSTOMER - When clarification needed or situation unclear
+2. ADJUST_INVOICE - When billing error is clear and fixable
+3. WAIVE_FEES - For minor late fees or service charges
+4. CREDIT - When partial refund is appropriate
+5. REDO_VISIT - When service quality issue requires correction
+
+OUTPUT: Respond with valid JSON matching the RemediationOutput schema.`;
+
+  const userPrompt = `Analyze this billing issue and recommend a resolution:
+
+BILLING ISSUE:
+- ID: ${issue.id}
+- Type: ${issue.type}
+- Severity: ${issue.severity}
+- Summary: ${issue.summary}
+- Details: ${JSON.stringify(issue.detailsJson || {})}
+
+${invoice ? `
+INVOICE:
+- ID: ${invoice.id}
+- Status: ${invoice.status}
+- Subtotal: $${(invoice.subtotal / 100).toFixed(2)}
+- Tax: $${(invoice.tax / 100).toFixed(2)}
+- Total: $${(invoice.total / 100).toFixed(2)}
+- Quote Range: $${invoice.minQuote ? (invoice.minQuote / 100).toFixed(2) : 'N/A'} - $${invoice.maxQuote ? (invoice.maxQuote / 100).toFixed(2) : 'N/A'}
+` : 'No invoice linked.'}
+
+${job ? `
+JOB:
+- ID: ${job.id}
+- Status: ${job.status}
+- Scheduled: ${job.scheduledDate}
+` : 'No job linked.'}
+
+${customer ? `
+CUSTOMER:
+- Name: ${customer.name}
+- Phone: ${customer.phone}
+` : 'No customer linked.'}
+
+${input.customerMessages?.length ? `
+CUSTOMER MESSAGES:
+${input.customerMessages.map((m, i) => `${i + 1}. ${m}`).join('\n')}
+` : ''}
+
+${input.crewNotes ? `
+CREW NOTES:
+${input.crewNotes}
+` : ''}
+
+Determine the root cause, provide resolution options, and recommend the best action.`;
+
+  try {
+    const openai = new OpenAI();
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.3,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error("No response from AI");
+    }
+
+    const parsed = JSON.parse(content);
+    const validated = remediationOutputSchema.parse(parsed);
+
+    // Force human approval for high-value credits
+    // AI returns amounts in cents, compare against threshold in cents
+    if (validated.recommended.type === "CREDIT" && validated.recommended.amount && validated.recommended.amount > creditThresholdCents) {
+      validated.requiresHumanApproval = true;
+      validated.approvalReason = `Credit amount ($${(validated.recommended.amount / 100).toFixed(2)}) exceeds threshold ($${creditThresholdDollars})`;
+    }
+
+    console.log("[RemediationAgent] Analysis complete:", validated.rootCause, "->", validated.nextAction);
+    return validated;
+
+  } catch (error: any) {
+    console.error("[RemediationAgent] Error:", error);
+    
+    // Return safe fallback
+    return {
+      rootCause: "UNKNOWN",
+      resolutionOptions: [
+        { type: "CALL_CUSTOMER", reason: "Unable to analyze issue automatically - manual review required" }
+      ],
+      recommended: { type: "CALL_CUSTOMER", reason: "Unable to analyze issue automatically - manual review required" },
+      requiresHumanApproval: true,
+      approvalReason: `AI analysis failed: ${error.message}`,
+      confidence: 0,
+      nextAction: "ESCALATE",
+    };
+  }
+}
+
+// ============================================================================
+// PRICING OPTIMIZATION AGENT (Phase B1)
+// Analyzes quote acceptance rates and recommends pricing adjustments
+// ============================================================================
+
+export interface PricingOptimizationInput {
+  accountId: number;
+  period?: { start: Date; end: Date };
+  serviceTypes?: string[];
+}
+
+export interface PricingRecommendation {
+  serviceType: string;
+  currentPrice: number;
+  recommendedPrice: number;
+  changePercent: number;
+  reason: string;
+  confidence: number;
+  expectedImpact: {
+    acceptanceRateChange: number;
+    revenueImpact: number;
+  };
+}
+
+export interface PricingOptimizationOutput {
+  analysisDate: Date;
+  overallHealth: "HEALTHY" | "NEEDS_ATTENTION" | "CRITICAL";
+  metrics: {
+    totalQuotes: number;
+    acceptedQuotes: number;
+    acceptanceRate: number;
+    averageQuoteValue: number;
+    averageDaysToDecision: number;
+  };
+  recommendations: PricingRecommendation[];
+  requiresOwnerApproval: boolean;
+  rolloutPlan?: string;
+}
+
+export async function runPricingOptimizationAgent(
+  input: PricingOptimizationInput
+): Promise<PricingOptimizationOutput> {
+  const { accountId, period } = input;
+  
+  // Calculate period (default: last 30 days)
+  const endDate = period?.end || new Date();
+  const startDate = period?.start || new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  // Get quotes for the period
+  const allQuotes = await storage.getQuotes(accountId);
+  const periodQuotes = allQuotes.filter(q => {
+    const createdAt = new Date(q.createdAt);
+    return createdAt >= startDate && createdAt <= endDate;
+  });
+
+  const acceptedQuotes = periodQuotes.filter(q => q.status === "ACCEPTED");
+  const acceptanceRate = periodQuotes.length > 0 
+    ? (acceptedQuotes.length / periodQuotes.length) * 100 
+    : 0;
+  
+  const averageQuoteValue = periodQuotes.length > 0
+    ? periodQuotes.reduce((sum, q) => sum + q.total, 0) / periodQuotes.length / 100
+    : 0;
+
+  // Group by service type for analysis
+  const serviceStats = new Map<string, { sent: number; accepted: number; totalValue: number }>();
+  for (const quote of periodQuotes) {
+    const serviceType = (quote.servicesJson as any)?.primary || "LAWN_MOWING";
+    const stats = serviceStats.get(serviceType) || { sent: 0, accepted: 0, totalValue: 0 };
+    stats.sent++;
+    if (quote.status === "ACCEPTED") stats.accepted++;
+    stats.totalValue += quote.total;
+    serviceStats.set(serviceType, stats);
+  }
+
+  // Determine overall health
+  let overallHealth: "HEALTHY" | "NEEDS_ATTENTION" | "CRITICAL" = "HEALTHY";
+  if (acceptanceRate < 30) {
+    overallHealth = "CRITICAL";
+  } else if (acceptanceRate < 50) {
+    overallHealth = "NEEDS_ATTENTION";
+  }
+
+  // Generate recommendations based on acceptance rates
+  const recommendations: PricingRecommendation[] = [];
+  
+  for (const [serviceType, stats] of serviceStats) {
+    const serviceAcceptanceRate = stats.sent > 0 ? (stats.accepted / stats.sent) * 100 : 0;
+    const avgValue = stats.sent > 0 ? stats.totalValue / stats.sent / 100 : 0;
+    
+    if (stats.sent >= 5) { // Only recommend with sufficient data
+      if (serviceAcceptanceRate < 40) {
+        // Low acceptance - consider lowering prices
+        const reduction = Math.min(15, 50 - serviceAcceptanceRate);
+        recommendations.push({
+          serviceType,
+          currentPrice: avgValue,
+          recommendedPrice: avgValue * (1 - reduction / 100),
+          changePercent: -reduction,
+          reason: `Low acceptance rate (${serviceAcceptanceRate.toFixed(1)}%) suggests prices may be too high`,
+          confidence: Math.min(0.9, stats.sent / 20),
+          expectedImpact: {
+            acceptanceRateChange: reduction * 1.5,
+            revenueImpact: (reduction * 1.5 - reduction) / 100,
+          },
+        });
+      } else if (serviceAcceptanceRate > 80 && stats.sent >= 10) {
+        // Very high acceptance - opportunity to increase prices
+        const increase = Math.min(10, (serviceAcceptanceRate - 70) / 3);
+        recommendations.push({
+          serviceType,
+          currentPrice: avgValue,
+          recommendedPrice: avgValue * (1 + increase / 100),
+          changePercent: increase,
+          reason: `High acceptance rate (${serviceAcceptanceRate.toFixed(1)}%) suggests room for price increase`,
+          confidence: Math.min(0.85, stats.sent / 25),
+          expectedImpact: {
+            acceptanceRateChange: -increase * 0.5,
+            revenueImpact: increase / 100 * 0.8,
+          },
+        });
+      }
+    }
+  }
+
+  console.log("[PricingOptimizationAgent] Analysis complete:", {
+    quotes: periodQuotes.length,
+    acceptanceRate: acceptanceRate.toFixed(1) + "%",
+    recommendations: recommendations.length,
+  });
+
+  return {
+    analysisDate: new Date(),
+    overallHealth,
+    metrics: {
+      totalQuotes: periodQuotes.length,
+      acceptedQuotes: acceptedQuotes.length,
+      acceptanceRate,
+      averageQuoteValue,
+      averageDaysToDecision: 3, // Simplified for now
+    },
+    recommendations,
+    requiresOwnerApproval: true, // All pricing changes require approval
+    rolloutPlan: recommendations.length > 0 
+      ? "Recommend implementing changes gradually over 2 weeks, monitoring acceptance rates closely." 
+      : undefined,
+  };
+}
+
+// ============================================================================
+// CAPACITY FORECASTING AGENT (Phase B2)
+// Forecasts crew capacity and provides scheduling recommendations
+// ============================================================================
+
+export interface CapacityForecastInput {
+  accountId: number;
+  forecastDays?: number;
+  zones?: number[];
+}
+
+export interface DailyCapacity {
+  date: string;
+  availableSlots: number;
+  bookedSlots: number;
+  utilizationPercent: number;
+  recommendation: "ACCEPT_MORE" | "AT_CAPACITY" | "OVERBOOKED" | "PAUSE_INTAKE";
+}
+
+export interface CapacityForecastOutput {
+  forecastDate: Date;
+  overallCapacity: "AVAILABLE" | "LIMITED" | "FULL" | "OVERLOADED";
+  dailyForecast: DailyCapacity[];
+  zoneRecommendations: {
+    zoneId: number;
+    zoneName: string;
+    status: "ACCEPT" | "PAUSE" | "REDIRECT";
+    reason: string;
+  }[];
+  summary: string;
+}
+
+export async function runCapacityForecastingAgent(
+  input: CapacityForecastInput
+): Promise<CapacityForecastOutput> {
+  const { accountId, forecastDays = 7 } = input;
+
+  // Get crews and their schedules
+  const crews = await storage.getCrews(accountId);
+  const activeCrews = crews.filter(c => c.status === "ACTIVE");
+  
+  // Get upcoming jobs
+  const jobs = await storage.getJobs(accountId);
+  const now = new Date();
+  const endDate = new Date(now.getTime() + forecastDays * 24 * 60 * 60 * 1000);
+  
+  const upcomingJobs = jobs.filter(j => {
+    if (!j.scheduledDate) return false;
+    const jobDate = new Date(j.scheduledDate);
+    return jobDate >= now && jobDate <= endDate && j.status !== "COMPLETED" && j.status !== "CANCELLED";
+  });
+
+  // Calculate daily capacity
+  const dailyForecast: DailyCapacity[] = [];
+  const slotsPerCrewPerDay = 4; // Assume 4 job slots per crew per day
+  const totalDailySlots = activeCrews.length * slotsPerCrewPerDay;
+
+  for (let i = 0; i < forecastDays; i++) {
+    const date = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    const dayJobs = upcomingJobs.filter(j => {
+      const jobDate = new Date(j.scheduledDate!).toISOString().split('T')[0];
+      return jobDate === dateStr;
+    });
+    
+    const bookedSlots = dayJobs.length;
+    const availableSlots = Math.max(0, totalDailySlots - bookedSlots);
+    const utilizationPercent = totalDailySlots > 0 ? (bookedSlots / totalDailySlots) * 100 : 0;
+    
+    let recommendation: DailyCapacity["recommendation"] = "ACCEPT_MORE";
+    if (utilizationPercent >= 100) {
+      recommendation = "OVERBOOKED";
+    } else if (utilizationPercent >= 90) {
+      recommendation = "PAUSE_INTAKE";
+    } else if (utilizationPercent >= 75) {
+      recommendation = "AT_CAPACITY";
+    }
+
+    dailyForecast.push({
+      date: dateStr,
+      availableSlots,
+      bookedSlots,
+      utilizationPercent,
+      recommendation,
+    });
+  }
+
+  // Calculate overall capacity status
+  const avgUtilization = dailyForecast.reduce((sum, d) => sum + d.utilizationPercent, 0) / dailyForecast.length;
+  let overallCapacity: CapacityForecastOutput["overallCapacity"] = "AVAILABLE";
+  if (avgUtilization >= 95) {
+    overallCapacity = "OVERLOADED";
+  } else if (avgUtilization >= 80) {
+    overallCapacity = "FULL";
+  } else if (avgUtilization >= 60) {
+    overallCapacity = "LIMITED";
+  }
+
+  // Zone recommendations (simplified)
+  const zones = await storage.getServiceZones(accountId);
+  const totalCapacity = totalDailySlots * forecastDays;
+  const zoneRecommendations = zones.slice(0, 5).map(zone => {
+    const zoneJobs = upcomingJobs.filter(j => j.zoneId === zone.id);
+    // Guard against division by zero when no crews available
+    const zoneUtilization = totalCapacity > 0 ? (zoneJobs.length / totalCapacity) * 100 : 0;
+    
+    return {
+      zoneId: zone.id,
+      zoneName: zone.name,
+      status: zoneUtilization > 80 ? "PAUSE" as const : zoneUtilization > 50 ? "REDIRECT" as const : "ACCEPT" as const,
+      reason: zoneUtilization > 80 
+        ? `Zone is at ${zoneUtilization.toFixed(0)}% capacity` 
+        : `Zone has availability (${zoneUtilization.toFixed(0)}% utilized)`,
+    };
+  });
+
+  const summary = `${activeCrews.length} active crews with ${totalDailySlots} daily slots. ` +
+    `Average utilization: ${avgUtilization.toFixed(0)}% over next ${forecastDays} days. ` +
+    `${dailyForecast.filter(d => d.recommendation === "PAUSE_INTAKE" || d.recommendation === "OVERBOOKED").length} days at or over capacity.`;
+
+  console.log("[CapacityForecastingAgent] Forecast complete:", overallCapacity, avgUtilization.toFixed(1) + "%");
+
+  return {
+    forecastDate: new Date(),
+    overallCapacity,
+    dailyForecast,
+    zoneRecommendations,
+    summary,
+  };
+}
+
+// ============================================================================
+// CREW PERFORMANCE AGENT (Phase B3)
+// Analyzes crew performance and provides coaching insights
+// ============================================================================
+
+export interface CrewPerformanceInput {
+  accountId: number;
+  crewId?: number;
+  period?: { start: Date; end: Date };
+}
+
+export interface CrewInsight {
+  crewId: number;
+  crewName: string;
+  metrics: {
+    jobsCompleted: number;
+    avgDurationVariance: number; // Actual vs estimated
+    onTimeRate: number;
+    customerSatisfaction?: number;
+    reworkRate: number;
+  };
+  coaching: {
+    type: "PRAISE" | "IMPROVEMENT" | "TRAINING" | "EQUIPMENT";
+    message: string;
+    priority: "LOW" | "MEDIUM" | "HIGH";
+  }[];
+  scheduleAdjustments?: string[];
+  equipmentReminders?: string[];
+}
+
+export interface CrewPerformanceOutput {
+  analysisDate: Date;
+  period: { start: Date; end: Date };
+  crewInsights: CrewInsight[];
+  topPerformers: { crewId: number; crewName: string; highlight: string }[];
+  overallRecommendations: string[];
+}
+
+export async function runCrewPerformanceAgent(
+  input: CrewPerformanceInput
+): Promise<CrewPerformanceOutput> {
+  const { accountId, crewId, period } = input;
+
+  const endDate = period?.end || new Date();
+  const startDate = period?.start || new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  // Get crews
+  const allCrews = await storage.getCrews(accountId);
+  const crews = crewId ? allCrews.filter(c => c.id === crewId) : allCrews.filter(c => c.status === "ACTIVE");
+
+  // Get completed jobs in period
+  const jobs = await storage.getJobs(accountId);
+  const periodJobs = jobs.filter(j => {
+    if (j.status !== "COMPLETED" || !j.completedAt) return false;
+    const completedAt = new Date(j.completedAt);
+    return completedAt >= startDate && completedAt <= endDate;
+  });
+
+  // Analyze each crew
+  const crewInsights: CrewInsight[] = [];
+  
+  for (const crew of crews) {
+    const crewJobs = periodJobs.filter(j => j.crewId === crew.id);
+    
+    if (crewJobs.length === 0) {
+      crewInsights.push({
+        crewId: crew.id,
+        crewName: crew.name,
+        metrics: {
+          jobsCompleted: 0,
+          avgDurationVariance: 0,
+          onTimeRate: 0,
+          reworkRate: 0,
+        },
+        coaching: [{
+          type: "IMPROVEMENT",
+          message: "No completed jobs in this period - check scheduling or availability",
+          priority: "HIGH",
+        }],
+      });
+      continue;
+    }
+
+    // Calculate metrics
+    const onTimeJobs = crewJobs.filter(j => {
+      if (!j.scheduledDate || !j.startedAt) return false;
+      const scheduled = new Date(j.scheduledDate);
+      const started = new Date(j.startedAt);
+      const diffMinutes = (started.getTime() - scheduled.getTime()) / (1000 * 60);
+      return diffMinutes <= 15; // Within 15 minutes = on time
+    });
+
+    const onTimeRate = (onTimeJobs.length / crewJobs.length) * 100;
+    const reworkJobs = crewJobs.filter(j => j.notes?.toLowerCase().includes("rework") || j.notes?.toLowerCase().includes("redo"));
+    const reworkRate = (reworkJobs.length / crewJobs.length) * 100;
+
+    // Generate coaching insights
+    const coaching: CrewInsight["coaching"] = [];
+    
+    if (onTimeRate >= 90) {
+      coaching.push({
+        type: "PRAISE",
+        message: `Excellent punctuality! ${onTimeRate.toFixed(0)}% on-time arrival rate.`,
+        priority: "LOW",
+      });
+    } else if (onTimeRate < 70) {
+      coaching.push({
+        type: "IMPROVEMENT",
+        message: `On-time rate of ${onTimeRate.toFixed(0)}% needs improvement. Consider reviewing route planning.`,
+        priority: "HIGH",
+      });
+    }
+
+    if (reworkRate > 5) {
+      coaching.push({
+        type: "TRAINING",
+        message: `Rework rate of ${reworkRate.toFixed(0)}% - review quality standards with crew.`,
+        priority: "MEDIUM",
+      });
+    }
+
+    crewInsights.push({
+      crewId: crew.id,
+      crewName: crew.name,
+      metrics: {
+        jobsCompleted: crewJobs.length,
+        avgDurationVariance: 0, // Would need estimated duration data
+        onTimeRate,
+        reworkRate,
+      },
+      coaching,
+    });
+  }
+
+  // Find top performers
+  const topPerformers = crewInsights
+    .filter(c => c.metrics.jobsCompleted > 0)
+    .sort((a, b) => {
+      const scoreA = a.metrics.onTimeRate - a.metrics.reworkRate * 5;
+      const scoreB = b.metrics.onTimeRate - b.metrics.reworkRate * 5;
+      return scoreB - scoreA;
+    })
+    .slice(0, 3)
+    .map(c => ({
+      crewId: c.crewId,
+      crewName: c.crewName,
+      highlight: `${c.metrics.jobsCompleted} jobs, ${c.metrics.onTimeRate.toFixed(0)}% on-time`,
+    }));
+
+  // Overall recommendations
+  const overallRecommendations: string[] = [];
+  const avgOnTimeRate = crewInsights.reduce((sum, c) => sum + c.metrics.onTimeRate, 0) / crewInsights.length;
+  
+  if (avgOnTimeRate < 80) {
+    overallRecommendations.push("Consider reviewing route optimization settings - overall on-time rates are below target.");
+  }
+  
+  const highReworkCrews = crewInsights.filter(c => c.metrics.reworkRate > 10);
+  if (highReworkCrews.length > 0) {
+    overallRecommendations.push(`${highReworkCrews.length} crew(s) have elevated rework rates - schedule quality training session.`);
+  }
+
+  console.log("[CrewPerformanceAgent] Analysis complete:", crewInsights.length, "crews analyzed");
+
+  return {
+    analysisDate: new Date(),
+    period: { start: startDate, end: endDate },
+    crewInsights,
+    topPerformers,
+    overallRecommendations,
+  };
+}
+
+// ============================================================================
+// RETENTION AGENT (Phase B4)
+// Analyzes customer retention and recommends outreach
+// ============================================================================
+
+export interface RetentionInput {
+  accountId: number;
+  customerId?: number;
+}
+
+export interface CustomerRetentionInsight {
+  customerId: number;
+  customerName: string;
+  churnRisk: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  churnRiskScore: number;
+  factors: string[];
+  lastServiceDate?: Date;
+  daysSinceLastService: number;
+  totalLifetimeValue: number;
+  recommendedAction: {
+    type: "FOLLOW_UP_CALL" | "SATISFACTION_SURVEY" | "LOYALTY_OFFER" | "REACTIVATION_CAMPAIGN" | "UPSELL_OPPORTUNITY" | "NO_ACTION";
+    message: string;
+    timing: "IMMEDIATE" | "NEXT_WEEK" | "NEXT_MONTH";
+    channel: "SMS" | "EMAIL" | "PHONE";
+  };
+}
+
+export interface RetentionOutput {
+  analysisDate: Date;
+  overallRetentionHealth: "HEALTHY" | "NEEDS_ATTENTION" | "AT_RISK";
+  metrics: {
+    totalActiveCustomers: number;
+    atRiskCustomers: number;
+    churnedThisMonth: number;
+    averageLifetimeValue: number;
+  };
+  insights: CustomerRetentionInsight[];
+  campaignSuggestions: {
+    type: string;
+    targetCount: number;
+    estimatedImpact: string;
+  }[];
+}
+
+export async function runRetentionAgent(input: RetentionInput): Promise<RetentionOutput> {
+  const { accountId, customerId } = input;
+
+  // Get customers
+  const allCustomers = await storage.getCustomers(accountId);
+  const customers = customerId 
+    ? allCustomers.filter(c => c.id === customerId) 
+    : allCustomers;
+
+  // Get jobs for analysis
+  const jobs = await storage.getJobs(accountId);
+  const now = new Date();
+
+  const insights: CustomerRetentionInsight[] = [];
+
+  for (const customer of customers.slice(0, 50)) { // Limit for performance
+    // Find customer's jobs
+    const customerJobs = jobs.filter(j => j.customerId === customer.id);
+    const completedJobs = customerJobs.filter(j => j.status === "COMPLETED");
+    
+    // Calculate metrics
+    const lastJob = completedJobs
+      .sort((a, b) => new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime())[0];
+    
+    const lastServiceDate = lastJob ? new Date(lastJob.completedAt!) : undefined;
+    const daysSinceLastService = lastServiceDate 
+      ? Math.floor((now.getTime() - lastServiceDate.getTime()) / (1000 * 60 * 60 * 24))
+      : 999;
+
+    // Simple churn risk calculation
+    let churnRiskScore = 0;
+    const factors: string[] = [];
+
+    if (daysSinceLastService > 60) {
+      churnRiskScore += 30;
+      factors.push("No service in 60+ days");
+    } else if (daysSinceLastService > 30) {
+      churnRiskScore += 15;
+      factors.push("No service in 30+ days");
+    }
+
+    if (completedJobs.length === 1) {
+      churnRiskScore += 20;
+      factors.push("Only one completed service");
+    }
+
+    // Determine risk level
+    let churnRisk: CustomerRetentionInsight["churnRisk"] = "LOW";
+    if (churnRiskScore >= 40) churnRisk = "CRITICAL";
+    else if (churnRiskScore >= 25) churnRisk = "HIGH";
+    else if (churnRiskScore >= 15) churnRisk = "MEDIUM";
+
+    // Determine recommended action
+    let recommendedAction: CustomerRetentionInsight["recommendedAction"];
+    
+    if (churnRisk === "CRITICAL") {
+      recommendedAction = {
+        type: "REACTIVATION_CAMPAIGN",
+        message: "We miss you! Book your next lawn service and receive 15% off.",
+        timing: "IMMEDIATE",
+        channel: "SMS",
+      };
+    } else if (churnRisk === "HIGH") {
+      recommendedAction = {
+        type: "FOLLOW_UP_CALL",
+        message: "Check in with customer to ensure satisfaction and discuss upcoming needs.",
+        timing: "NEXT_WEEK",
+        channel: "PHONE",
+      };
+    } else if (completedJobs.length >= 5) {
+      recommendedAction = {
+        type: "UPSELL_OPPORTUNITY",
+        message: "Loyal customer - consider seasonal services upsell.",
+        timing: "NEXT_MONTH",
+        channel: "EMAIL",
+      };
+    } else {
+      recommendedAction = {
+        type: "NO_ACTION",
+        message: "Customer is healthy, no immediate action needed.",
+        timing: "NEXT_MONTH",
+        channel: "EMAIL",
+      };
+    }
+
+    insights.push({
+      customerId: customer.id,
+      customerName: customer.name,
+      churnRisk,
+      churnRiskScore,
+      factors,
+      lastServiceDate,
+      daysSinceLastService,
+      totalLifetimeValue: completedJobs.length * 75 * 100, // Simplified estimate
+      recommendedAction,
+    });
+  }
+
+  // Calculate overall metrics
+  const atRiskCustomers = insights.filter(i => i.churnRisk === "HIGH" || i.churnRisk === "CRITICAL").length;
+  const overallHealth = atRiskCustomers > insights.length * 0.3 
+    ? "AT_RISK" 
+    : atRiskCustomers > insights.length * 0.15 
+      ? "NEEDS_ATTENTION" 
+      : "HEALTHY";
+
+  console.log("[RetentionAgent] Analysis complete:", insights.length, "customers,", atRiskCustomers, "at risk");
+
+  return {
+    analysisDate: new Date(),
+    overallRetentionHealth: overallHealth,
+    metrics: {
+      totalActiveCustomers: insights.length,
+      atRiskCustomers,
+      churnedThisMonth: 0, // Would need historical data
+      averageLifetimeValue: insights.reduce((sum, i) => sum + i.totalLifetimeValue, 0) / insights.length / 100,
+    },
+    insights: insights.filter(i => i.churnRisk !== "LOW").slice(0, 20), // Return at-risk customers
+    campaignSuggestions: [
+      {
+        type: "REACTIVATION_EMAIL",
+        targetCount: insights.filter(i => i.churnRisk === "CRITICAL").length,
+        estimatedImpact: "20-30% reactivation rate expected",
+      },
+      {
+        type: "LOYALTY_PROGRAM",
+        targetCount: insights.filter(i => i.totalLifetimeValue > 300 * 100).length,
+        estimatedImpact: "Increase repeat booking rate by 15%",
+      },
+    ],
+  };
+}
+
+// ============================================================================
+// COMPLIANCE RISK AGENT (Phase B5) - STUB
+// Monitors license/insurance expirations and compliance issues
+// ============================================================================
+
+export interface ComplianceRiskInput {
+  accountId: number;
+}
+
+export interface ComplianceAlert {
+  type: "LICENSE_EXPIRING" | "INSURANCE_EXPIRING" | "CERTIFICATION_EXPIRING" | "INCIDENT_REVIEW";
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  message: string;
+  dueDate?: Date;
+  actionRequired: string;
+}
+
+export interface ComplianceRiskOutput {
+  checkDate: Date;
+  overallStatus: "COMPLIANT" | "ATTENTION_NEEDED" | "ACTION_REQUIRED";
+  alerts: ComplianceAlert[];
+  upcomingDeadlines: { item: string; date: Date; daysRemaining: number }[];
+  recommendations: string[];
+}
+
+export async function runComplianceRiskAgent(
+  input: ComplianceRiskInput
+): Promise<ComplianceRiskOutput> {
+  const { accountId } = input;
+
+  // Get business profile for license/insurance info
+  const businessProfile = await storage.getBusinessProfile(accountId);
+  
+  const alerts: ComplianceAlert[] = [];
+  const upcomingDeadlines: { item: string; date: Date; daysRemaining: number }[] = [];
+  const now = new Date();
+
+  // Check license expiration (stub - would need actual license data)
+  const licenseExpiry = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000); // Mock: 45 days from now
+  const licenseDaysRemaining = Math.floor((licenseExpiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  
+  if (licenseDaysRemaining <= 30) {
+    alerts.push({
+      type: "LICENSE_EXPIRING",
+      severity: licenseDaysRemaining <= 7 ? "CRITICAL" : licenseDaysRemaining <= 14 ? "HIGH" : "MEDIUM",
+      message: `Business license expires in ${licenseDaysRemaining} days`,
+      dueDate: licenseExpiry,
+      actionRequired: "Renew business license before expiration",
+    });
+  }
+  
+  upcomingDeadlines.push({
+    item: "Business License",
+    date: licenseExpiry,
+    daysRemaining: licenseDaysRemaining,
+  });
+
+  // Check insurance (stub)
+  const insuranceExpiry = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000); // Mock: 90 days
+  const insuranceDaysRemaining = Math.floor((insuranceExpiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  
+  upcomingDeadlines.push({
+    item: "Liability Insurance",
+    date: insuranceExpiry,
+    daysRemaining: insuranceDaysRemaining,
+  });
+
+  // Determine overall status
+  let overallStatus: ComplianceRiskOutput["overallStatus"] = "COMPLIANT";
+  if (alerts.some(a => a.severity === "CRITICAL")) {
+    overallStatus = "ACTION_REQUIRED";
+  } else if (alerts.some(a => a.severity === "HIGH" || a.severity === "MEDIUM")) {
+    overallStatus = "ATTENTION_NEEDED";
+  }
+
+  // Generate recommendations
+  const recommendations: string[] = [];
+  if (licenseDaysRemaining <= 60) {
+    recommendations.push("Start license renewal process to avoid service interruption");
+  }
+  if (insuranceDaysRemaining <= 60) {
+    recommendations.push("Contact insurance provider to review and renew coverage");
+  }
+  if (alerts.length === 0) {
+    recommendations.push("All compliance items are current. Next review recommended in 30 days.");
+  }
+
+  console.log("[ComplianceRiskAgent] Check complete:", overallStatus, alerts.length, "alerts");
+
+  return {
+    checkDate: now,
+    overallStatus,
+    alerts,
+    upcomingDeadlines: upcomingDeadlines.sort((a, b) => a.daysRemaining - b.daysRemaining),
+    recommendations,
+  };
+}

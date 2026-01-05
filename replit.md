@@ -52,6 +52,19 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
   - **PaymentSyncAgent:** Syncs payments from QuickBooks to local storage, uses pre-loaded data with O(1) Map lookups to avoid N^2 performance, batches invoice status updates at end
   - Currency conversion: cents to dollars for QuickBooks API, dollars to cents for local storage
   - API endpoints: `POST /api/billing/sync/invoice/:id`, `POST /api/billing/sync/invoices`, `POST /api/billing/sync/payments`, `GET /api/billing/integrations`
+- **RemediationAgent (Phase A6):**
+  - AI-powered dispute resolution analyzing billing issues and recommending actions
+  - Root cause analysis: SCOPE_MISMATCH, QUALITY_ISSUE, PRICING_SURPRISE, PAYMENT_ERROR, COMMUNICATION_BREAKDOWN
+  - Resolution options: CREDIT, REDO_VISIT, CALL_CUSTOMER, ADJUST_INVOICE, WAIVE_FEES
+  - Human approval required for credits above threshold ($50)
+  - API endpoint: `POST /api/billing/remediate`
+- **Accretive Agents (Phase B):**
+  - **PricingOptimizationAgent (B1):** Analyzes quote acceptance rates, recommends pricing adjustments with confidence scores and expected impact. All changes require owner approval.
+  - **CapacityForecastingAgent (B2):** Forecasts crew capacity, provides daily utilization predictions, zone-based accept/pause recommendations
+  - **CrewPerformanceAgent (B3):** Analyzes crew metrics (on-time rate, rework rate), generates coaching insights, identifies top performers
+  - **RetentionAgent (B4):** Customer churn risk scoring, retention outreach recommendations, campaign suggestions for reactivation
+  - **ComplianceRiskAgent (B5):** License/insurance expiration monitoring, compliance alerts (stub implementation for MVP)
+  - API endpoints: `POST /api/agents/pricing-optimization`, `POST /api/agents/capacity-forecast`, `POST /api/agents/crew-performance`, `POST /api/agents/retention`, `POST /api/agents/compliance-risk`
 - **Customer Comms Worker:** Produces customer-facing messages with strict tone, compliance rules, and templates, handling various job events.
 - **Renewal & Upsell Worker:** Weekly scans for upsell opportunities, computes next-best-offers, and creates draft quotes in Jobber.
 - **Customer Experience Vector Memory:** Semantic search-enabled customer memory system with pgvector integration for storing and retrieving customer interactions and preferences, using OpenAI embeddings for context enrichment.

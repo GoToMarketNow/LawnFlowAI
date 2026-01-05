@@ -9897,5 +9897,134 @@ Return JSON format:
     }
   });
 
+  // =====================================================
+  // Remediation Agent Routes (Phase A6)
+  // =====================================================
+
+  // POST /api/billing/remediate - Analyze billing issue and recommend resolution
+  app.post("/api/billing/remediate", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+      const { billingIssueId, customerMessages, crewNotes } = req.body;
+
+      if (!billingIssueId) {
+        return res.status(400).json({ error: "billingIssueId is required" });
+      }
+
+      const { runRemediationAgent } = await import("./agents/billing");
+      const result = await runRemediationAgent({
+        accountId: businessId,
+        billingIssueId,
+        customerMessages,
+        crewNotes,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Remediation] Error analyzing issue:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // =====================================================
+  // Accretive Agents Routes (Phase B)
+  // =====================================================
+
+  // POST /api/agents/pricing-optimization - Analyze pricing and get recommendations
+  app.post("/api/agents/pricing-optimization", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+      const { startDate, endDate, serviceTypes } = req.body;
+
+      const { runPricingOptimizationAgent } = await import("./agents/billing");
+      const result = await runPricingOptimizationAgent({
+        accountId: businessId,
+        period: startDate && endDate ? { start: new Date(startDate), end: new Date(endDate) } : undefined,
+        serviceTypes,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[PricingOptimization] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/agents/capacity-forecast - Get capacity forecast
+  app.post("/api/agents/capacity-forecast", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+      const { forecastDays, zones } = req.body;
+
+      const { runCapacityForecastingAgent } = await import("./agents/billing");
+      const result = await runCapacityForecastingAgent({
+        accountId: businessId,
+        forecastDays,
+        zones,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[CapacityForecast] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/agents/crew-performance - Analyze crew performance
+  app.post("/api/agents/crew-performance", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+      const { crewId, startDate, endDate } = req.body;
+
+      const { runCrewPerformanceAgent } = await import("./agents/billing");
+      const result = await runCrewPerformanceAgent({
+        accountId: businessId,
+        crewId,
+        period: startDate && endDate ? { start: new Date(startDate), end: new Date(endDate) } : undefined,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[CrewPerformance] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/agents/retention - Analyze customer retention
+  app.post("/api/agents/retention", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+      const { customerId } = req.body;
+
+      const { runRetentionAgent } = await import("./agents/billing");
+      const result = await runRetentionAgent({
+        accountId: businessId,
+        customerId,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Retention] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/agents/compliance-risk - Check compliance status
+  app.post("/api/agents/compliance-risk", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+
+      const { runComplianceRiskAgent } = await import("./agents/billing");
+      const result = await runComplianceRiskAgent({
+        accountId: businessId,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[ComplianceRisk] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }
