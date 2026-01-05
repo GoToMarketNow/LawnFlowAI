@@ -140,6 +140,21 @@ import {
   type InsertAgentRegistryEntry,
   type AgentRunEntry,
   type InsertAgentRunEntry,
+  notifications,
+  crewCommsPreferences,
+  commsThreads,
+  commsMessages,
+  pushSubscriptions,
+  type Notification,
+  type InsertNotification,
+  type CrewCommsPreference,
+  type InsertCrewCommsPreference,
+  type CommsThread,
+  type InsertCommsThread,
+  type CommsMessage,
+  type InsertCommsMessage,
+  type PushSubscription,
+  type InsertPushSubscription,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, inArray, sql, and, gte, lte } from "drizzle-orm";
@@ -414,6 +429,42 @@ export interface IStorage {
   getAgentRun(id: number): Promise<AgentRunEntry | undefined>;
   createAgentRun(run: InsertAgentRunEntry): Promise<AgentRunEntry>;
   updateAgentRun(id: number, updates: Partial<AgentRunEntry>): Promise<AgentRunEntry>;
+  
+  // Crew Comms - Notifications
+  getNotifications(userId: number, limit?: number): Promise<Notification[]>;
+  getNotification(id: number): Promise<Notification | undefined>;
+  getUnreadNotifications(userId: number): Promise<Notification[]>;
+  getNotificationsByBusiness(businessId: number, options?: { type?: string; status?: string; limit?: number }): Promise<Notification[]>;
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  updateNotification(id: number, updates: Partial<Notification>): Promise<Notification>;
+  ackNotification(id: number): Promise<Notification>;
+  markNotificationsSeen(userId: number, notificationIds: number[]): Promise<void>;
+  
+  // Crew Comms - Preferences
+  getCrewCommsPreference(userId: number): Promise<CrewCommsPreference | undefined>;
+  getCrewCommsPreferences(businessId: number): Promise<CrewCommsPreference[]>;
+  createCrewCommsPreference(pref: InsertCrewCommsPreference): Promise<CrewCommsPreference>;
+  updateCrewCommsPreference(userId: number, updates: Partial<InsertCrewCommsPreference>): Promise<CrewCommsPreference>;
+  
+  // Crew Comms - Threads
+  getCommsThreads(businessId: number, limit?: number): Promise<CommsThread[]>;
+  getCommsThread(id: number): Promise<CommsThread | undefined>;
+  getCommsThreadByPhone(phoneE164: string): Promise<CommsThread | undefined>;
+  getCommsThreadByUser(userId: number): Promise<CommsThread | undefined>;
+  createCommsThread(thread: InsertCommsThread): Promise<CommsThread>;
+  updateCommsThread(id: number, updates: Partial<InsertCommsThread>): Promise<CommsThread>;
+  
+  // Crew Comms - Messages
+  getCommsMessages(threadId: number, limit?: number): Promise<CommsMessage[]>;
+  getCommsMessage(id: number): Promise<CommsMessage | undefined>;
+  createCommsMessage(message: InsertCommsMessage): Promise<CommsMessage>;
+  
+  // Push Subscriptions
+  getPushSubscriptions(userId: number): Promise<PushSubscription[]>;
+  getPushSubscription(endpoint: string): Promise<PushSubscription | undefined>;
+  createPushSubscription(sub: InsertPushSubscription): Promise<PushSubscription>;
+  deletePushSubscription(endpoint: string): Promise<boolean>;
+  updatePushSubscriptionLastUsed(endpoint: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2239,6 +2290,243 @@ export class DatabaseStorage implements IStorage {
       .where(eq(agentRuns.id, id))
       .returning();
     return updated;
+  }
+
+  // Crew Comms - Notifications
+  async getNotifications(userId: number, limit: number = 50): Promise<Notification[]> {
+    return db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.recipientUserId, userId))
+      .orderBy(desc(notifications.createdAt))
+      .limit(limit);
+  }
+
+  async getNotification(id: number): Promise<Notification | undefined> {
+    const [notification] = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.id, id))
+      .limit(1);
+    return notification;
+  }
+
+  async getUnreadNotifications(userId: number): Promise<Notification[]> {
+    return db
+      .select()
+      .from(notifications)
+      .where(and(
+        eq(notifications.recipientUserId, userId),
+        eq(notifications.status, "QUEUED")
+      ))
+      .orderBy(desc(notifications.createdAt));
+  }
+
+  async getNotificationsByBusiness(businessId: number, options?: { type?: string; status?: string; limit?: number }): Promise<Notification[]> {
+    let query = db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.businessId, businessId))
+      .orderBy(desc(notifications.createdAt));
+    
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
+    
+    return query;
+  }
+
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const [created] = await db.insert(notifications).values(notification).returning();
+    return created;
+  }
+
+  async updateNotification(id: number, updates: Partial<Notification>): Promise<Notification> {
+    const [updated] = await db
+      .update(notifications)
+      .set(updates)
+      .where(eq(notifications.id, id))
+      .returning();
+    return updated;
+  }
+
+  async ackNotification(id: number): Promise<Notification> {
+    const [updated] = await db
+      .update(notifications)
+      .set({ status: "ACKED", ackedAt: new Date() })
+      .where(eq(notifications.id, id))
+      .returning();
+    return updated;
+  }
+
+  async markNotificationsSeen(userId: number, notificationIds: number[]): Promise<void> {
+    if (notificationIds.length === 0) return;
+    await db
+      .update(notifications)
+      .set({ status: "DELIVERED", deliveredAt: new Date() })
+      .where(and(
+        eq(notifications.recipientUserId, userId),
+        inArray(notifications.id, notificationIds),
+        eq(notifications.status, "SENT")
+      ));
+  }
+
+  // Crew Comms - Preferences
+  async getCrewCommsPreference(userId: number): Promise<CrewCommsPreference | undefined> {
+    const [pref] = await db
+      .select()
+      .from(crewCommsPreferences)
+      .where(eq(crewCommsPreferences.userId, userId))
+      .limit(1);
+    return pref;
+  }
+
+  async getCrewCommsPreferences(businessId: number): Promise<CrewCommsPreference[]> {
+    return db
+      .select()
+      .from(crewCommsPreferences)
+      .where(eq(crewCommsPreferences.businessId, businessId));
+  }
+
+  async createCrewCommsPreference(pref: InsertCrewCommsPreference): Promise<CrewCommsPreference> {
+    const [created] = await db.insert(crewCommsPreferences).values(pref).returning();
+    return created;
+  }
+
+  async updateCrewCommsPreference(userId: number, updates: Partial<InsertCrewCommsPreference>): Promise<CrewCommsPreference> {
+    const [updated] = await db
+      .update(crewCommsPreferences)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(crewCommsPreferences.userId, userId))
+      .returning();
+    return updated;
+  }
+
+  // Crew Comms - Threads
+  async getCommsThreads(businessId: number, limit: number = 50): Promise<CommsThread[]> {
+    return db
+      .select()
+      .from(commsThreads)
+      .where(eq(commsThreads.businessId, businessId))
+      .orderBy(desc(commsThreads.lastMessageAt))
+      .limit(limit);
+  }
+
+  async getCommsThread(id: number): Promise<CommsThread | undefined> {
+    const [thread] = await db
+      .select()
+      .from(commsThreads)
+      .where(eq(commsThreads.id, id))
+      .limit(1);
+    return thread;
+  }
+
+  async getCommsThreadByPhone(phoneE164: string): Promise<CommsThread | undefined> {
+    const [thread] = await db
+      .select()
+      .from(commsThreads)
+      .where(eq(commsThreads.participantPhoneE164, phoneE164))
+      .limit(1);
+    return thread;
+  }
+
+  async getCommsThreadByUser(userId: number): Promise<CommsThread | undefined> {
+    const [thread] = await db
+      .select()
+      .from(commsThreads)
+      .where(eq(commsThreads.participantUserId, userId))
+      .limit(1);
+    return thread;
+  }
+
+  async createCommsThread(thread: InsertCommsThread): Promise<CommsThread> {
+    const [created] = await db.insert(commsThreads).values(thread).returning();
+    return created;
+  }
+
+  async updateCommsThread(id: number, updates: Partial<InsertCommsThread>): Promise<CommsThread> {
+    const [updated] = await db
+      .update(commsThreads)
+      .set(updates)
+      .where(eq(commsThreads.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Crew Comms - Messages
+  async getCommsMessages(threadId: number, limit: number = 100): Promise<CommsMessage[]> {
+    return db
+      .select()
+      .from(commsMessages)
+      .where(eq(commsMessages.threadId, threadId))
+      .orderBy(desc(commsMessages.createdAt))
+      .limit(limit);
+  }
+
+  async getCommsMessage(id: number): Promise<CommsMessage | undefined> {
+    const [message] = await db
+      .select()
+      .from(commsMessages)
+      .where(eq(commsMessages.id, id))
+      .limit(1);
+    return message;
+  }
+
+  async createCommsMessage(message: InsertCommsMessage): Promise<CommsMessage> {
+    const [created] = await db.insert(commsMessages).values(message).returning();
+    return created;
+  }
+
+  // Push Subscriptions
+  async getPushSubscriptions(userId: number): Promise<PushSubscription[]> {
+    return db
+      .select()
+      .from(pushSubscriptions)
+      .where(and(
+        eq(pushSubscriptions.userId, userId),
+        eq(pushSubscriptions.isActive, true)
+      ));
+  }
+
+  async getPushSubscription(endpoint: string): Promise<PushSubscription | undefined> {
+    const [sub] = await db
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.endpoint, endpoint))
+      .limit(1);
+    return sub;
+  }
+
+  async createPushSubscription(sub: InsertPushSubscription): Promise<PushSubscription> {
+    const [created] = await db
+      .insert(pushSubscriptions)
+      .values(sub)
+      .onConflictDoUpdate({
+        target: [pushSubscriptions.endpoint],
+        set: {
+          keysJson: sub.keysJson,
+          userAgent: sub.userAgent,
+          isActive: true,
+          lastUsedAt: new Date(),
+        },
+      })
+      .returning();
+    return created;
+  }
+
+  async deletePushSubscription(endpoint: string): Promise<boolean> {
+    const result = await db
+      .update(pushSubscriptions)
+      .set({ isActive: false })
+      .where(eq(pushSubscriptions.endpoint, endpoint));
+    return true;
+  }
+
+  async updatePushSubscriptionLastUsed(endpoint: string): Promise<void> {
+    await db
+      .update(pushSubscriptions)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(pushSubscriptions.endpoint, endpoint));
   }
 }
 
