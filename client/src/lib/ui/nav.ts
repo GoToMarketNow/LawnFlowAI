@@ -211,7 +211,13 @@ export function getKeyboardShortcutsForRole(role?: UserRole): Array<{ keys: stri
   return shortcuts;
 }
 
+import { shouldUseV2Navigation, getPageTitleV2 } from "./nav-v2";
+
 export function getPageTitle(pathname: string): string {
+  if (shouldUseV2Navigation()) {
+    return getPageTitleV2(pathname);
+  }
+
   const titles: Record<string, string> = {
     '/': 'Dashboard',
     '/dashboard': 'Dashboard',
