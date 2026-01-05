@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { DrawerProvider } from "@/lib/drawer-context";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
+import { NotificationBell } from "@/components/notification-bell";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { GlobalSearch, SearchTrigger } from "@/components/global-search";
@@ -55,6 +56,7 @@ import CrewsPage from "@/pages/crews";
 import CrewDetailPage from "@/pages/crew-detail";
 import ZonesPage from "@/pages/zones";
 import SettingsPage from "@/pages/settings";
+import CrewInboxPage from "@/pages/crew-inbox";
 import NotFound from "@/pages/not-found";
 import { Loader2, AlertCircle } from "lucide-react";
 import { useUserRole } from "@/components/role-gate";
@@ -193,6 +195,7 @@ function AuthenticatedLayout() {
             
             <div className="flex items-center gap-2">
               <QuickActions />
+              <NotificationBell />
               <ThemeToggle />
               <UserMenu />
             </div>
@@ -213,6 +216,7 @@ function AuthenticatedLayout() {
                   <Route path="/operations/crews" component={CrewsPage} />
                   <Route path="/operations/crews/:id" component={CrewDetailPage} />
                   <Route path="/operations/zones" component={ZonesPage} />
+                  <Route path="/crew-inbox" component={CrewInboxPage} />
                   <Route path="/agents" component={AgentsPage} />
                   <Route path="/agents/:id" component={AgentDetailPage} />
                   <Route path="/settings" component={SettingsPage} />

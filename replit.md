@@ -39,6 +39,14 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
 - **Customer Experience Vector Memory:** Semantic search-enabled customer memory system with pgvector integration for storing and retrieving customer interactions and preferences, using OpenAI embeddings for context enrichment.
 - **Communications Manager:** Comprehensive customer messaging system with an intent-based architecture, a template library, custom renderer, and compliance guardrails.
 - **Learning System:** Feedback-driven policy improvement system with detailed logging of AI recommendations, human actions, and outcomes, including policy versioning and kill switches.
+- **Crew Comms Worker Agent:** Multi-channel notification system for crew communications with bilingual support (EN/ES). Features include:
+  - 10 notification types: DAILY_BRIEFING, JOB_ADDED, JOB_UPDATED, JOB_CANCELED, SCOPE_CHANGED, ETA_CHANGED, CUSTOMER_NOTE, EQUIPMENT_ALERT, ACTION_REQUIRED, CREW_BROADCAST
+  - Channels: IN_APP (always enabled), PUSH (preference-based), SMS (via Twilio with urgent override)
+  - Recipient resolution from crew assignments
+  - Quiet hours enforcement (check quietHoursStart/End fields)
+  - Language preferences stored in crewCommsPreferences table
+  - API endpoints at `/api/crew-comms/*` for notifications, preferences, push subscriptions, and broadcasts
+  - UI components: NotificationBell in header, CrewInboxPage at `/crew-inbox`
 - **Key Features:** Dashboard with ROI metrics, conversation overview, human approval actions, business profile configuration, event simulator, job tracking, and audit logging.
 
 **System Design Choices:**

@@ -9226,5 +9226,76 @@ Return JSON format:
     }
   });
 
+  // POST /api/crew-comms/test - Send a test notification to current user (admin only)
+  app.post("/api/crew-comms/test", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can send test notifications" });
+      }
+      
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      
+      const { type = "DAILY_BRIEFING" } = req.body;
+      
+      const testContext: Record<string, any> = {
+        DAILY_BRIEFING: {
+          crewName: "Alpha Crew",
+          jobCount: 5,
+          routeSummary: "5 jobs starting at 123 Main St",
+          briefingDate: new Date().toLocaleDateString(),
+        },
+        JOB_ADDED: {
+          customerName: "John Smith",
+          address: "456 Oak Avenue",
+          scheduledTime: "10:00 AM",
+          serviceType: "Lawn Mowing",
+        },
+        JOB_CANCELED: {
+          customerName: "Jane Doe",
+          address: "789 Pine Street",
+          cancelReason: "Customer requested reschedule",
+        },
+        ACTION_REQUIRED: {
+          actionType: "Approval needed",
+          description: "Review and approve the new job assignment",
+          deadline: "Today by 5 PM",
+        },
+        CREW_BROADCAST: {
+          broadcastMessage: "Team meeting at 8 AM tomorrow - please confirm attendance",
+          senderName: "Operations Manager",
+        },
+      };
+      
+      const context = testContext[type] || testContext.DAILY_BRIEFING;
+      
+      const results = await sendCrewNotification({
+        businessId: profile.id,
+        type,
+        recipientUserIds: [userId],
+        context,
+        channels: ["IN_APP"],
+        priority: "normal",
+      });
+      
+      res.json({ 
+        success: true, 
+        message: `Test ${type} notification sent`,
+        results 
+      });
+    } catch (error: any) {
+      console.error("[CrewComms] Error sending test notification:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }

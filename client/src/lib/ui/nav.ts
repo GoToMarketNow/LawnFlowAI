@@ -229,11 +229,17 @@ export function getPageTitle(pathname: string): string {
     '/pricing': 'Pricing Control',
     '/ops': 'Operations Dashboard',
     '/onboarding': 'Setup',
+    '/operations/crews': 'Crews',
+    '/operations/zones': 'Service Zones',
+    '/crew-inbox': 'Notifications',
+    '/learning': 'Learning System',
+    '/comms': 'Comms Studio',
   };
   
   if (pathname.startsWith('/customers/')) return 'Customer Details';
   if (pathname.startsWith('/agents/')) return 'Agent Details';
   if (pathname.startsWith('/conversations/')) return 'Conversation';
+  if (pathname.startsWith('/operations/crews/')) return 'Crew Details';
   
   return titles[pathname] || 'LawnFlow AI';
 }
