@@ -14,6 +14,7 @@ import {
 import { PolicyService } from "./policy";
 import { growthAdvisor } from "./growth-advisor";
 import { registerAuthRoutes } from "./auth-routes";
+import onboardingRoutes from "./onboarding/routes";
 import { z } from "zod";
 import { 
   getEligibleCrews, 
@@ -74,6 +75,11 @@ export async function registerRoutes(
   // Authentication Routes (2FA)
   // ============================================
   registerAuthRoutes(app);
+
+  // ============================================
+  // Onboarding Routes
+  // ============================================
+  app.use("/api/onboarding", onboardingRoutes);
 
   // ============================================
   // Metrics API Route

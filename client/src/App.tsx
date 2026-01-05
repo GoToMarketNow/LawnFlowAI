@@ -57,6 +57,7 @@ import CrewDetailPage from "@/pages/crew-detail";
 import ZonesPage from "@/pages/zones";
 import SettingsPage from "@/pages/settings";
 import CrewInboxPage from "@/pages/crew-inbox";
+import AgentSetupPage from "@/pages/agent-setup";
 import NotFound from "@/pages/not-found";
 import { Loader2, AlertCircle } from "lucide-react";
 import { useUserRole } from "@/components/role-gate";
@@ -234,6 +235,7 @@ function AuthenticatedLayout() {
                   <Route path="/events" component={EventsFeedPage} />
                   <Route path="/views" component={ViewsPage} />
                   <Route path="/sms" component={SmsSessionsPage} />
+                  <Route path="/agent-setup" component={AgentSetupPage} />
                   <Route component={NotFound} />
                 </Switch>
               </div>

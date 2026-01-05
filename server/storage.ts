@@ -2544,6 +2544,15 @@ export class DatabaseStorage implements IStorage {
   // =============================================
   
   // Onboarding Flow
+  async getOnboardingFlow(id: number): Promise<OnboardingFlow | undefined> {
+    const [flow] = await db
+      .select()
+      .from(onboardingFlows)
+      .where(eq(onboardingFlows.id, id))
+      .limit(1);
+    return flow;
+  }
+
   async getOnboardingFlowByVersion(version: string): Promise<OnboardingFlow | undefined> {
     const [flow] = await db
       .select()
