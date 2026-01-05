@@ -6140,6 +6140,183 @@ Return JSON format:
     }
   });
 
+  // ============================================
+  // Settings API (Phase 2 UX Redesign)
+  // ============================================
+  
+  // --- Settings: Users & Roles ---
+  app.get("/api/settings/users", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can view users" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const allUsers = await storage.getUsers(profile.id);
+      res.json(allUsers);
+    } catch (error: any) {
+      console.error("[Settings] Error fetching users:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/settings/users/:id", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can update users" });
+      }
+      const userId = parseInt(req.params.id);
+      const { role: newRole, isActive } = req.body;
+      const updated = await storage.updateUser(userId, { role: newRole, isActive });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("[Settings] Error updating user:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Settings: Message Templates ---
+  app.get("/api/settings/templates", async (req, res) => {
+    try {
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const { type, category, isActive } = req.query;
+      const templates = await storage.getMessageTemplates(profile.id, {
+        type: type as string | undefined,
+        category: category as string | undefined,
+        isActive: isActive !== undefined ? isActive === "true" : undefined,
+      });
+      res.json(templates);
+    } catch (error: any) {
+      console.error("[Settings] Error fetching templates:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/settings/templates/:id", async (req, res) => {
+    try {
+      const template = await storage.getMessageTemplate(parseInt(req.params.id));
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      res.json(template);
+    } catch (error: any) {
+      console.error("[Settings] Error fetching template:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/settings/templates", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can create templates" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const template = await storage.createMessageTemplate({
+        ...req.body,
+        accountId: profile.id,
+      });
+      res.status(201).json(template);
+    } catch (error: any) {
+      console.error("[Settings] Error creating template:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/settings/templates/:id", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can update templates" });
+      }
+      const templateId = parseInt(req.params.id);
+      const existing = await storage.getMessageTemplate(templateId);
+      if (!existing) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      const updated = await storage.updateMessageTemplate(templateId, req.body);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("[Settings] Error updating template:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/settings/templates/:id", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can delete templates" });
+      }
+      const templateId = parseInt(req.params.id);
+      await storage.deleteMessageTemplate(templateId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Settings] Error deleting template:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Settings: Billing Configuration ---
+  app.get("/api/settings/billing-config", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can view billing config" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const config = await storage.getBillingConfig(profile.id);
+      if (!config) {
+        return res.json({
+          accountId: profile.id,
+          invoiceTermsDays: 30,
+          acceptedPaymentMethods: ["check", "card"],
+          lateFeePercent: "0",
+          collectionsReminderCadenceDays: [7, 14, 30],
+          taxRatePercent: "0",
+          taxId: null,
+          quickbooksConnected: false,
+          quickbooksCompanyId: null,
+        });
+      }
+      res.json(config);
+    } catch (error: any) {
+      console.error("[Settings] Error fetching billing config:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/settings/billing-config", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can update billing config" });
+      }
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      const config = await storage.upsertBillingConfig(profile.id, req.body);
+      res.json(config);
+    } catch (error: any) {
+      console.error("[Settings] Error updating billing config:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // --- Ops API: Crews ---
   app.get("/api/ops/crews", async (req, res) => {
     try {
