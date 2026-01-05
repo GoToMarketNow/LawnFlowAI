@@ -1,0 +1,317 @@
+flow:
+  id: "lawnflow_v1"
+  name: "LawnFlow V1 Implementation"
+  version: "v1"
+  maxQuestions: 14
+  startNodeId: "q0_welcome"
+  personas:
+    - OWNER_ADMIN
+    - CREW_LEAD
+    - CREW_MEMBER
+
+enums:
+  journeyStages: [LEAD, QUALIFY, QUOTE, CONFIRM, SCHEDULE, ASSIGN, BOOK, SERVICE, INVOICE, COLLECT, RETAIN]
+  language: [EN, ES]
+  serviceAreaMode: [ZIP_CODES, RADIUS, NOT_SURE]
+  customerMix: [MOSTLY_RESIDENTIAL, MOSTLY_COMMERCIAL, MIXED]
+  jobVolume: [UNDER_10, FROM_10_TO_30, FROM_30_TO_75, OVER_75]
+  crewStructure: [JUST_ME, ONE_CREW, MULTI_FIXED, CHANGES_DAILY]
+  quotingBehavior: [QUOTE_IMMEDIATELY, RANGE_THEN_CONFIRM, ALWAYS_VISIT]
+  approvalComfort: [ONLY_LARGE_OR_UNUSUAL, MOST_QUOTES, ALWAYS_ASK]
+  commsPreference: [TEXT_ONLY, TEXT_EMAIL, I_HANDLE_IT]
+  crewCommsPreference: [SMS, IN_APP, BOTH]
+  autonomyPreference: [ACT_AUTOMATICALLY, ASK_FIRST, DEPENDS]
+
+nodes:
+  - id: "q0_welcome"
+    type: "message"
+    text: "Welcome to LawnFlow. I'll ask a few questions so I can configure the platform for your business. I'll choose smart defaults and you can change anything later."
+    next: "q1_services"
+
+  - id: "q1_services"
+    type: "question"
+    question: "What services do you offer most often?"
+    inputType: "multi_select"
+    options:
+      - key: "MOWING"
+        label: "Lawn mowing / maintenance"
+      - key: "SEASONAL"
+        label: "Mulch / cleanup / seasonal"
+      - key: "INSTALLS"
+        label: "Landscaping installs"
+      - key: "TREES_SHRUBS"
+        label: "Tree / shrub work"
+      - key: "OTHER"
+        label: "Other"
+    followUps:
+      - when:
+          includes: ["OTHER"]
+        ask: "q1b_other_services"
+    next: "q2_customer_mix"
+
+  - id: "q1b_other_services"
+    type: "question"
+    question: "What other services do you offer?"
+    inputType: "text"
+    required: true
+    next: "q2_customer_mix"
+
+  - id: "q2_customer_mix"
+    type: "question"
+    question: "Are most of your customers residential, commercial, or a mix?"
+    inputType: "single_select"
+    options:
+      - key: "MOSTLY_RESIDENTIAL"
+        label: "Mostly residential"
+      - key: "MOSTLY_COMMERCIAL"
+        label: "Mostly commercial"
+      - key: "MIXED"
+        label: "A mix"
+    next: "q3_service_area_mode"
+
+  - id: "q3_service_area_mode"
+    type: "question"
+    question: "How do you define where you work?"
+    inputType: "single_select"
+    options:
+      - key: "ZIP_CODES"
+        label: "Zip codes"
+      - key: "RADIUS"
+        label: "Radius from home base"
+      - key: "NOT_SURE"
+        label: "I'm not sure / varies"
+    transitions:
+      - when:
+          equals: "ZIP_CODES"
+        next: "q3a_zip_codes"
+      - when:
+          equals: "RADIUS"
+        next: "q3b_radius"
+      - when:
+          equals: "NOT_SURE"
+        next: "q3c_not_sure"
+    defaultNext: "q4_job_volume"
+
+  - id: "q3a_zip_codes"
+    type: "question"
+    question: "List the zip codes you service (comma-separated)."
+    inputType: "text"
+    required: true
+    validation:
+      pattern: "^(\\s*\\d{5}\\s*,)*\\s*\\d{5}\\s*$"
+      error: "Please enter 5-digit zip codes separated by commas."
+    next: "q4_job_volume"
+
+  - id: "q3b_radius"
+    type: "question"
+    question: "How far from your home base do you typically travel?"
+    inputType: "single_select"
+    options:
+      - key: "5"
+        label: "5 miles"
+      - key: "10"
+        label: "10 miles"
+      - key: "20"
+        label: "20 miles"
+      - key: "40"
+        label: "40 miles"
+    next: "q3b_home_base"
+
+  - id: "q3b_home_base"
+    type: "question"
+    question: "What's your home base address or zip code?"
+    inputType: "text"
+    required: true
+    next: "q4_job_volume"
+
+  - id: "q3c_not_sure"
+    type: "message"
+    text: "No problem. I'll start with a conservative 10-mile radius and you can refine it later."
+    flags:
+      assumptionMade: true
+      revisitLater: true
+    next: "q4_job_volume"
+
+  - id: "q4_job_volume"
+    type: "question"
+    question: "About how many jobs do you complete in a typical week?"
+    inputType: "single_select"
+    options:
+      - key: "UNDER_10"
+        label: "Under 10"
+      - key: "FROM_10_TO_30"
+        label: "10-30"
+      - key: "FROM_30_TO_75"
+        label: "30-75"
+      - key: "OVER_75"
+        label: "75+"
+    next: "q5_crew_structure"
+
+  - id: "q5_crew_structure"
+    type: "question"
+    question: "How do your crews usually work?"
+    inputType: "single_select"
+    options:
+      - key: "JUST_ME"
+        label: "Just me"
+      - key: "ONE_CREW"
+        label: "1 crew with a leader"
+      - key: "MULTI_FIXED"
+        label: "Multiple crews with fixed leaders"
+      - key: "CHANGES_DAILY"
+        label: "Crews change day to day"
+    next: "q6_quoting_behavior"
+
+  - id: "q6_quoting_behavior"
+    type: "question"
+    question: "When a new customer requests service, how do you usually quote?"
+    inputType: "single_select"
+    options:
+      - key: "QUOTE_IMMEDIATELY"
+        label: "Quote immediately based on info"
+      - key: "RANGE_THEN_CONFIRM"
+        label: "Provide a range, confirm on site"
+      - key: "ALWAYS_VISIT"
+        label: "Always visit before quoting"
+    next: "q7_approval_comfort"
+
+  - id: "q7_approval_comfort"
+    type: "question"
+    question: "When should LawnFlow ask you before acting?"
+    inputType: "single_select"
+    options:
+      - key: "ONLY_LARGE_OR_UNUSUAL"
+        label: "Only for large or unusual jobs"
+      - key: "MOST_QUOTES"
+        label: "For most quotes"
+      - key: "ALWAYS_ASK"
+        label: "Always ask me first"
+    next: "q8_customer_comms"
+
+  - id: "q8_customer_comms"
+    type: "question"
+    question: "How should customers hear from LawnFlow?"
+    inputType: "single_select"
+    options:
+      - key: "TEXT_ONLY"
+        label: "Text only"
+      - key: "TEXT_EMAIL"
+        label: "Text + email"
+      - key: "I_HANDLE_IT"
+        label: "I'll handle communication myself"
+    next: "q9_crew_comms"
+
+  - id: "q9_crew_comms"
+    type: "question"
+    question: "How should your crews get updates?"
+    inputType: "single_select"
+    options:
+      - key: "SMS"
+        label: "Text messages"
+      - key: "IN_APP"
+        label: "In-app notifications"
+      - key: "BOTH"
+        label: "Both"
+    next: "q10_autonomy"
+
+  - id: "q10_autonomy"
+    type: "question"
+    question: "If LawnFlow is confident, should it act automatically or pause?"
+    inputType: "single_select"
+    options:
+      - key: "ACT_AUTOMATICALLY"
+        label: "Act automatically"
+      - key: "ASK_FIRST"
+        label: "Ask me first"
+      - key: "DEPENDS"
+        label: "Depends on the situation"
+    next: "review_summary"
+
+  - id: "review_summary"
+    type: "review"
+    title: "Here's how I'll run your business"
+    next: "activation"
+
+  - id: "activation"
+    type: "activation"
+    text: "You're live. I'll take it from here."
+    next: null
+
+configMappings:
+  services:
+    fromNode: "q1_services"
+    map:
+      MOWING:
+        enabledAgents: ["RecurringServiceAgent", "LeadIntakeAgent", "SMSSequencerAgent", "QuoteAgent"]
+        quoteTemplate: "RESIDENTIAL_MAINTENANCE"
+      SEASONAL:
+        enabledAgents: ["SeasonalServiceAgent", "QuoteAgent", "ApprovalAgent"]
+        quoteTemplate: "SEASONAL_CLEANUP"
+      INSTALLS:
+        enabledAgents: ["SiteVisitSchedulerAgent", "ApprovalAgent"]
+        approvalRules:
+          requireApprovalForQuotes: true
+      TREES_SHRUBS:
+        enabledAgents: ["SkillCheckAgent", "EquipmentCheckAgent", "ApprovalAgent"]
+        approvalRules:
+          requireApprovalForQuotes: true
+
+  customerMix:
+    fromNode: "q2_customer_mix"
+    map:
+      MOSTLY_RESIDENTIAL:
+        automationThresholds:
+          autoQuoteConfidence: 0.75
+      MOSTLY_COMMERCIAL:
+        automationThresholds:
+          autoQuoteConfidence: 0.90
+        approvalRules:
+          requireApprovalForQuotes: true
+      MIXED:
+        automationThresholds:
+          autoQuoteConfidence: 0.85
+
+  serviceArea:
+    fromNode: "q3_service_area_mode"
+    map:
+      ZIP_CODES:
+        coverageRules:
+          mode: "ZIP_CODES"
+          zipCodesFromNode: "q3a_zip_codes"
+      RADIUS:
+        coverageRules:
+          mode: "RADIUS"
+          milesFromNode: "q3b_radius"
+          homeBaseFromNode: "q3b_home_base"
+      NOT_SURE:
+        coverageRules:
+          mode: "RADIUS"
+          miles: 10
+          assumed: true
+
+  crewComms:
+    fromNode: "q9_crew_comms"
+    map:
+      SMS:
+        notificationRules:
+          crewChannels: ["SMS"]
+      IN_APP:
+        notificationRules:
+          crewChannels: ["IN_APP", "PUSH"]
+      BOTH:
+        notificationRules:
+          crewChannels: ["SMS", "IN_APP", "PUSH"]
+
+  autonomy:
+    fromNode: "q10_autonomy"
+    map:
+      ACT_AUTOMATICALLY:
+        automationThresholds:
+          actMode: "AUTO"
+      ASK_FIRST:
+        automationThresholds:
+          actMode: "HUMAN_APPROVAL"
+      DEPENDS:
+        automationThresholds:
+          actMode: "CONFIDENCE_GATED"
+          autoActConfidence: 0.85

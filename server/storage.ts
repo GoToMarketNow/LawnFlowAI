@@ -145,6 +145,9 @@ import {
   commsThreads,
   commsMessages,
   pushSubscriptions,
+  onboardingFlows,
+  onboardingSessions,
+  onboardingAnswers,
   type Notification,
   type InsertNotification,
   type CrewCommsPreference,
@@ -155,9 +158,16 @@ import {
   type InsertCommsMessage,
   type PushSubscription,
   type InsertPushSubscription,
+  type OnboardingFlow,
+  type InsertOnboardingFlow,
+  type OnboardingSession,
+  type InsertOnboardingSession,
+  type OnboardingAnswer,
+  type InsertOnboardingAnswer,
+  type OnboardingSessionWithAnswers,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, inArray, sql, and, gte, lte } from "drizzle-orm";
+import { eq, desc, asc, inArray, sql, and, gte, lte } from "drizzle-orm";
 
 export interface IStorage {
   // Business Profile
@@ -2527,6 +2537,151 @@ export class DatabaseStorage implements IStorage {
       .update(pushSubscriptions)
       .set({ lastUsedAt: new Date() })
       .where(eq(pushSubscriptions.endpoint, endpoint));
+  }
+
+  // =============================================
+  // ONBOARDING STORAGE FUNCTIONS (Sprint 1)
+  // =============================================
+  
+  // Onboarding Flow
+  async getOnboardingFlowByVersion(version: string): Promise<OnboardingFlow | undefined> {
+    const [flow] = await db
+      .select()
+      .from(onboardingFlows)
+      .where(eq(onboardingFlows.version, version))
+      .limit(1);
+    return flow;
+  }
+
+  async getActiveOnboardingFlow(): Promise<OnboardingFlow | undefined> {
+    const [flow] = await db
+      .select()
+      .from(onboardingFlows)
+      .where(eq(onboardingFlows.isActive, true))
+      .limit(1);
+    return flow;
+  }
+
+  async createOnboardingFlow(flow: InsertOnboardingFlow): Promise<OnboardingFlow> {
+    const [created] = await db
+      .insert(onboardingFlows)
+      .values(flow)
+      .returning();
+    return created;
+  }
+
+  async upsertOnboardingFlow(version: string, name: string, definitionJson: any): Promise<OnboardingFlow> {
+    const [upserted] = await db
+      .insert(onboardingFlows)
+      .values({
+        version,
+        name,
+        definitionJson,
+        isActive: true,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [onboardingFlows.version],
+        set: {
+          name,
+          definitionJson,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return upserted;
+  }
+
+  // Onboarding Session
+  async getOnboardingSession(sessionId: number): Promise<OnboardingSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(onboardingSessions)
+      .where(eq(onboardingSessions.id, sessionId))
+      .limit(1);
+    return session;
+  }
+
+  async getOnboardingSessionByUser(userId: number): Promise<OnboardingSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(onboardingSessions)
+      .where(eq(onboardingSessions.userId, userId))
+      .orderBy(desc(onboardingSessions.createdAt))
+      .limit(1);
+    return session;
+  }
+
+  async getOnboardingSessionByAccount(accountId: number): Promise<OnboardingSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(onboardingSessions)
+      .where(eq(onboardingSessions.accountId, accountId))
+      .orderBy(desc(onboardingSessions.createdAt))
+      .limit(1);
+    return session;
+  }
+
+  async createOnboardingSession(session: InsertOnboardingSession): Promise<OnboardingSession> {
+    const [created] = await db
+      .insert(onboardingSessions)
+      .values(session)
+      .returning();
+    return created;
+  }
+
+  async updateOnboardingSession(sessionId: number, updates: Partial<OnboardingSession>): Promise<OnboardingSession | undefined> {
+    const [updated] = await db
+      .update(onboardingSessions)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(onboardingSessions.id, sessionId))
+      .returning();
+    return updated;
+  }
+
+  // Onboarding Answer
+  async getOnboardingAnswers(sessionId: number): Promise<OnboardingAnswer[]> {
+    return await db
+      .select()
+      .from(onboardingAnswers)
+      .where(eq(onboardingAnswers.sessionId, sessionId))
+      .orderBy(asc(onboardingAnswers.createdAt));
+  }
+
+  async getOnboardingAnswerByNode(sessionId: number, nodeId: string): Promise<OnboardingAnswer | undefined> {
+    const [answer] = await db
+      .select()
+      .from(onboardingAnswers)
+      .where(and(
+        eq(onboardingAnswers.sessionId, sessionId),
+        eq(onboardingAnswers.nodeId, nodeId)
+      ))
+      .limit(1);
+    return answer;
+  }
+
+  async createOnboardingAnswer(answer: InsertOnboardingAnswer): Promise<OnboardingAnswer> {
+    const [created] = await db
+      .insert(onboardingAnswers)
+      .values(answer)
+      .returning();
+    return created;
+  }
+
+  async updateOnboardingAnswer(answerId: number, updates: Partial<OnboardingAnswer>): Promise<OnboardingAnswer | undefined> {
+    const [updated] = await db
+      .update(onboardingAnswers)
+      .set(updates)
+      .where(eq(onboardingAnswers.id, answerId))
+      .returning();
+    return updated;
+  }
+
+  async getOnboardingSessionWithAnswers(sessionId: number): Promise<OnboardingSessionWithAnswers | null> {
+    const session = await this.getOnboardingSession(sessionId);
+    if (!session) return null;
+    const answers = await this.getOnboardingAnswers(sessionId);
+    return { ...session, answers };
   }
 }
 

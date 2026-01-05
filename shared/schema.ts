@@ -3539,3 +3539,80 @@ export const registerPushSubscriptionInputSchema = z.object({
   }),
   userAgent: z.string().optional(),
 });
+
+// =============================================
+// ONBOARDING AGENT TABLES (Sprint 1)
+// =============================================
+
+// Onboarding Status enum
+export const onboardingStatusEnum = z.enum(["NEW", "IN_PROGRESS", "AWAITING_CONFIRM", "COMPLETE"]);
+export type OnboardingStatus = z.infer<typeof onboardingStatusEnum>;
+
+// Answer Confidence enum
+export const answerConfidenceEnum = z.enum(["HIGH", "MEDIUM", "LOW"]);
+export type AnswerConfidence = z.infer<typeof answerConfidenceEnum>;
+
+// Onboarding Flow - stores flow definitions (YAML parsed to JSON)
+export const onboardingFlows = pgTable("onboarding_flows", {
+  id: serial("id").primaryKey(),
+  version: text("version").notNull(), // "v1"
+  name: text("name").notNull(), // "LawnFlow V1 Implementation"
+  definitionJson: jsonb("definition_json").notNull(), // parsed YAML flow definition
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  versionIdx: uniqueIndex("onboarding_flow_version_idx").on(table.version),
+}));
+
+export const insertOnboardingFlowSchema = createInsertSchema(onboardingFlows).omit({ id: true, createdAt: true, updatedAt: true });
+export type OnboardingFlow = typeof onboardingFlows.$inferSelect;
+export type InsertOnboardingFlow = z.infer<typeof insertOnboardingFlowSchema>;
+
+// Onboarding Session - tracks a user's onboarding progress
+export const onboardingSessions = pgTable("onboarding_sessions", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  flowId: integer("flow_id").references(() => onboardingFlows.id).notNull(),
+  status: text("status").notNull().default("NEW"), // NEW, IN_PROGRESS, AWAITING_CONFIRM, COMPLETE
+  currentNodeId: text("current_node_id"), // which question we're on
+  derivedConfigJson: jsonb("derived_config_json"), // generated config from answers
+  flagsJson: jsonb("flags_json"), // assumptions, revisitLater flags
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountIdx: index("onboarding_session_account_idx").on(table.accountId),
+  userIdx: index("onboarding_session_user_idx").on(table.userId),
+  statusIdx: index("onboarding_session_status_idx").on(table.status),
+}));
+
+export const insertOnboardingSessionSchema = createInsertSchema(onboardingSessions).omit({ id: true, createdAt: true, updatedAt: true });
+export type OnboardingSession = typeof onboardingSessions.$inferSelect;
+export type InsertOnboardingSession = z.infer<typeof insertOnboardingSessionSchema>;
+
+// Onboarding Answer - stores each answer given during onboarding
+export const onboardingAnswers = pgTable("onboarding_answers", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => onboardingSessions.id).notNull(),
+  nodeId: text("node_id").notNull(), // which question node
+  questionText: text("question_text").notNull(), // the question asked
+  answerValueJson: jsonb("answer_value_json").notNull(), // {selected:[], text:"", number:...}
+  confidence: text("confidence").default("HIGH").notNull(), // HIGH, MEDIUM, LOW
+  assumptionMade: boolean("assumption_made").default(false).notNull(),
+  revisitLater: boolean("revisit_later").default(false).notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  sessionIdx: index("onboarding_answer_session_idx").on(table.sessionId),
+  nodeIdx: index("onboarding_answer_node_idx").on(table.nodeId),
+}));
+
+export const insertOnboardingAnswerSchema = createInsertSchema(onboardingAnswers).omit({ id: true, createdAt: true });
+export type OnboardingAnswer = typeof onboardingAnswers.$inferSelect;
+export type InsertOnboardingAnswer = z.infer<typeof insertOnboardingAnswerSchema>;
+
+// Types for Onboarding API
+export type OnboardingSessionWithAnswers = OnboardingSession & { answers: OnboardingAnswer[] };
+export type OnboardingFlowWithNodes = OnboardingFlow & { nodes?: any[] };
