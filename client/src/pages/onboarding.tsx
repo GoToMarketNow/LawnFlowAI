@@ -31,7 +31,9 @@ import {
   Clock,
   Loader2,
   Link2,
-  CheckCircle2
+  CheckCircle2,
+  Receipt,
+  Calculator
 } from "lucide-react";
 
 interface OnboardingState {
@@ -84,6 +86,13 @@ interface OnboardingState {
     trackCustomersEnabled: boolean | null;
     trackJobsEnabled: boolean | null;
   };
+  billing: {
+    useQuickBooks: boolean | null;
+    quickBooksConnected: boolean | null;
+    invoiceTerms: string | null;
+    defaultTaxRate: number | null;
+    taxEnabled: boolean | null;
+  };
 }
 
 const STEPS = [
@@ -95,6 +104,7 @@ const STEPS = [
   { id: "integration", title: "Back Office", icon: Link2, required: false, routeDependent: true },
   { id: "communication", title: "Communication", icon: MessageSquare, required: true },
   { id: "pricing", title: "Pricing", icon: DollarSign, required: true },
+  { id: "billing", title: "Billing & Accounting", icon: Receipt, required: false },
   { id: "automation", title: "Automation", icon: Settings, required: true },
   { id: "review", title: "Launch", icon: Rocket, required: true },
 ];
@@ -238,6 +248,8 @@ export default function Onboarding() {
         return true;
       case "pricing":
         return !!localState.pricing?.pricingModel;
+      case "billing":
+        return true; // Optional step
       case "automation":
         return true;
       case "review":
@@ -400,6 +412,15 @@ export default function Onboarding() {
               services={localState.services?.serviceTypes}
               onChange={(data) =>
                 updateLocalState({ pricing: data })
+              }
+            />
+          )}
+
+          {currentStep?.id === "billing" && (
+            <BillingStep
+              data={localState.billing}
+              onChange={(data) =>
+                updateLocalState({ billing: data })
               }
             />
           )}
@@ -1469,6 +1490,159 @@ function AutomationStep({
   );
 }
 
+const INVOICE_TERMS = [
+  { id: "due_on_receipt", label: "Due on Receipt" },
+  { id: "net_7", label: "Net 7 Days" },
+  { id: "net_14", label: "Net 14 Days" },
+  { id: "net_30", label: "Net 30 Days" },
+];
+
+function BillingStep({
+  data,
+  onChange,
+}: {
+  data?: OnboardingState["billing"];
+  onChange: (data: OnboardingState["billing"]) => void;
+}) {
+  const defaults = {
+    useQuickBooks: data?.useQuickBooks ?? null,
+    quickBooksConnected: data?.quickBooksConnected ?? false,
+    invoiceTerms: data?.invoiceTerms ?? "net_7",
+    defaultTaxRate: data?.defaultTaxRate ?? 0,
+    taxEnabled: data?.taxEnabled ?? false,
+  };
+
+  return (
+    <div>
+      <h2 className="text-2xl font-bold mb-2">Billing & Accounting</h2>
+      <p className="text-muted-foreground mb-6">
+        Set up how you manage invoices and track payments.
+      </p>
+
+      <Card className="mb-6">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Calculator className="h-4 w-4" />
+            Accounting Integration
+          </CardTitle>
+          <CardDescription>
+            LawnFlow orchestrates billing; your accounting system remains the source of truth.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-3">
+            <Label>Do you use QuickBooks Online?</Label>
+            <RadioGroup
+              value={defaults.useQuickBooks === true ? "yes" : defaults.useQuickBooks === false ? "no" : ""}
+              onValueChange={(val) =>
+                onChange({ ...defaults, useQuickBooks: val === "yes" })
+              }
+            >
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="yes" id="qb-yes" data-testid="radio-qb-yes" />
+                <Label htmlFor="qb-yes" className="font-normal">
+                  Yes, I use QuickBooks Online
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="no" id="qb-no" data-testid="radio-qb-no" />
+                <Label htmlFor="qb-no" className="font-normal">
+                  No, I use something else or nothing
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          {defaults.useQuickBooks === true && !defaults.quickBooksConnected && (
+            <div className="p-4 border rounded-md bg-muted/50">
+              <p className="text-sm text-muted-foreground mb-3">
+                You can connect QuickBooks now or later from Settings.
+              </p>
+              <Button variant="outline" size="sm" data-testid="button-connect-qb-later">
+                Connect Later
+              </Button>
+            </div>
+          )}
+
+          {defaults.useQuickBooks === false && (
+            <div className="p-3 border rounded-md bg-muted/50">
+              <p className="text-sm text-muted-foreground">
+                Invoices will be saved locally. You can export them or connect an accounting system later.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Receipt className="h-4 w-4" />
+            Invoice Settings
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Default Payment Terms</Label>
+            <Select
+              value={defaults.invoiceTerms || "net_7"}
+              onValueChange={(val) => onChange({ ...defaults, invoiceTerms: val })}
+            >
+              <SelectTrigger data-testid="select-invoice-terms">
+                <SelectValue placeholder="Select payment terms" />
+              </SelectTrigger>
+              <SelectContent>
+                {INVOICE_TERMS.map((term) => (
+                  <SelectItem key={term.id} value={term.id}>
+                    {term.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center justify-between p-4 border rounded-md">
+            <div>
+              <Label>Enable Tax</Label>
+              <p className="text-xs text-muted-foreground">
+                Automatically add tax to invoices
+              </p>
+            </div>
+            <Switch
+              checked={defaults.taxEnabled || false}
+              onCheckedChange={(checked) =>
+                onChange({ ...defaults, taxEnabled: checked })
+              }
+              data-testid="switch-tax-enabled"
+            />
+          </div>
+
+          {defaults.taxEnabled && (
+            <div className="space-y-2">
+              <Label>Default Tax Rate (%)</Label>
+              <Input
+                type="number"
+                min="0"
+                max="25"
+                step="0.25"
+                value={defaults.defaultTaxRate || 0}
+                onChange={(e) =>
+                  onChange({ ...defaults, defaultTaxRate: parseFloat(e.target.value) || 0 })
+                }
+                placeholder="e.g., 7.5"
+                data-testid="input-tax-rate"
+              />
+              <p className="text-xs text-muted-foreground">
+                Common rates: 6%, 7%, 8.25%, etc. Leave at 0 if not applicable.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function ReviewStep({
   state,
   onLaunch,
@@ -1508,6 +1682,14 @@ function ReviewStep({
         : state.pricing?.pricingModel === "flat_per_visit" 
         ? "Flat pricing" 
         : "Site visit required",
+    },
+    {
+      title: "Billing",
+      value: state.billing?.useQuickBooks 
+        ? "QuickBooks Online" 
+        : state.billing?.useQuickBooks === false
+        ? "Local invoicing" 
+        : "Not configured",
     },
     {
       title: "Automation",

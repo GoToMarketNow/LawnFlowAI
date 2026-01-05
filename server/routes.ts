@@ -821,6 +821,13 @@ export async function registerRoutes(
           trackCustomersEnabled: profile.trackCustomersEnabled,
           trackJobsEnabled: profile.trackJobsEnabled,
         },
+        billing: {
+          useQuickBooks: profile.useQuickBooks,
+          quickBooksConnected: profile.quickBooksConnected,
+          invoiceTerms: profile.invoiceTerms,
+          defaultTaxRate: profile.defaultTaxRate,
+          taxEnabled: profile.taxEnabled,
+        },
         onboardingNotes: profile.onboardingNotes,
       });
     } catch (error) {
@@ -926,6 +933,16 @@ export async function registerRoutes(
         const sa = req.body.standalone;
         if (sa.trackCustomersEnabled !== undefined) updates.trackCustomersEnabled = sa.trackCustomersEnabled;
         if (sa.trackJobsEnabled !== undefined) updates.trackJobsEnabled = sa.trackJobsEnabled;
+      }
+      
+      // Billing
+      if (req.body.billing) {
+        const bill = req.body.billing;
+        if (bill.useQuickBooks !== undefined) updates.useQuickBooks = bill.useQuickBooks;
+        if (bill.quickBooksConnected !== undefined) updates.quickBooksConnected = bill.quickBooksConnected;
+        if (bill.invoiceTerms !== undefined) updates.invoiceTerms = bill.invoiceTerms;
+        if (bill.defaultTaxRate !== undefined) updates.defaultTaxRate = bill.defaultTaxRate;
+        if (bill.taxEnabled !== undefined) updates.taxEnabled = bill.taxEnabled;
       }
       
       // Notes

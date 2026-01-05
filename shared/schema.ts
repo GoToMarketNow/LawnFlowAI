@@ -61,6 +61,13 @@ export const businessProfiles = pgTable("business_profiles", {
   trackCustomersEnabled: boolean("track_customers_enabled").default(true),
   trackJobsEnabled: boolean("track_jobs_enabled").default(true),
   
+  // Billing & Accounting settings
+  useQuickBooks: boolean("use_quick_books"),
+  quickBooksConnected: boolean("quick_books_connected").default(false),
+  invoiceTerms: text("invoice_terms").default("net_7"), // due_on_receipt, net_7, net_14, net_30
+  defaultTaxRate: integer("default_tax_rate").default(0), // percentage * 100 (e.g., 750 = 7.5%)
+  taxEnabled: boolean("tax_enabled").default(false),
+  
   // Misc
   onboardingNotes: jsonb("onboarding_notes"),
   

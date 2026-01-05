@@ -94,3 +94,8 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
 - **Twilio:** Production-ready SMS connector with API Key authentication, retry logic, audit logging, and webhook signature validation.
 - **Jobber:** Integration for webhooks, GraphQL API, and OAuth for field service management.
 - **ArcGIS:** Integrated into the Lot Size Resolver.
+
+## Agent Documentation
+- **Agent Directory:** `docs/agents/README.md` - Overview of all agents with triggers, I/O, and escalation rules
+- **Agent Contracts:** `docs/agents/contracts/*.json` - JSON Schema contracts for each agent
+- **Onboarding Billing Step:** Optional step in wizard for QuickBooks integration, invoice terms, and tax settings

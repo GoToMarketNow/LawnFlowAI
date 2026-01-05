@@ -1,0 +1,100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CrewPerformanceAgent Contract",
+  "description": "Analyzes crew metrics and generates coaching insights",
+  
+  "input": {
+    "type": "object",
+    "required": ["accountId"],
+    "properties": {
+      "accountId": {
+        "type": "integer",
+        "description": "Business account ID"
+      },
+      "crewId": {
+        "type": "integer",
+        "description": "Optional specific crew to analyze"
+      },
+      "period": {
+        "type": "object",
+        "properties": {
+          "start": { "type": "string", "format": "date-time" },
+          "end": { "type": "string", "format": "date-time" }
+        },
+        "description": "Analysis period (default: last 30 days)"
+      }
+    }
+  },
+  
+  "output": {
+    "type": "object",
+    "required": ["analysisDate", "crews", "topPerformers", "improvementAreas", "coachingInsights", "overallScore"],
+    "properties": {
+      "analysisDate": { "type": "string", "format": "date-time" },
+      "crews": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "crewId": { "type": "integer" },
+            "crewName": { "type": "string" },
+            "score": { "type": "number" },
+            "metrics": {
+              "type": "object",
+              "properties": {
+                "onTimeRate": { "type": "number" },
+                "completionRate": { "type": "number" },
+                "reworkRate": { "type": "number" },
+                "customerSatisfaction": { "type": "number" },
+                "jobsCompleted": { "type": "integer" }
+              }
+            },
+            "trend": {
+              "type": "string",
+              "enum": ["IMPROVING", "STABLE", "DECLINING"]
+            }
+          }
+        }
+      },
+      "topPerformers": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "crewId": { "type": "integer" },
+            "crewName": { "type": "string" },
+            "highlight": { "type": "string" }
+          }
+        }
+      },
+      "improvementAreas": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "crewId": { "type": "integer" },
+            "area": { "type": "string" },
+            "currentValue": { "type": "number" },
+            "targetValue": { "type": "number" }
+          }
+        }
+      },
+      "coachingInsights": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "crewId": { "type": "integer" },
+            "insight": { "type": "string" },
+            "suggestedAction": { "type": "string" }
+          }
+        }
+      },
+      "overallScore": { "type": "number" }
+    }
+  },
+  
+  "triggers": ["After job completion", "Weekly summary", "On-demand analysis"],
+  "escalation": "Significant performance drops notify owner",
+  "apiEndpoint": "POST /api/agents/crew-performance"
+}

@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RetentionAgent Contract",
+  "description": "Customer churn risk scoring and retention outreach recommendations",
+  
+  "input": {
+    "type": "object",
+    "required": ["accountId"],
+    "properties": {
+      "accountId": {
+        "type": "integer",
+        "description": "Business account ID"
+      },
+      "customerId": {
+        "type": "integer",
+        "description": "Optional specific customer to analyze"
+      },
+      "includeInactive": {
+        "type": "boolean",
+        "default": false,
+        "description": "Include customers marked inactive"
+      }
+    }
+  },
+  
+  "output": {
+    "type": "object",
+    "required": ["analysisDate", "atRiskCustomers", "campaigns", "overallChurnRisk", "recommendations"],
+    "properties": {
+      "analysisDate": { "type": "string", "format": "date-time" },
+      "atRiskCustomers": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "customerId": { "type": "integer" },
+            "customerName": { "type": "string" },
+            "riskLevel": {
+              "type": "string",
+              "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+            },
+            "riskScore": { "type": "number" },
+            "signals": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "lastService": { "type": "string", "format": "date" },
+            "daysSinceService": { "type": "integer" },
+            "lifetime Value": { "type": "number" }
+          }
+        }
+      },
+      "campaigns": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "campaignType": {
+              "type": "string",
+              "enum": ["REACTIVATION", "LOYALTY", "FEEDBACK", "SEASONAL"]
+            },
+            "targetCustomers": {
+              "type": "array",
+              "items": { "type": "integer" }
+            },
+            "suggestedMessage": { "type": "string" },
+            "suggestedOffer": { "type": "string" }
+          }
+        }
+      },
+      "overallChurnRisk": {
+        "type": "string",
+        "enum": ["LOW", "MODERATE", "HIGH"]
+      },
+      "recommendations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "priority": { "type": "integer" },
+            "action": { "type": "string" },
+            "impact": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  
+  "triggers": ["Post-service follow-up", "Monthly scan", "On-demand analysis"],
+  "escalation": "High churn risk customers flagged for owner review",
+  "apiEndpoint": "POST /api/agents/retention"
+}

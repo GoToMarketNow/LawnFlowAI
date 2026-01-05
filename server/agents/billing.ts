@@ -268,7 +268,7 @@ export interface JobDataForInvoice {
   id: number;
   title: string;
   description?: string | null;
-  customerId: number;
+  customerId?: number; // Optional - invoices.customerId is nullable
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
@@ -280,6 +280,7 @@ export interface JobDataForInvoice {
   lotSizeSqFt?: number;
   notes?: string | null;
   status: string;
+  quoteAmount?: number; // Original quote amount in cents
 }
 
 export interface PricingRules {
