@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -468,12 +469,12 @@ export default function SettingsCommsStudioPage() {
             Manage automated communications for customers, leads, and crew
           </p>
         </div>
-        <a href="/settings/active-comms">
+        <Link href="/settings/active-comms">
           <Button variant="default" data-testid="button-active-comms">
             <MessageSquare className="h-4 w-4 mr-2" />
             Active Comms
           </Button>
-        </a>
+        </Link>
       </div>
 
       <Tabs defaultValue="studio" className="space-y-6">
