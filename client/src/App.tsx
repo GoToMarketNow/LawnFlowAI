@@ -67,6 +67,10 @@ import SettingsPricingPage from "@/pages/settings/pricing";
 import SettingsIntegrationsPage from "@/pages/settings/integrations";
 import SettingsObservabilityPage from "@/pages/settings/observability";
 import SettingsExportsPage from "@/pages/settings/exports";
+import BillingPage from "@/pages/billing";
+import BillingInvoicesPage from "@/pages/billing-invoices";
+import BillingPaymentsPage from "@/pages/billing-payments";
+import BillingIssuesPage from "@/pages/billing-issues";
 import NotFound from "@/pages/not-found";
 import { Loader2, AlertCircle } from "lucide-react";
 import { useUserRole } from "@/components/role-gate";
@@ -235,6 +239,10 @@ function AuthenticatedLayout() {
                       <Route path="/learning">{() => <Redirect to="/settings/policies" />}</Route>
                       <Route path="/pricing">{() => <Redirect to="/settings/pricing" />}</Route>
                       <Route path="/audit">{() => <Redirect to="/settings/observability" />}</Route>
+                      <Route path="/billing" component={BillingPage} />
+                      <Route path="/billing/invoices" component={BillingInvoicesPage} />
+                      <Route path="/billing/payments" component={BillingPaymentsPage} />
+                      <Route path="/billing/issues" component={BillingIssuesPage} />
                     </>
                   ) : (
                     <>
