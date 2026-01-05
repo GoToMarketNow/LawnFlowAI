@@ -111,9 +111,20 @@ Note: CREW_MEMBER is a new role-level (below STAFF in the refactor context).
    - `WorkQueuePage` with filtering by status/priority
 5. **Phase 4**: Approvals interface - COMPLETE  
    - `ApprovalsPage` with fast approve/reject actions
-6. **Phase 5**: Schedule (Day Plan) - Pending
-7. **Phase 6**: Crews + Comms polish + Agents to Settings - Pending
-8. **Phase 7**: Cleanup + QA - Pending
+6. **Phase 5**: Schedule (Day Plan) - COMPLETE
+   - Added view mode toggle (Week / Day Plan)
+   - Day Plan view with crew-grouped timeline
+   - Time-based job positioning (6am-6pm slots)
+   - Crew utilization percentages
+   - Unassigned jobs section with alert
+7. **Phase 6**: Crews + Comms polish + Agents to Settings - COMPLETE
+   - Crews page: Added live readiness status (Ready, On Site, Running Late, Off Hours)
+   - Crews page: Quick action buttons (Schedule, Message)
+   - Agents page already reuses at `/settings/agents`
+   - Comms studio already has Tabs structure
+8. **Phase 7**: Cleanup + QA - COMPLETE
+   - Documentation updated
+   - All phases verified working
 
 ## Testing by Role
 

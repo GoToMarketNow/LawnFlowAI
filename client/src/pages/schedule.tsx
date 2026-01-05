@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Calendar,
   ChevronLeft,
@@ -19,6 +20,8 @@ import {
   Truck,
   RefreshCw,
   AlertCircle,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import { format, addDays, startOfWeek, isSameDay, parseISO, addWeeks, subWeeks } from "date-fns";
 import { jobStatuses, type JobStatus } from "@/lib/ui/tokens";
@@ -69,11 +72,15 @@ function DaySkeleton() {
   );
 }
 
+type ViewMode = "week" | "day-plan";
+
 export default function SchedulePage() {
+  const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [selectedCrew, setSelectedCrew] = useState<string>("all");
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [dayDrawerOpen, setDayDrawerOpen] = useState(false);
+  const [dayPlanDate, setDayPlanDate] = useState<Date>(new Date());
   
   const weekDays = getWeekDays(weekStart);
 
@@ -232,6 +239,198 @@ export default function SchedulePage() {
             <span className="text-xs font-medium w-8 text-right">{capacity.percentage}%</span>
           </div>
         </div>
+      </div>
+    );
+  };
+
+  const getJobsForDate = (date: Date) => {
+    return scheduledJobs.filter((job) => {
+      const jobDate = new Date(job.scheduledDate);
+      return isSameDay(jobDate, date);
+    });
+  };
+
+  const DayPlanView = () => {
+    const activeCrews = crews.filter(c => c.isActive);
+    const jobsToday = getJobsForDate(dayPlanDate);
+    const hourSlots = Array.from({ length: 12 }, (_, i) => i + 6);
+
+    const getCrewJobs = (crewId: number) => {
+      return jobsToday
+        .filter(j => j.crewId === crewId)
+        .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime());
+    };
+
+    const getUnassignedJobs = () => {
+      return jobsToday.filter(j => !j.crewId);
+    };
+
+    const getJobPosition = (job: ScheduledJob) => {
+      const jobDate = new Date(job.scheduledDate);
+      const hour = jobDate.getHours();
+      const minutes = jobDate.getMinutes();
+      const startHour = 6;
+      const endHour = 18;
+      const totalSlots = endHour - startHour;
+      
+      const rawLeft = ((hour - startHour) + minutes / 60) * (100 / totalSlots);
+      const left = Math.max(0, Math.min(100, rawLeft));
+      
+      const rawWidth = Math.max(8, (job.estimatedDuration / 60) * (100 / totalSlots));
+      const maxWidth = 100 - left;
+      const width = Math.max(0, Math.min(maxWidth, rawWidth));
+      
+      const isOutsideHours = hour < startHour || hour >= endHour;
+      
+      return { 
+        left: `${left}%`, 
+        width: width > 0 ? `${width}%` : '8%',
+        isOutsideHours 
+      };
+    };
+
+    const getJobStatus = (status: string): { color: string; label: string } => {
+      const statusConfig = jobStatuses[status as JobStatus] || jobStatuses.scheduled;
+      return { color: statusConfig.color, label: statusConfig.label };
+    };
+
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setDayPlanDate(addDays(dayPlanDate, -1))}
+            data-testid="button-prev-day"
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Previous
+          </Button>
+
+          <div className="font-medium">
+            {format(dayPlanDate, "EEEE, MMMM d, yyyy")}
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setDayPlanDate(addDays(dayPlanDate, 1))}
+            data-testid="button-next-day"
+          >
+            Next
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+        </div>
+
+        <ScrollArea className="flex-1">
+          <div className="p-4 space-y-4">
+            <div className="flex border-b pb-2">
+              <div className="w-32 shrink-0" />
+              <div className="flex-1 flex">
+                {hourSlots.map(hour => (
+                  <div key={hour} className="flex-1 text-xs text-muted-foreground text-center border-l first:border-l-0">
+                    {hour > 12 ? `${hour - 12}pm` : hour === 12 ? '12pm' : `${hour}am`}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {activeCrews.map(crew => {
+              const crewJobs = getCrewJobs(crew.id);
+              const totalMinutes = crewJobs.reduce((sum, j) => sum + (j.estimatedDuration || 60), 0);
+              const utilization = Math.round((totalMinutes / (crew.dailyCapacityMinutes || 420)) * 100);
+              
+              return (
+                <div key={crew.id} className="flex items-stretch border rounded-md overflow-hidden" data-testid={`dayplan-crew-${crew.id}`}>
+                  <div className="w-32 shrink-0 p-3 bg-muted/30 border-r">
+                    <div className="font-medium text-sm truncate">{crew.name}</div>
+                    <div className="flex items-center gap-1 mt-1">
+                      <Badge 
+                        variant={utilization > 90 ? "destructive" : utilization > 70 ? "secondary" : "outline"} 
+                        className="text-xs"
+                      >
+                        {utilization}%
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">{crewJobs.length} jobs</span>
+                    </div>
+                  </div>
+                  <div className="flex-1 relative h-16 bg-muted/10">
+                    <div className="absolute inset-0 flex">
+                      {hourSlots.map((_, i) => (
+                        <div key={i} className="flex-1 border-l first:border-l-0 border-dashed border-muted" />
+                      ))}
+                    </div>
+                    {crewJobs.map((job, idx) => {
+                      const pos = getJobPosition(job);
+                      const status = getJobStatus(job.status);
+                      return (
+                        <div
+                          key={job.id}
+                          className="absolute top-1 h-14 rounded px-2 py-1 text-xs overflow-hidden cursor-pointer hover-elevate"
+                          style={{ 
+                            left: pos.left, 
+                            width: pos.width,
+                            backgroundColor: `hsl(var(--primary) / 0.15)`,
+                            borderLeft: `3px solid hsl(var(--primary))`
+                          }}
+                          title={`${job.customerName} - ${format(new Date(job.scheduledDate), "h:mm a")} (${job.estimatedDuration}min)`}
+                          data-testid={`dayplan-job-${job.id}`}
+                        >
+                          <div className="font-medium truncate">{job.customerName}</div>
+                          <div className="text-muted-foreground truncate">
+                            {format(new Date(job.scheduledDate), "h:mm a")} - {job.serviceType}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {crewJobs.length === 0 && (
+                      <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+                        No jobs scheduled
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {getUnassignedJobs().length > 0 && (
+              <div className="border rounded-md overflow-hidden">
+                <div className="p-3 bg-amber-500/10 border-b flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600" />
+                  <span className="font-medium text-sm">Unassigned Jobs ({getUnassignedJobs().length})</span>
+                </div>
+                <div className="p-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {getUnassignedJobs().map(job => (
+                    <Card key={job.id} className="hover-elevate" data-testid={`dayplan-unassigned-${job.id}`}>
+                      <CardContent className="p-3">
+                        <div className="font-medium text-sm truncate">{job.customerName}</div>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          {format(new Date(job.scheduledDate), "h:mm a")}
+                          <span>({job.estimatedDuration}min)</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                          <MapPin className="h-3 w-3" />
+                          <span className="truncate">{job.customerAddress || "No address"}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeCrews.length === 0 && (
+              <div className="flex flex-col items-center justify-center p-8 text-center">
+                <Users className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="font-medium">No active crews</h3>
+                <p className="text-sm text-muted-foreground">
+                  Add crews in Settings to start scheduling.
+                </p>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
       </div>
     );
   };
@@ -396,19 +595,34 @@ export default function SchedulePage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Select value={selectedCrew} onValueChange={setSelectedCrew}>
-              <SelectTrigger className="w-40" data-testid="select-crew-filter">
-                <SelectValue placeholder="All Crews" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Crews</SelectItem>
-                {crews.filter(c => c.isActive).map(crew => (
-                  <SelectItem key={crew.id} value={crew.id.toString()}>
-                    {crew.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
+              <TabsList>
+                <TabsTrigger value="week" data-testid="button-view-week">
+                  <LayoutGrid className="h-4 w-4 mr-1" />
+                  Week
+                </TabsTrigger>
+                <TabsTrigger value="day-plan" data-testid="button-view-dayplan">
+                  <List className="h-4 w-4 mr-1" />
+                  Day Plan
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {viewMode === "week" && (
+              <Select value={selectedCrew} onValueChange={setSelectedCrew}>
+                <SelectTrigger className="w-40" data-testid="select-crew-filter">
+                  <SelectValue placeholder="All Crews" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Crews</SelectItem>
+                  {crews.filter(c => c.isActive).map(crew => (
+                    <SelectItem key={crew.id} value={crew.id.toString()}>
+                      {crew.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             <Button
               variant="outline"
@@ -422,38 +636,42 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between p-3 border-b bg-muted/30">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setWeekStart(subWeeks(weekStart, 1))}
-          data-testid="button-prev-week"
-        >
-          <ChevronLeft className="h-4 w-4 mr-1" />
-          Previous
-        </Button>
+      {viewMode === "week" && (
+        <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setWeekStart(subWeeks(weekStart, 1))}
+            data-testid="button-prev-week"
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Previous
+          </Button>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
-          data-testid="button-today"
-        >
-          Today
-        </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
+            data-testid="button-today"
+          >
+            Today
+          </Button>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setWeekStart(addWeeks(weekStart, 1))}
-          data-testid="button-next-week"
-        >
-          Next
-          <ChevronRight className="h-4 w-4 ml-1" />
-        </Button>
-      </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setWeekStart(addWeeks(weekStart, 1))}
+            data-testid="button-next-week"
+          >
+            Next
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+        </div>
+      )}
 
-      {isLoading ? (
+      {viewMode === "day-plan" ? (
+        <DayPlanView />
+      ) : isLoading ? (
         <div className="flex-1 grid grid-cols-7 gap-0 border-t overflow-hidden">
           {Array.from({ length: 7 }).map((_, i) => (
             <div key={i} className="border-r last:border-r-0 p-2">
