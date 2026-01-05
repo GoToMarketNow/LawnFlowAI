@@ -70,8 +70,8 @@ async function buildPricingRules(accountId: number): Promise<PricingRules> {
   let minimumCharge: number | undefined;
   
   // Apply policy-based overrides if available
-  if (policy?.pricingRulesJson && typeof policy.pricingRulesJson === "object") {
-    const policyRates = policy.pricingRulesJson as Record<string, unknown>;
+  if (policy?.pricingRules && typeof policy.pricingRules === "object") {
+    const policyRates = policy.pricingRules as Record<string, unknown>;
     if (policyRates.baseRates && typeof policyRates.baseRates === "object") {
       baseRates = { ...baseRates, ...(policyRates.baseRates as Record<string, number>) };
     }

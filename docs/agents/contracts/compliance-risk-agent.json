@@ -1,0 +1,100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ComplianceRiskAgent",
+  "description": "Monitors license/insurance expiration and compliance issues. Generates alerts for upcoming deadlines and non-compliant items.",
+  "type": "object",
+  "properties": {
+    "input": {
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "integer",
+          "description": "Business account identifier"
+        }
+      },
+      "required": ["accountId"]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "checkDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of compliance check"
+        },
+        "overallStatus": {
+          "type": "string",
+          "enum": ["COMPLIANT", "ATTENTION_NEEDED", "NON_COMPLIANT"],
+          "description": "Overall compliance status"
+        },
+        "alerts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["LICENSE_EXPIRING", "INSURANCE_EXPIRING", "CERTIFICATION_EXPIRING", "POLICY_VIOLATION"],
+                "description": "Type of compliance alert"
+              },
+              "severity": {
+                "type": "string",
+                "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+                "description": "Alert severity level"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable alert message"
+              },
+              "dueDate": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Date when action is required"
+              },
+              "actionRequired": {
+                "type": "string",
+                "description": "Recommended action to resolve the issue"
+              }
+            },
+            "required": ["type", "severity", "message"]
+          },
+          "description": "List of compliance alerts"
+        },
+        "upcomingDeadlines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "item": {
+                "type": "string",
+                "description": "Name of the compliance item"
+              },
+              "date": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Deadline date"
+              },
+              "daysRemaining": {
+                "type": "integer",
+                "description": "Days until deadline"
+              }
+            },
+            "required": ["item", "date", "daysRemaining"]
+          },
+          "description": "List of upcoming compliance deadlines"
+        },
+        "recommendations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Recommended actions to improve compliance"
+        }
+      },
+      "required": ["checkDate", "overallStatus", "alerts", "upcomingDeadlines", "recommendations"]
+    }
+  },
+  "trigger": "Monthly scheduled",
+  "escalation": "Creates alert for HIGH severity items, requires human action for CRITICAL items",
+  "notes": "Stub implementation for MVP - monitors license/insurance expiration with mock data. Future versions will integrate with actual license databases."
+}
