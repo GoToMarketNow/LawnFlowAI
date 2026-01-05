@@ -4133,3 +4133,165 @@ export const billingConfigs = pgTable("billing_configs", {
 export const insertBillingConfigSchema = createInsertSchema(billingConfigs).omit({ id: true, createdAt: true, updatedAt: true });
 export type BillingConfig = typeof billingConfigs.$inferSelect;
 export type InsertBillingConfig = z.infer<typeof insertBillingConfigSchema>;
+
+// ============================================
+// COMMS STUDIO - Unified Communications Control Plane
+// ============================================
+
+// Automation audience types
+export const commsAudienceTypeEnum = ["CUSTOMER", "LEAD", "CREW"] as const;
+export type CommsAudienceType = typeof commsAudienceTypeEnum[number];
+
+// Automation types for different use cases
+export const commsAutomationTypeEnum = [
+  "LEAD_QUALIFICATION",
+  "QUOTE_FOLLOWUP", 
+  "APPOINTMENT_REMINDER",
+  "REVIEW_REQUEST",
+  "RETENTION_NUDGE",
+  "CREW_DAILY_BRIEFING",
+  "CREW_SCHEDULE_CHANGE",
+  "CREW_NEW_JOB_ADDED",
+  "CREW_SCOPE_CHANGE",
+  "CUSTOM"
+] as const;
+export type CommsAutomationType = typeof commsAutomationTypeEnum[number];
+
+// Trigger types
+export const commsTriggerTypeEnum = ["EVENT", "SCHEDULED", "MANUAL"] as const;
+export type CommsTriggerType = typeof commsTriggerTypeEnum[number];
+
+// Automation state
+export const commsAutomationStateEnum = ["ACTIVE", "PAUSED", "INACTIVE"] as const;
+export type CommsAutomationState = typeof commsAutomationStateEnum[number];
+
+// Language modes
+export const commsLanguageModeEnum = ["AUTO", "EN", "ES"] as const;
+export type CommsLanguageMode = typeof commsLanguageModeEnum[number];
+
+// Delivery channels
+export const commsChannelEnum = ["SMS", "EMAIL", "IN_APP", "PUSH"] as const;
+export type CommsChannel = typeof commsChannelEnum[number];
+
+// Delivery status
+export const commsDeliveryStatusEnum = ["QUEUED", "SENT", "DELIVERED", "FAILED", "ACKED"] as const;
+export type CommsDeliveryStatus = typeof commsDeliveryStatusEnum[number];
+
+// CommsAutomation - stores automation configurations
+export const commsAutomations = pgTable("comms_automations", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  audienceType: text("audience_type").notNull(), // CUSTOMER | LEAD | CREW
+  automationType: text("automation_type").notNull(), // LEAD_QUALIFICATION, QUOTE_FOLLOWUP, etc.
+  triggerType: text("trigger_type").notNull(), // EVENT | SCHEDULED | MANUAL
+  triggerEvent: text("trigger_event"), // e.g., JOB_ASSIGNED, QUOTE_SENT (nullable for scheduled/manual)
+  scheduleJson: jsonb("schedule_json"), // { cron, timezone, quietHoursStart, quietHoursEnd }
+  state: text("state").notNull().default("ACTIVE"), // ACTIVE | PAUSED | INACTIVE
+  channelsJson: jsonb("channels_json").notNull().default(sql`'["SMS"]'::jsonb`), // ["SMS", "IN_APP", "PUSH", "EMAIL"]
+  languageMode: text("language_mode").notNull().default("AUTO"), // AUTO | EN | ES
+  templateSetId: integer("template_set_id").references(() => commsTemplateSets.id, { onDelete: "set null" }), // FK to commsTemplateSets
+  filtersJson: jsonb("filters_json"), // { crewIds, serviceCodes, regionZips, customerTags }
+  metrics: jsonb("metrics").default(sql`'{"sent7d":0,"delivered7d":0,"failed7d":0}'::jsonb`), // Aggregated metrics
+  lastRunAt: timestamp("last_run_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountIdx: index("comms_auto_account_idx").on(table.accountId),
+  audienceIdx: index("comms_auto_audience_idx").on(table.audienceType),
+  stateIdx: index("comms_auto_state_idx").on(table.state),
+  typeIdx: index("comms_auto_type_idx").on(table.automationType),
+}));
+
+export const insertCommsAutomationSchema = createInsertSchema(commsAutomations).omit({ id: true, createdAt: true, updatedAt: true });
+export type CommsAutomation = typeof commsAutomations.$inferSelect;
+export type InsertCommsAutomation = z.infer<typeof insertCommsAutomationSchema>;
+
+// CommsTemplateSet - template collections for automations
+export const commsTemplateSets = pgTable("comms_template_sets", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  name: text("name").notNull(),
+  audienceType: text("audience_type").notNull(), // CUSTOMER | LEAD | CREW
+  language: text("language").notNull().default("EN"), // EN | ES
+  templatesJson: jsonb("templates_json").notNull(), // { "default": "...", "short": "...", "followup": "..." }
+  isDefault: boolean("is_default").default(false).notNull(),
+  isSystem: boolean("is_system").default(false).notNull(), // System templates cannot be deleted
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountIdx: index("comms_tpl_account_idx").on(table.accountId),
+  audienceIdx: index("comms_tpl_audience_idx").on(table.audienceType),
+  langIdx: index("comms_tpl_lang_idx").on(table.language),
+  defaultIdx: index("comms_tpl_default_idx").on(table.isDefault),
+}));
+
+export const insertCommsTemplateSetSchema = createInsertSchema(commsTemplateSets).omit({ id: true, createdAt: true, updatedAt: true });
+export type CommsTemplateSet = typeof commsTemplateSets.$inferSelect;
+export type InsertCommsTemplateSet = z.infer<typeof insertCommsTemplateSetSchema>;
+
+// CommsDeliveryLog - tracks every message sent
+export const commsDeliveryLogs = pgTable("comms_delivery_logs", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  automationId: integer("automation_id").references(() => commsAutomations.id), // null if manual/inbox message
+  threadId: integer("thread_id"), // FK to conversations
+  recipientType: text("recipient_type").notNull(), // CUSTOMER | LEAD | CREW_MEMBER
+  recipientId: integer("recipient_id"), // FK to customer/lead/crew member
+  phoneE164: text("phone_e164"),
+  email: text("email"),
+  channel: text("channel").notNull(), // SMS | EMAIL | IN_APP | PUSH
+  status: text("status").notNull().default("QUEUED"), // QUEUED | SENT | DELIVERED | FAILED | ACKED
+  providerMessageId: text("provider_message_id"), // Twilio SID, etc.
+  relatedJobId: integer("related_job_id"),
+  relatedLeadId: integer("related_lead_id"),
+  relatedCustomerId: integer("related_customer_id"),
+  relatedCrewId: integer("related_crew_id"),
+  payloadJson: jsonb("payload_json"), // Full message content
+  errorJson: jsonb("error_json"), // Error details if failed
+  sentAt: timestamp("sent_at"),
+  deliveredAt: timestamp("delivered_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountIdx: index("comms_log_account_idx").on(table.accountId),
+  automationIdx: index("comms_log_automation_idx").on(table.automationId),
+  statusIdx: index("comms_log_status_idx").on(table.status),
+  channelIdx: index("comms_log_channel_idx").on(table.channel),
+  recipientIdx: index("comms_log_recipient_idx").on(table.recipientType, table.recipientId),
+  createdIdx: index("comms_log_created_idx").on(table.createdAt),
+}));
+
+export const insertCommsDeliveryLogSchema = createInsertSchema(commsDeliveryLogs).omit({ id: true, createdAt: true });
+export type CommsDeliveryLog = typeof commsDeliveryLogs.$inferSelect;
+export type InsertCommsDeliveryLog = z.infer<typeof insertCommsDeliveryLogSchema>;
+
+// CommsAudienceIndex - pre-computed audience mapping for fast filtering
+export const commsAudienceIndex = pgTable("comms_audience_index", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  audienceType: text("audience_type").notNull(), // CUSTOMER | LEAD | CREW
+  audienceId: integer("audience_id").notNull(), // The actual customer/lead/crew ID
+  crewId: integer("crew_id"), // For crew members, their crew assignment
+  customerId: integer("customer_id"),
+  leadId: integer("lead_id"),
+  phoneE164: text("phone_e164"),
+  email: text("email"),
+  tagsJson: jsonb("tags_json"), // Searchable tags
+  languagePref: text("language_pref").default("EN"), // EN | ES
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountIdx: index("comms_aud_account_idx").on(table.accountId),
+  audienceTypeIdx: index("comms_aud_type_idx").on(table.audienceType),
+  audienceIdIdx: index("comms_aud_id_idx").on(table.audienceType, table.audienceId),
+  crewIdx: index("comms_aud_crew_idx").on(table.crewId),
+  customerIdx: index("comms_aud_customer_idx").on(table.customerId),
+  leadIdx: index("comms_aud_lead_idx").on(table.leadId),
+  phoneIdx: index("comms_aud_phone_idx").on(table.phoneE164),
+}));
+
+export const insertCommsAudienceIndexSchema = createInsertSchema(commsAudienceIndex).omit({ id: true, createdAt: true, updatedAt: true });
+export type CommsAudienceIndex = typeof commsAudienceIndex.$inferSelect;
+export type InsertCommsAudienceIndex = z.infer<typeof insertCommsAudienceIndexSchema>;

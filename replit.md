@@ -103,6 +103,19 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
   - CRUD API endpoints at `/api/customers/:customerId/preferences` with Zod validation and ownership checks
   - Agent API endpoints at `/api/agents/preference/learn`, `/api/agents/preference/apply`, `/api/agents/preference/summary/:customerId`
 - **Key Features:** Dashboard with ROI metrics, conversation overview, human approval actions, business profile configuration, event simulator, job tracking, and audit logging.
+- **Comms Studio (Unified Communications Control Plane):**
+  - Database tables: `commsAutomations`, `commsTemplateSets`, `commsDeliveryLogs`, `commsAudienceIndex`
+  - Audience types: CUSTOMER, LEAD, CREW
+  - Automation types: LEAD_QUALIFICATION, QUOTE_FOLLOWUP, APPOINTMENT_REMINDER, REVIEW_REQUEST, RETENTION_NUDGE, CREW_DAILY_BRIEFING, CREW_SCHEDULE_CHANGE, CREW_NEW_JOB_ADDED, CREW_SCOPE_CHANGE, CUSTOM
+  - Trigger types: EVENT (e.g., JOB_ASSIGNED), SCHEDULED (cron + delay), MANUAL
+  - States: ACTIVE, PAUSED, INACTIVE (paused automations don't send)
+  - Channels: SMS, EMAIL, IN_APP, PUSH
+  - Language modes: AUTO, EN, ES
+  - Template sets with bilingual support (EN/ES) and message variants (default, short, followup)
+  - Delivery logging with status tracking (QUEUED, SENT, DELIVERED, FAILED, ACKED)
+  - Seeded 6 default automations: Lead Qualification, Quote Follow-up, Crew Daily Briefing, Crew New Job Added, Crew Schedule Change, Review Request
+  - Storage methods for CRUD operations on automations, template sets, delivery logs, and audience index
+  - Seed script: `server/seed-comms-studio.ts`
 
 **System Design Choices:**
 - **Idempotency:** Implemented via an `event_receipts` table.

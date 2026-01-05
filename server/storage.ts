@@ -216,6 +216,19 @@ import {
   billingConfigs,
   type BillingConfig,
   type InsertBillingConfig,
+  // Comms Studio
+  commsAutomations,
+  commsTemplateSets,
+  commsDeliveryLogs,
+  commsAudienceIndex,
+  type CommsAutomation,
+  type InsertCommsAutomation,
+  type CommsTemplateSet,
+  type InsertCommsTemplateSet,
+  type CommsDeliveryLog,
+  type InsertCommsDeliveryLog,
+  type CommsAudienceIndex,
+  type InsertCommsAudienceIndex,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, inArray, sql, and, gte, lte } from "drizzle-orm";
@@ -632,6 +645,28 @@ export interface IStorage {
   createBillingConfig(config: InsertBillingConfig): Promise<BillingConfig>;
   updateBillingConfig(id: number, updates: Partial<InsertBillingConfig>): Promise<BillingConfig>;
   upsertBillingConfig(accountId: number, config: Partial<InsertBillingConfig>): Promise<BillingConfig>;
+
+  // Comms Studio - Automations
+  getCommsAutomations(accountId: number, filters?: { audienceType?: string; state?: string; automationType?: string }): Promise<CommsAutomation[]>;
+  getCommsAutomation(id: number): Promise<CommsAutomation | undefined>;
+  createCommsAutomation(automation: InsertCommsAutomation): Promise<CommsAutomation>;
+  updateCommsAutomation(id: number, updates: Partial<InsertCommsAutomation>): Promise<CommsAutomation>;
+  updateCommsAutomationState(id: number, state: string): Promise<CommsAutomation>;
+
+  // Comms Studio - Template Sets
+  getCommsTemplateSets(accountId: number, filters?: { audienceType?: string; language?: string }): Promise<CommsTemplateSet[]>;
+  getCommsTemplateSet(id: number): Promise<CommsTemplateSet | undefined>;
+  createCommsTemplateSet(templateSet: InsertCommsTemplateSet): Promise<CommsTemplateSet>;
+  updateCommsTemplateSet(id: number, updates: Partial<InsertCommsTemplateSet>): Promise<CommsTemplateSet>;
+
+  // Comms Studio - Delivery Logs
+  getCommsDeliveryLogs(accountId: number, filters?: { automationId?: number; status?: string; channel?: string; limit?: number }): Promise<CommsDeliveryLog[]>;
+  createCommsDeliveryLog(log: InsertCommsDeliveryLog): Promise<CommsDeliveryLog>;
+  updateCommsDeliveryLog(id: number, updates: Partial<InsertCommsDeliveryLog>): Promise<CommsDeliveryLog>;
+
+  // Comms Studio - Audience Index
+  getCommsAudienceIndex(accountId: number, filters?: { audienceType?: string; crewId?: number }): Promise<CommsAudienceIndex[]>;
+  upsertCommsAudienceIndex(entry: InsertCommsAudienceIndex): Promise<CommsAudienceIndex>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3473,6 +3508,139 @@ export class DatabaseStorage implements IStorage {
       return this.updateBillingConfig(existing.id, config);
     }
     return this.createBillingConfig({ accountId, ...config } as InsertBillingConfig);
+  }
+
+  // Comms Studio - Automations
+  async getCommsAutomations(accountId: number, filters?: { audienceType?: string; state?: string; automationType?: string }): Promise<CommsAutomation[]> {
+    const conditions = [eq(commsAutomations.accountId, accountId)];
+    if (filters?.audienceType) {
+      conditions.push(eq(commsAutomations.audienceType, filters.audienceType));
+    }
+    if (filters?.state) {
+      conditions.push(eq(commsAutomations.state, filters.state));
+    }
+    if (filters?.automationType) {
+      conditions.push(eq(commsAutomations.automationType, filters.automationType));
+    }
+    return db.select().from(commsAutomations).where(and(...conditions)).orderBy(desc(commsAutomations.createdAt));
+  }
+
+  async getCommsAutomation(id: number): Promise<CommsAutomation | undefined> {
+    const [automation] = await db.select().from(commsAutomations).where(eq(commsAutomations.id, id));
+    return automation;
+  }
+
+  async createCommsAutomation(automation: InsertCommsAutomation): Promise<CommsAutomation> {
+    const [created] = await db.insert(commsAutomations).values(automation).returning();
+    return created;
+  }
+
+  async updateCommsAutomation(id: number, updates: Partial<InsertCommsAutomation>): Promise<CommsAutomation> {
+    const [updated] = await db.update(commsAutomations)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(commsAutomations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateCommsAutomationState(id: number, state: string): Promise<CommsAutomation> {
+    const [updated] = await db.update(commsAutomations)
+      .set({ state, updatedAt: new Date() })
+      .where(eq(commsAutomations.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Comms Studio - Template Sets
+  async getCommsTemplateSets(accountId: number, filters?: { audienceType?: string; language?: string }): Promise<CommsTemplateSet[]> {
+    const conditions = [eq(commsTemplateSets.accountId, accountId)];
+    if (filters?.audienceType) {
+      conditions.push(eq(commsTemplateSets.audienceType, filters.audienceType));
+    }
+    if (filters?.language) {
+      conditions.push(eq(commsTemplateSets.language, filters.language));
+    }
+    return db.select().from(commsTemplateSets).where(and(...conditions)).orderBy(desc(commsTemplateSets.createdAt));
+  }
+
+  async getCommsTemplateSet(id: number): Promise<CommsTemplateSet | undefined> {
+    const [templateSet] = await db.select().from(commsTemplateSets).where(eq(commsTemplateSets.id, id));
+    return templateSet;
+  }
+
+  async createCommsTemplateSet(templateSet: InsertCommsTemplateSet): Promise<CommsTemplateSet> {
+    const [created] = await db.insert(commsTemplateSets).values(templateSet).returning();
+    return created;
+  }
+
+  async updateCommsTemplateSet(id: number, updates: Partial<InsertCommsTemplateSet>): Promise<CommsTemplateSet> {
+    const [updated] = await db.update(commsTemplateSets)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(commsTemplateSets.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Comms Studio - Delivery Logs
+  async getCommsDeliveryLogs(accountId: number, filters?: { automationId?: number; status?: string; channel?: string; limit?: number }): Promise<CommsDeliveryLog[]> {
+    const conditions = [eq(commsDeliveryLogs.accountId, accountId)];
+    if (filters?.automationId) {
+      conditions.push(eq(commsDeliveryLogs.automationId, filters.automationId));
+    }
+    if (filters?.status) {
+      conditions.push(eq(commsDeliveryLogs.status, filters.status));
+    }
+    if (filters?.channel) {
+      conditions.push(eq(commsDeliveryLogs.channel, filters.channel));
+    }
+    const query = db.select().from(commsDeliveryLogs).where(and(...conditions)).orderBy(desc(commsDeliveryLogs.createdAt));
+    if (filters?.limit) {
+      return query.limit(filters.limit);
+    }
+    return query;
+  }
+
+  async createCommsDeliveryLog(log: InsertCommsDeliveryLog): Promise<CommsDeliveryLog> {
+    const [created] = await db.insert(commsDeliveryLogs).values(log).returning();
+    return created;
+  }
+
+  async updateCommsDeliveryLog(id: number, updates: Partial<InsertCommsDeliveryLog>): Promise<CommsDeliveryLog> {
+    const [updated] = await db.update(commsDeliveryLogs)
+      .set(updates)
+      .where(eq(commsDeliveryLogs.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Comms Studio - Audience Index
+  async getCommsAudienceIndex(accountId: number, filters?: { audienceType?: string; crewId?: number }): Promise<CommsAudienceIndex[]> {
+    const conditions = [eq(commsAudienceIndex.accountId, accountId)];
+    if (filters?.audienceType) {
+      conditions.push(eq(commsAudienceIndex.audienceType, filters.audienceType));
+    }
+    if (filters?.crewId) {
+      conditions.push(eq(commsAudienceIndex.crewId, filters.crewId));
+    }
+    return db.select().from(commsAudienceIndex).where(and(...conditions)).orderBy(desc(commsAudienceIndex.createdAt));
+  }
+
+  async upsertCommsAudienceIndex(entry: InsertCommsAudienceIndex): Promise<CommsAudienceIndex> {
+    const existing = await db.select().from(commsAudienceIndex)
+      .where(and(
+        eq(commsAudienceIndex.accountId, entry.accountId),
+        eq(commsAudienceIndex.audienceType, entry.audienceType),
+        eq(commsAudienceIndex.audienceId, entry.audienceId)
+      ));
+    if (existing.length > 0) {
+      const [updated] = await db.update(commsAudienceIndex)
+        .set({ ...entry, updatedAt: new Date() })
+        .where(eq(commsAudienceIndex.id, existing[0].id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(commsAudienceIndex).values(entry).returning();
+    return created;
   }
 }
 
