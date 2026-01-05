@@ -3,11 +3,21 @@ import path from "path";
 import { z } from "zod";
 
 const dataDir = path.join(path.dirname(import.meta.url.replace("file://", "")), "data");
+const supplementalDir = path.join(dataDir, "supplemental");
 
 export function loadJson<T>(relativePath: string): T {
   const fullPath = path.join(dataDir, relativePath);
   if (!fs.existsSync(fullPath)) {
     throw new Error(`Seed file not found: ${fullPath}`);
+  }
+  const content = fs.readFileSync(fullPath, "utf-8");
+  return JSON.parse(content);
+}
+
+export function loadSupplementalJson<T>(filename: string): T[] {
+  const fullPath = path.join(supplementalDir, filename);
+  if (!fs.existsSync(fullPath)) {
+    return [];
   }
   const content = fs.readFileSync(fullPath, "utf-8");
   return JSON.parse(content);
@@ -221,6 +231,130 @@ const ServiceSchema = z.object({
   defaultLeadTimeDays: z.number().optional(),
 });
 
+const SupplementalLeadSchema = z.object({
+  id: z.string(),
+  accountId: z.string(),
+  name: z.string(),
+  phoneE164: z.string(),
+  email: z.string().nullable().optional(),
+  addressText: z.string().nullable().optional(),
+  zip: z.string().optional(),
+  source: z.string(),
+  status: z.string(),
+  requestedServices: z.array(z.string()).nullable().optional(),
+  createdAt: z.string(),
+});
+
+const SupplementalUserSchema = z.object({
+  id: z.string(),
+  accountId: z.string(),
+  name: z.string(),
+  role: z.string(),
+  phoneE164: z.string(),
+  email: z.string().optional(),
+  language: z.string().optional(),
+  createdAt: z.string().optional(),
+  reportsToUserId: z.string().optional(),
+});
+
+const SupplementalCrewSchema = z.object({
+  id: z.string(),
+  accountId: z.string(),
+  name: z.string(),
+  status: z.string(),
+  homeBase: z.object({
+    lat: z.number(),
+    lng: z.number(),
+    label: z.string(),
+  }),
+  leaderUserId: z.string(),
+  memberUserIds: z.array(z.string()),
+  vehicle: z.object({
+    name: z.string(),
+    plate: z.string(),
+  }).optional(),
+  assets: z.array(z.string()).optional(),
+  createdAt: z.string().optional(),
+});
+
+const SupplementalCustomerSchema = z.object({
+  id: z.string(),
+  accountId: z.string(),
+  name: z.string(),
+  phoneE164: z.string(),
+  email: z.string().nullable().optional(),
+  addressText: z.string(),
+  zip: z.string(),
+  tags: z.array(z.string()).optional(),
+  createdAt: z.string(),
+});
+
+const SupplementalQuoteSchema = z.object({
+  id: z.string(),
+  accountId: z.string(),
+  leadId: z.string().nullable().optional(),
+  customerId: z.string().nullable().optional(),
+  status: z.string(),
+  services: z.array(z.string()).optional(),
+  priceRange: z.object({
+    low: z.number(),
+    high: z.number(),
+    currency: z.string(),
+  }).optional(),
+  assumptions: z.array(z.string()).optional(),
+  confidence: z.number().optional(),
+  createdAt: z.string(),
+});
+
+const SupplementalJobSchema = z.object({
+  id: z.string(),
+  accountId: z.string(),
+  leadId: z.string().nullable().optional(),
+  customerId: z.string().nullable().optional(),
+  quoteId: z.string().nullable().optional(),
+  status: z.string(),
+  service: z.string(),
+  scheduledStart: z.string().nullable().optional(),
+  scheduledEnd: z.string().nullable().optional(),
+  crewId: z.string().nullable().optional(),
+  location: z.object({
+    addressText: z.string(),
+    lat: z.number().optional(),
+    lng: z.number().optional(),
+  }).optional(),
+  createdAt: z.string(),
+});
+
+const SupplementalInvoiceSchema = z.object({
+  id: z.string(),
+  accountId: z.string(),
+  customerId: z.string(),
+  jobId: z.string().nullable().optional(),
+  quoteId: z.string().nullable().optional(),
+  status: z.string(),
+  amount: z.number(),
+  currency: z.string(),
+  issueStatus: z.string().nullable().optional(),
+  dueDate: z.string().nullable().optional(),
+  sentAt: z.string().nullable().optional(),
+  paidAt: z.string().nullable().optional(),
+  createdAt: z.string(),
+  lineItems: z.array(z.object({
+    name: z.string(),
+    qty: z.number(),
+    unitPrice: z.number(),
+  })).optional(),
+  notes: z.string().optional(),
+});
+
+export type SeedSupplementalLead = z.infer<typeof SupplementalLeadSchema>;
+export type SeedSupplementalUser = z.infer<typeof SupplementalUserSchema>;
+export type SeedSupplementalCrew = z.infer<typeof SupplementalCrewSchema>;
+export type SeedSupplementalCustomer = z.infer<typeof SupplementalCustomerSchema>;
+export type SeedSupplementalQuote = z.infer<typeof SupplementalQuoteSchema>;
+export type SeedSupplementalJob = z.infer<typeof SupplementalJobSchema>;
+export type SeedSupplementalInvoice = z.infer<typeof SupplementalInvoiceSchema>;
+
 export type SeedAccount = z.infer<typeof AccountSchema>;
 export type SeedUser = z.infer<typeof UserSchema>;
 export type SeedCrew = z.infer<typeof CrewSchema>;
@@ -251,6 +385,16 @@ export interface SeedData {
   services: SeedService[];
 }
 
+export interface SupplementalData {
+  leads: SeedSupplementalLead[];
+  users: SeedSupplementalUser[];
+  crews: SeedSupplementalCrew[];
+  customers: SeedSupplementalCustomer[];
+  quotes: SeedSupplementalQuote[];
+  jobs: SeedSupplementalJob[];
+  invoices: SeedSupplementalInvoice[];
+}
+
 export interface IdMaps {
   crews: Map<string, number>;
   customers: Map<string, number>;
@@ -259,6 +403,7 @@ export interface IdMaps {
   quotes: Map<string, number>;
   invoices: Map<string, number>;
   threads: Map<string, number>;
+  users: Map<string, number>;
 }
 
 export function loadAllSeedData(): SeedData {
@@ -293,6 +438,50 @@ export function loadAllSeedData(): SeedData {
   };
 }
 
+export function loadSupplementalData(): SupplementalData {
+  const leadsRaw = loadSupplementalJson<any>("leads_supplemental.json");
+  const usersRaw = loadSupplementalJson<any>("users_supplemental.json");
+  const crewsRaw = loadSupplementalJson<any>("crews_supplemental.json");
+  const customersRaw = loadSupplementalJson<any>("customers_from_leads.json");
+  const quotesRaw = loadSupplementalJson<any>("quotes_supplemental.json");
+  const jobsRaw = loadSupplementalJson<any>("jobs_supplemental.json");
+  const invoicesRaw = loadSupplementalJson<any>("invoices_supplemental.json");
+
+  const leads = leadsRaw.length > 0 
+    ? z.array(SupplementalLeadSchema).parse(leadsRaw) 
+    : [];
+  const users = usersRaw.length > 0 
+    ? z.array(SupplementalUserSchema).parse(usersRaw) 
+    : [];
+  const crews = crewsRaw.length > 0 
+    ? z.array(SupplementalCrewSchema).parse(crewsRaw) 
+    : [];
+  const customers = customersRaw.length > 0 
+    ? z.array(SupplementalCustomerSchema).parse(customersRaw) 
+    : [];
+  const quotes = quotesRaw.length > 0 
+    ? z.array(SupplementalQuoteSchema).parse(quotesRaw) 
+    : [];
+  const jobs = jobsRaw.length > 0 
+    ? z.array(SupplementalJobSchema).parse(jobsRaw) 
+    : [];
+  const invoices = invoicesRaw.length > 0 
+    ? z.array(SupplementalInvoiceSchema).parse(invoicesRaw) 
+    : [];
+
+  console.log(`Loaded supplemental data: ${leads.length} leads, ${users.length} users, ${crews.length} crews, ${customers.length} customers, ${quotes.length} quotes, ${jobs.length} jobs, ${invoices.length} invoices`);
+
+  return {
+    leads,
+    users,
+    crews,
+    customers,
+    quotes,
+    jobs,
+    invoices,
+  };
+}
+
 export function createIdMaps(): IdMaps {
   return {
     crews: new Map(),
@@ -302,5 +491,6 @@ export function createIdMaps(): IdMaps {
     quotes: new Map(),
     invoices: new Map(),
     threads: new Map(),
+    users: new Map(),
   };
 }

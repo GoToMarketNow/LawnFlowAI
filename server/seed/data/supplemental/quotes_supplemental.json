@@ -1,7 +1,7 @@
 [
   {
     "id": "quote_001",
-    "accountId": "acct_demo_001",
+    "accountId": "acct_1",
     "leadId": "lead_103",
     "customerId": null,
     "status": "PENDING_APPROVAL",
@@ -17,7 +17,7 @@
   },
   {
     "id": "quote_102",
-    "accountId": "acct_demo_001",
+    "accountId": "acct_1",
     "leadId": "lead_102",
     "customerId": "cust_from_lead_102",
     "status": "SENT",
@@ -33,7 +33,7 @@
   },
   {
     "id": "quote_105",
-    "accountId": "acct_demo_001",
+    "accountId": "acct_1",
     "leadId": "lead_105",
     "customerId": "cust_from_lead_105",
     "status": "SENT",
@@ -49,7 +49,7 @@
   },
   {
     "id": "quote_106",
-    "accountId": "acct_demo_001",
+    "accountId": "acct_1",
     "leadId": "lead_106",
     "customerId": "cust_from_lead_106",
     "status": "NEEDS_INFO",
@@ -65,7 +65,7 @@
   },
   {
     "id": "quote_107",
-    "accountId": "acct_demo_001",
+    "accountId": "acct_1",
     "leadId": "lead_107",
     "customerId": "cust_from_lead_107",
     "status": "APPROVED",
@@ -80,7 +80,7 @@
   },
   {
     "id": "quote_111",
-    "accountId": "acct_demo_001",
+    "accountId": "acct_1",
     "leadId": "lead_111",
     "customerId": "cust_from_lead_111",
     "status": "SENT",
@@ -95,7 +95,7 @@
   },
   {
     "id": "quote_112",
-    "accountId": "acct_demo_001",
+    "accountId": "acct_1",
     "leadId": "lead_112",
     "customerId": null,
     "status": "PENDING_APPROVAL",
@@ -110,7 +110,7 @@
   },
   {
     "id": "quote_114",
-    "accountId": "acct_demo_001",
+    "accountId": "acct_1",
     "leadId": "lead_114",
     "customerId": "cust_from_lead_114",
     "status": "APPROVED",
@@ -125,7 +125,7 @@
   },
   {
     "id": "quote_116",
-    "accountId": "acct_demo_001",
+    "accountId": "acct_1",
     "leadId": "lead_116",
     "customerId": "cust_from_lead_116",
     "status": "SENT",
@@ -140,7 +140,7 @@
   },
   {
     "id": "quote_120",
-    "accountId": "acct_demo_001",
+    "accountId": "acct_1",
     "leadId": "lead_120",
     "customerId": "cust_from_lead_120",
     "status": "SENT",
@@ -155,7 +155,7 @@
   },
   {
     "id": "quote_122",
-    "accountId": "acct_demo_001",
+    "accountId": "acct_1",
     "leadId": "lead_122",
     "customerId": "cust_from_lead_122",
     "status": "SENT",

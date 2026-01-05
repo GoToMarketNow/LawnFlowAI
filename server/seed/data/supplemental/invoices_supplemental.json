@@ -1,7 +1,7 @@
 [
   {
     "id": "inv_supp_001",
-    "accountId": "acct_demo_001",
+    "accountId": "acct_1",
     "customerId": "cust_from_lead_101",
     "jobId": "job_106",
     "quoteId": null,
@@ -19,7 +19,7 @@
   },
   {
     "id": "inv_supp_002",
-    "accountId": "acct_demo_001",
+    "accountId": "acct_1",
     "customerId": "cust_from_lead_107",
     "jobId": "job_101",
     "quoteId": "quote_107",
@@ -37,7 +37,7 @@
   },
   {
     "id": "inv_supp_003",
-    "accountId": "acct_demo_001",
+    "accountId": "acct_1",
     "customerId": "cust_from_lead_102",
     "jobId": "job_104",
     "quoteId": "quote_102",
@@ -57,7 +57,7 @@
   },
   {
     "id": "inv_supp_004",
-    "accountId": "acct_demo_001",
+    "accountId": "acct_1",
     "customerId": "cust_from_lead_105",
     "jobId": "job_105",
     "quoteId": "quote_105",
@@ -75,7 +75,7 @@
   },
   {
     "id": "inv_supp_005",
-    "accountId": "acct_demo_001",
+    "accountId": "acct_1",
     "customerId": "cust_from_lead_116",
     "jobId": "job_103",
     "quoteId": "quote_116",
@@ -95,7 +95,7 @@
   },
   {
     "id": "inv_supp_006",
-    "accountId": "acct_demo_001",
+    "accountId": "acct_1",
     "customerId": "cust_from_lead_111",
     "jobId": "job_107",
     "quoteId": "quote_111",
