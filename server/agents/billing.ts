@@ -1,5 +1,7 @@
 import { z } from "zod";
 import OpenAI from "openai";
+import { storage } from "../storage";
+import type { Job, Invoice, InsertInvoice, InsertInvoiceLineItem } from "@shared/schema";
 
 const messageSchema = z.object({
   channel: z.enum(["sms", "email"]),
@@ -256,6 +258,415 @@ function createFallbackAction(
       "Customer prefers " + channel,
     ],
   };
+}
+
+// =============================================
+// INVOICE BUILD AGENT (Phase B1)
+// =============================================
+
+export interface JobDataForInvoice {
+  id: number;
+  title: string;
+  description?: string | null;
+  customerId: number;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  serviceType?: string;
+  scheduledDate?: Date | null;
+  completedDate?: Date | null;
+  estimatedDuration?: number; // minutes
+  actualDuration?: number; // minutes
+  lotSizeSqFt?: number;
+  notes?: string | null;
+  status: string;
+}
+
+export interface PricingRules {
+  baseRates: Record<string, number>; // service type -> base rate in cents
+  sqftRate?: number; // cents per sqft
+  hourlyRate?: number; // cents per hour
+  minimumCharge?: number; // minimum invoice amount in cents
+  taxRate?: number; // percentage (e.g., 0.08 for 8%)
+}
+
+export interface InvoiceLineItemSuggestion {
+  description: string;
+  quantity: number;
+  unitPrice: number; // in cents
+  serviceType?: string;
+}
+
+export interface InvoiceBuildResult {
+  success: boolean;
+  invoice?: Invoice;
+  lineItems?: InvoiceLineItemSuggestion[];
+  reasoning?: string;
+  error?: string;
+  confidence: number;
+}
+
+const invoiceLineItemSchema = z.object({
+  description: z.string().min(1),
+  quantity: z.number().min(0),
+  unitPrice: z.number().int().min(0), // in cents
+  serviceType: z.string().optional(),
+});
+
+const invoiceBuildResponseSchema = z.object({
+  lineItems: z.array(invoiceLineItemSchema),
+  notes: z.string().optional(),
+  reasoning: z.string(),
+  confidence: z.number().min(0).max(1),
+});
+
+function buildInvoiceBuildSystemPrompt(businessName: string): string {
+  return `You are an invoice generation assistant for ${businessName}, a landscaping/lawn care company.
+
+Your role is to analyze completed job data and generate appropriate invoice line items.
+
+CRITICAL RULES:
+1. Be accurate with pricing - use the provided rates
+2. Be descriptive in line item descriptions - customers should understand what they're paying for
+3. Group related work into logical line items
+4. Apply lot size or hourly calculations when appropriate
+5. All prices are in CENTS (not dollars)
+6. Always include the service date in descriptions when available
+
+When generating line items:
+- Use clear, professional descriptions
+- Include specific details (e.g., "Lawn Mowing - 5,000 sqft front and back yard")
+- Separate materials from labor when applicable
+- Round quantities to reasonable numbers
+
+Respond with a JSON object matching the expected schema with lineItems array, notes, reasoning, and confidence.`;
+}
+
+function buildInvoiceBuildUserPrompt(
+  job: JobDataForInvoice,
+  pricing: PricingRules
+): string {
+  const completedDate = job.completedDate
+    ? new Date(job.completedDate).toLocaleDateString()
+    : job.scheduledDate
+    ? new Date(job.scheduledDate).toLocaleDateString()
+    : "Unknown date";
+
+  return `Generate invoice line items for this completed job:
+
+JOB DETAILS:
+- Job ID: ${job.id}
+- Title: ${job.title}
+- Description: ${job.description || "None provided"}
+- Service Type: ${job.serviceType || "General"}
+- Status: ${job.status}
+- Completed Date: ${completedDate}
+- Duration: ${job.actualDuration || job.estimatedDuration || "Unknown"} minutes
+${job.lotSizeSqFt ? `- Lot Size: ${job.lotSizeSqFt.toLocaleString()} sqft` : ""}
+${job.notes ? `- Notes: ${job.notes}` : ""}
+
+CUSTOMER:
+- Name: ${job.customerName || "Customer #" + job.customerId}
+
+PRICING RULES:
+- Base Rates (in cents): ${JSON.stringify(pricing.baseRates)}
+${pricing.sqftRate ? `- Per sqft rate: ${pricing.sqftRate} cents` : ""}
+${pricing.hourlyRate ? `- Hourly rate: ${pricing.hourlyRate} cents` : ""}
+${pricing.minimumCharge ? `- Minimum charge: ${pricing.minimumCharge} cents` : ""}
+${pricing.taxRate ? `- Tax rate: ${(pricing.taxRate * 100).toFixed(1)}%` : ""}
+
+Generate appropriate line items for this job. Include all services performed.
+Remember: All prices must be in CENTS (e.g., $50.00 = 5000 cents).`;
+}
+
+function createFallbackLineItems(
+  job: JobDataForInvoice,
+  pricing: PricingRules
+): InvoiceLineItemSuggestion[] {
+  const serviceType = job.serviceType || "general";
+  const baseRate = pricing.baseRates[serviceType] || pricing.baseRates.general || 5000; // default $50
+  
+  let amount = baseRate;
+  
+  // Apply sqft rate if available
+  if (pricing.sqftRate && job.lotSizeSqFt) {
+    amount = Math.max(amount, pricing.sqftRate * job.lotSizeSqFt);
+  }
+  
+  // Apply hourly rate if duration is known
+  if (pricing.hourlyRate && job.actualDuration) {
+    const hours = job.actualDuration / 60;
+    amount = Math.max(amount, Math.round(pricing.hourlyRate * hours));
+  }
+  
+  // Ensure minimum charge
+  if (pricing.minimumCharge) {
+    amount = Math.max(amount, pricing.minimumCharge);
+  }
+  
+  return [{
+    description: `${job.title}${job.completedDate ? ` - Completed ${new Date(job.completedDate).toLocaleDateString()}` : ""}`,
+    quantity: 1,
+    unitPrice: amount,
+    serviceType: serviceType,
+  }];
+}
+
+export async function runInvoiceBuildAgent(
+  job: JobDataForInvoice,
+  accountId: number,
+  pricing: PricingRules,
+  businessName: string = "LawnFlow"
+): Promise<InvoiceBuildResult> {
+  try {
+    // Validate job is completed
+    if (job.status !== "COMPLETED" && job.status !== "completed") {
+      return {
+        success: false,
+        error: `Job is not completed (status: ${job.status})`,
+        confidence: 0,
+      };
+    }
+
+    const openai = new OpenAI();
+    const systemPrompt = buildInvoiceBuildSystemPrompt(businessName);
+    const userPrompt = buildInvoiceBuildUserPrompt(job, pricing);
+
+    let lineItems: InvoiceLineItemSuggestion[];
+    let reasoning: string;
+    let confidence: number;
+    let notes: string | undefined;
+
+    try {
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.2,
+        max_tokens: 800,
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error("No response from AI");
+      }
+
+      const parsed = JSON.parse(content);
+      const validated = invoiceBuildResponseSchema.parse(parsed);
+      
+      lineItems = validated.lineItems;
+      reasoning = validated.reasoning;
+      confidence = validated.confidence;
+      notes = validated.notes;
+    } catch (aiError) {
+      console.error("[InvoiceBuildAgent] AI error, using fallback:", aiError);
+      lineItems = createFallbackLineItems(job, pricing);
+      reasoning = "Used fallback calculation due to AI error";
+      confidence = 0.6;
+    }
+
+    // Calculate totals
+    const subtotal = lineItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+    const tax = pricing.taxRate ? Math.round(subtotal * pricing.taxRate) : 0;
+    const total = subtotal + tax;
+
+    // Create invoice in database
+    const invoiceData: InsertInvoice = {
+      accountId,
+      customerId: job.customerId,
+      jobId: job.id,
+      status: "DRAFT",
+      currency: "USD",
+      subtotal,
+      tax,
+      total,
+      notes: notes || null,
+    };
+
+    const invoice = await storage.createInvoice(invoiceData);
+
+    // Create line items
+    for (const item of lineItems) {
+      const lineItemData: InsertInvoiceLineItem = {
+        invoiceId: invoice.id,
+        name: item.description.substring(0, 50), // Use description for name
+        description: item.description,
+        quantity: Math.round(item.quantity),
+        unitPrice: item.unitPrice,
+        amount: Math.round(item.quantity * item.unitPrice),
+        serviceCode: item.serviceType,
+      };
+      await storage.createInvoiceLineItem(lineItemData);
+    }
+
+    return {
+      success: true,
+      invoice,
+      lineItems,
+      reasoning,
+      confidence,
+    };
+  } catch (error: any) {
+    console.error("[InvoiceBuildAgent] Error:", error);
+    return {
+      success: false,
+      error: error.message,
+      confidence: 0,
+    };
+  }
+}
+
+// =============================================
+// RECONCILIATION WORKER (Phase B1)
+// =============================================
+
+export interface ReconciliationResult {
+  invoiceId: number;
+  isValid: boolean;
+  issues: ReconciliationIssue[];
+  suggestedActions: string[];
+}
+
+export interface ReconciliationIssue {
+  type: "VARIANCE" | "SYNC_ERROR" | "DUPLICATE" | "MISSING_PAYMENT" | "OVERPAYMENT";
+  severity: "LOW" | "MED" | "HIGH";
+  description: string;
+  amount?: number;
+}
+
+export async function runReconciliationWorker(
+  accountId: number
+): Promise<ReconciliationResult[]> {
+  const results: ReconciliationResult[] = [];
+  
+  try {
+    // Get all invoices that need reconciliation (SENT, PARTIAL, OVERDUE)
+    const invoicesToCheck = await storage.getInvoices(accountId, { 
+      status: undefined // Get all, we'll filter below
+    });
+    
+    const relevantStatuses = ["SENT", "PARTIAL", "OVERDUE", "PAID"];
+    const invoicesForReconciliation = invoicesToCheck.filter(
+      inv => relevantStatuses.includes(inv.status)
+    );
+
+    // Get all payments once for efficiency
+    const allPayments = await storage.getPayments(accountId, {});
+    
+    // Get existing open billing issues to avoid duplicates
+    const existingIssues = await storage.getBillingIssues(accountId, { status: "OPEN" });
+    const existingIssueKeys = new Set(
+      existingIssues.map(i => `${i.relatedInvoiceId}-${i.type}-${i.summary}`)
+    );
+
+    for (const invoice of invoicesForReconciliation) {
+      const issues: ReconciliationIssue[] = [];
+      const suggestedActions: string[] = [];
+
+      // Filter payments for this specific invoice
+      const invoicePayments = allPayments.filter(p => p.invoiceId === invoice.id);
+      
+      // Calculate total paid (only completed/succeeded payments)
+      const totalPaid = invoicePayments
+        .filter(p => p.status === "COMPLETED" || p.status === "SUCCEEDED" || p.status === "RECEIVED")
+        .reduce((sum, p) => sum + p.amount, 0);
+      
+      const outstanding = invoice.total - totalPaid;
+
+      // Check for overpayment
+      if (totalPaid > invoice.total) {
+        issues.push({
+          type: "OVERPAYMENT",
+          severity: "MED",
+          description: `Invoice overpaid by ${formatCents(totalPaid - invoice.total)}`,
+          amount: totalPaid - invoice.total,
+        });
+        suggestedActions.push("Issue refund or apply credit to next invoice");
+      }
+
+      // Check for status mismatch
+      if (invoice.status === "PAID" && outstanding > 0) {
+        issues.push({
+          type: "VARIANCE",
+          severity: "HIGH",
+          description: `Invoice marked as PAID but has ${formatCents(outstanding)} outstanding`,
+          amount: outstanding,
+        });
+        suggestedActions.push("Update invoice status to PARTIAL or investigate missing payment");
+      }
+
+      if (invoice.status === "SENT" && totalPaid > 0 && totalPaid < invoice.total) {
+        issues.push({
+          type: "VARIANCE",
+          severity: "LOW",
+          description: `Invoice has partial payment of ${formatCents(totalPaid)} but status is SENT`,
+          amount: totalPaid,
+        });
+        suggestedActions.push("Update invoice status to PARTIAL");
+      }
+
+      if (invoice.status !== "PAID" && outstanding === 0 && totalPaid > 0) {
+        issues.push({
+          type: "VARIANCE",
+          severity: "MED",
+          description: `Invoice fully paid (${formatCents(totalPaid)}) but status is ${invoice.status}`,
+        });
+        suggestedActions.push("Update invoice status to PAID");
+      }
+
+      // Check for overdue invoices
+      if (invoice.dueDate && new Date(invoice.dueDate) < new Date() && invoice.status === "SENT") {
+        issues.push({
+          type: "VARIANCE",
+          severity: "MED",
+          description: "Invoice is past due date but status is SENT",
+        });
+        suggestedActions.push("Update invoice status to OVERDUE");
+      }
+
+      // Create billing issues for HIGH severity problems (avoid duplicates)
+      for (const issue of issues) {
+        if (issue.severity === "HIGH") {
+          const issueKey = `${invoice.id}-${issue.type}-${issue.description}`;
+          if (!existingIssueKeys.has(issueKey)) {
+            try {
+              await storage.createBillingIssue({
+                accountId,
+                type: issue.type,
+                severity: issue.severity,
+                status: "OPEN",
+                relatedInvoiceId: invoice.id,
+                summary: issue.description,
+                detailsJson: { issue, suggestedActions },
+              });
+              existingIssueKeys.add(issueKey); // Prevent duplicates in same run
+            } catch (e) {
+              console.error("[ReconciliationWorker] Failed to create billing issue:", e);
+            }
+          }
+        }
+      }
+
+      results.push({
+        invoiceId: invoice.id,
+        isValid: issues.length === 0,
+        issues,
+        suggestedActions,
+      });
+    }
+
+    return results;
+  } catch (error: any) {
+    console.error("[ReconciliationWorker] Error:", error);
+    throw error;
+  }
+}
+
+function formatCents(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
 }
 
 export async function runBillingAgent(

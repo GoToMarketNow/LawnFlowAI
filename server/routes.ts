@@ -9659,5 +9659,157 @@ Return JSON format:
     }
   });
 
+  // =====================================================
+  // Billing Agent Routes (Phase B1)
+  // =====================================================
+
+  // POST /api/billing/invoices/generate - Generate invoice from job
+  app.post("/api/billing/invoices/generate", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+      const { jobId, pricing } = req.body;
+      
+      if (!jobId) {
+        return res.status(400).json({ error: "jobId is required" });
+      }
+
+      // Get job data
+      const job = await storage.getJob(Number(jobId));
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Default pricing rules if not provided
+      const pricingRules = pricing || {
+        baseRates: {
+          mowing: 5000, // $50
+          trimming: 3000, // $30
+          cleanup: 4000, // $40
+          general: 5000, // $50
+        },
+        minimumCharge: 3500, // $35
+        taxRate: 0.08, // 8%
+      };
+
+      // Import and run the invoice build agent
+      const { runInvoiceBuildAgent } = await import("./agents/billing");
+      
+      const jobData = {
+        id: job.id,
+        title: job.title,
+        description: job.description,
+        customerId: job.customerId || 0,
+        serviceType: job.serviceType || "general",
+        scheduledDate: job.scheduledDate,
+        completedDate: job.completedAt,
+        estimatedDuration: job.estimatedDuration,
+        notes: job.notes,
+        status: job.status,
+      };
+
+      const result = await runInvoiceBuildAgent(
+        jobData,
+        businessId,
+        pricingRules,
+        "LawnFlow"
+      );
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.error, confidence: result.confidence });
+      }
+
+      res.status(201).json(result);
+    } catch (error: any) {
+      console.error("[Billing] Error generating invoice:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/billing/reconcile - Run reconciliation worker
+  app.post("/api/billing/reconcile", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+
+      // Import and run the reconciliation worker
+      const { runReconciliationWorker } = await import("./agents/billing");
+      
+      const results = await runReconciliationWorker(businessId);
+
+      const summary = {
+        totalChecked: results.length,
+        issuesFound: results.filter(r => !r.isValid).length,
+        highSeverity: results.flatMap(r => r.issues).filter(i => i.severity === "HIGH").length,
+        medSeverity: results.flatMap(r => r.issues).filter(i => i.severity === "MED").length,
+        lowSeverity: results.flatMap(r => r.issues).filter(i => i.severity === "LOW").length,
+      };
+
+      res.json({ summary, results });
+    } catch (error: any) {
+      console.error("[Billing] Error running reconciliation:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/billing/actions/reminder - Send billing reminder (uses BillingAgent)
+  app.post("/api/billing/actions/reminder", async (req, res) => {
+    try {
+      const { invoiceId, tone = "professional" } = req.body;
+      
+      if (!invoiceId) {
+        return res.status(400).json({ error: "invoiceId is required" });
+      }
+
+      const invoice = await storage.getInvoice(Number(invoiceId));
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+
+      // Import and run the billing agent
+      const { runBillingAgent } = await import("./agents/billing");
+      
+      // Calculate days overdue
+      const daysOverdue = invoice.dueDate 
+        ? Math.max(0, Math.floor((Date.now() - new Date(invoice.dueDate).getTime()) / (1000 * 60 * 60 * 24)))
+        : 0;
+
+      const invoiceData = {
+        id: invoice.id,
+        customer_name: "Customer", // TODO: Get from customer table
+        customer_phone: "", // TODO: Get from customer table
+        customer_email: undefined,
+        amount: invoice.total / 100, // Convert cents to dollars for display
+        due_date: invoice.dueDate?.toISOString().split('T')[0] || "",
+        status: invoice.status === "OVERDUE" ? "overdue" : invoice.status === "PAID" ? "paid" : "pending",
+        days_overdue: daysOverdue,
+      } as const;
+
+      const customerHistory = {
+        previous_delinquencies: 0,
+        total_lifetime_value: 0,
+      };
+
+      const config = {
+        business_name: "LawnFlow",
+        payment_link_base_url: undefined,
+        include_late_fee_language: false,
+        escalation_cadence_days: [3, 7, 14],
+        tone: tone as "friendly" | "professional" | "firm",
+      };
+
+      const policy = {
+        tier: "smb" as const,
+        auto_send_reminders: true,
+        max_auto_followups: 3,
+      };
+
+      const action = await runBillingAgent(invoiceData, customerHistory, config, policy);
+
+      res.json(action);
+    } catch (error: any) {
+      console.error("[Billing] Error generating reminder:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }
