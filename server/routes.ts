@@ -8911,5 +8911,320 @@ Return JSON format:
     }
   });
 
+  // ============================================
+  // Crew Comms API Routes
+  // ============================================
+  const { sendCrewNotification, broadcastToCrews, notifyJobChange } = await import("./workers/crewComms");
+
+  // GET /api/crew-comms/notifications - Get notifications for current user
+  app.get("/api/crew-comms/notifications", async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const notificationsList = await storage.getNotifications(userId, limit);
+      res.json(notificationsList);
+    } catch (error: any) {
+      console.error("[CrewComms] Error fetching notifications:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/crew-comms/notifications/unread - Get unread count
+  app.get("/api/crew-comms/notifications/unread", async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const unread = await storage.getUnreadNotifications(userId);
+      res.json({ count: unread.length, notifications: unread.slice(0, 5) });
+    } catch (error: any) {
+      console.error("[CrewComms] Error fetching unread:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/crew-comms/notifications/:id/ack - Acknowledge a notification
+  app.post("/api/crew-comms/notifications/:id/ack", async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const notificationId = parseInt(req.params.id);
+      const notification = await storage.getNotification(notificationId);
+      
+      if (!notification) {
+        return res.status(404).json({ error: "Notification not found" });
+      }
+      
+      if (notification.recipientUserId !== userId) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+      
+      const updated = await storage.ackNotification(notificationId);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("[CrewComms] Error acknowledging notification:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/crew-comms/notifications/mark-seen - Mark multiple as seen
+  app.post("/api/crew-comms/notifications/mark-seen", async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const { notificationIds } = req.body;
+      if (!Array.isArray(notificationIds)) {
+        return res.status(400).json({ error: "notificationIds array required" });
+      }
+      
+      await storage.markNotificationsSeen(userId, notificationIds);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[CrewComms] Error marking seen:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/crew-comms/send - Send a notification (admin only)
+  app.post("/api/crew-comms/send", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can send notifications" });
+      }
+      
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      
+      const { type, recipientUserIds, crewId, context, channels, priority } = req.body;
+      
+      if (!type) {
+        return res.status(400).json({ error: "type required" });
+      }
+      
+      const results = await sendCrewNotification({
+        businessId: profile.id,
+        type,
+        recipientUserIds,
+        crewId,
+        context: context || {},
+        channels,
+        priority,
+      });
+      
+      res.json({ 
+        success: true, 
+        sent: results.length,
+        results 
+      });
+    } catch (error: any) {
+      console.error("[CrewComms] Error sending notification:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/crew-comms/broadcast - Broadcast to crews (admin only)
+  app.post("/api/crew-comms/broadcast", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can broadcast" });
+      }
+      
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      
+      const { crewIds, message, senderName, channels } = req.body;
+      
+      if (!crewIds || !Array.isArray(crewIds) || crewIds.length === 0) {
+        return res.status(400).json({ error: "crewIds array required" });
+      }
+      
+      if (!message) {
+        return res.status(400).json({ error: "message required" });
+      }
+      
+      const results = await broadcastToCrews(
+        profile.id,
+        crewIds,
+        message,
+        senderName || "Admin",
+        channels
+      );
+      
+      res.json({ 
+        success: true, 
+        sent: results.length,
+        results 
+      });
+    } catch (error: any) {
+      console.error("[CrewComms] Error broadcasting:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/crew-comms/preferences - Get current user's preferences
+  app.get("/api/crew-comms/preferences", async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const prefs = await storage.getCrewCommsPreference(userId);
+      res.json(prefs || { userId, smsEnabled: true, pushEnabled: true, language: "EN" });
+    } catch (error: any) {
+      console.error("[CrewComms] Error fetching preferences:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PUT /api/crew-comms/preferences - Update preferences
+  app.put("/api/crew-comms/preferences", async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      
+      const { smsEnabled, pushEnabled, quietHoursStart, quietHoursEnd, language, phoneE164 } = req.body;
+      
+      const existing = await storage.getCrewCommsPreference(userId);
+      
+      if (existing) {
+        const updated = await storage.updateCrewCommsPreference(userId, {
+          smsEnabled: smsEnabled ?? existing.smsEnabled,
+          pushEnabled: pushEnabled ?? existing.pushEnabled,
+          quietHoursStart: quietHoursStart ?? existing.quietHoursStart,
+          quietHoursEnd: quietHoursEnd ?? existing.quietHoursEnd,
+          language: language ?? existing.language,
+          phoneE164: phoneE164 ?? existing.phoneE164,
+        });
+        res.json(updated);
+      } else {
+        const created = await storage.createCrewCommsPreference({
+          businessId: profile.id,
+          userId,
+          smsEnabled: smsEnabled ?? true,
+          pushEnabled: pushEnabled ?? true,
+          quietHoursStart,
+          quietHoursEnd,
+          language: language ?? "EN",
+          phoneE164,
+        });
+        res.json(created);
+      }
+    } catch (error: any) {
+      console.error("[CrewComms] Error updating preferences:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/crew-comms/push-subscribe - Register push subscription
+  app.post("/api/crew-comms/push-subscribe", async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const { endpoint, keys, userAgent } = req.body;
+      
+      if (!endpoint || !keys) {
+        return res.status(400).json({ error: "endpoint and keys required" });
+      }
+      
+      const subscription = await storage.createPushSubscription({
+        userId,
+        endpoint,
+        keysJson: keys,
+        userAgent,
+      });
+      
+      res.json({ success: true, id: subscription.id });
+    } catch (error: any) {
+      console.error("[CrewComms] Error registering push:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/crew-comms/push-subscribe - Unregister push subscription
+  app.delete("/api/crew-comms/push-subscribe", async (req, res) => {
+    try {
+      const { endpoint } = req.body;
+      
+      if (!endpoint) {
+        return res.status(400).json({ error: "endpoint required" });
+      }
+      
+      await storage.deletePushSubscription(endpoint);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[CrewComms] Error unregistering push:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/crew-comms/threads - Get SMS threads (admin only)
+  app.get("/api/crew-comms/threads", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can view threads" });
+      }
+      
+      const profile = await storage.getBusinessProfile();
+      if (!profile) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const threads = await storage.getCommsThreads(profile.id, limit);
+      res.json(threads);
+    } catch (error: any) {
+      console.error("[CrewComms] Error fetching threads:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/crew-comms/threads/:id/messages - Get messages in a thread
+  app.get("/api/crew-comms/threads/:id/messages", async (req, res) => {
+    try {
+      const role = (req.user as any)?.role || "OWNER";
+      if (role !== "OWNER" && role !== "ADMIN") {
+        return res.status(403).json({ error: "Only OWNER or ADMIN can view messages" });
+      }
+      
+      const threadId = parseInt(req.params.id);
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      const messages = await storage.getCommsMessages(threadId, limit);
+      res.json(messages);
+    } catch (error: any) {
+      console.error("[CrewComms] Error fetching messages:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }
