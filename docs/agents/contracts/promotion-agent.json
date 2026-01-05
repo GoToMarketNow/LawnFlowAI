@@ -1,0 +1,129 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "agentId": "promotion-agent",
+  "version": "1.0.0",
+  "name": "PromotionAgent",
+  "description": "AI agent that evaluates and applies promotion rules to quotes and services. Handles first-time customer discounts, bundle promotions, seasonal offers, and loyalty incentives.",
+  "triggers": [
+    "QUOTE_PRICING",
+    "BUNDLE_EVALUATION",
+    "UPSELL_OPPORTUNITY"
+  ],
+  "input": {
+    "type": "object",
+    "required": ["accountId"],
+    "properties": {
+      "accountId": {
+        "type": "integer",
+        "description": "Business account ID"
+      },
+      "customerId": {
+        "type": "integer",
+        "description": "Customer ID for eligibility check"
+      },
+      "serviceIds": {
+        "type": "array",
+        "items": { "type": "integer" },
+        "description": "Services to check for promotions"
+      },
+      "basePrices": {
+        "type": "array",
+        "items": { "type": "integer" },
+        "description": "Base prices in cents for each service"
+      },
+      "requestedFrequency": {
+        "type": "string",
+        "enum": ["ONE_TIME", "WEEKLY", "BIWEEKLY", "MONTHLY", "SEASONAL"]
+      },
+      "isFirstTimeCustomer": {
+        "type": "boolean",
+        "description": "Whether customer is new"
+      },
+      "hasRecurringCommitment": {
+        "type": "boolean",
+        "description": "Whether customer is committing to recurring service"
+      },
+      "currentDate": {
+        "type": "string",
+        "format": "date",
+        "description": "Date for seasonal promotion eligibility"
+      }
+    }
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "eligiblePromotions": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "promotionId": { "type": "integer" },
+            "name": { "type": "string" },
+            "discountType": { "type": "string", "enum": ["PERCENT", "FLAT", "OVERRIDE"] },
+            "discountValue": { "type": "number" },
+            "appliesToServiceId": { "type": "integer" },
+            "calculatedDiscount": { "type": "integer" },
+            "stackable": { "type": "boolean" }
+          }
+        }
+      },
+      "appliedPromotions": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "promotionId": { "type": "integer" },
+            "serviceId": { "type": "integer" },
+            "discountAmount": { "type": "integer" }
+          }
+        }
+      },
+      "totalDiscount": {
+        "type": "integer",
+        "description": "Total discount in cents"
+      },
+      "bundleDetected": {
+        "type": "boolean",
+        "description": "Whether a bundle promotion applies"
+      },
+      "bundleDetails": {
+        "type": "object",
+        "properties": {
+          "promotionName": { "type": "string" },
+          "servicesInBundle": { "type": "array", "items": { "type": "integer" } },
+          "bundleDiscount": { "type": "integer" }
+        }
+      },
+      "upsellSuggestion": {
+        "type": "object",
+        "properties": {
+          "suggestedServiceId": { "type": "integer" },
+          "suggestedServiceName": { "type": "string" },
+          "additionalSavings": { "type": "integer" },
+          "reason": { "type": "string" }
+        }
+      },
+      "promotionMessages": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Customer-facing promotion messages"
+      }
+    }
+  },
+  "escalation": {
+    "conditions": [
+      "Promotion conflict (multiple exclusive promotions)",
+      "Discount exceeds maximum threshold",
+      "Manual promotion code entry required"
+    ],
+    "target": "OWNER_ADMIN"
+  },
+  "policies": [
+    "MUST validate promotion isActive before applying",
+    "MUST check requiredFrequency matches requested frequency",
+    "MUST respect promotion stacking rules",
+    "SHOULD prefer higher-value promotion when conflicts exist",
+    "SHOULD suggest bundle opportunities for upsell"
+  ]
+}

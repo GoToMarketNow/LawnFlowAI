@@ -67,6 +67,7 @@ import SettingsPricingPage from "@/pages/settings/pricing";
 import SettingsIntegrationsPage from "@/pages/settings/integrations";
 import SettingsObservabilityPage from "@/pages/settings/observability";
 import SettingsExportsPage from "@/pages/settings/exports";
+import SettingsServicesPage from "@/pages/settings/services";
 import BillingPage from "@/pages/billing";
 import BillingInvoicesPage from "@/pages/billing-invoices";
 import BillingPaymentsPage from "@/pages/billing-payments";
@@ -234,6 +235,7 @@ function AuthenticatedLayout() {
                       <Route path="/settings/integrations" component={SettingsIntegrationsPage} />
                       <Route path="/settings/observability" component={SettingsObservabilityPage} />
                       <Route path="/settings/exports" component={SettingsExportsPage} />
+                      <Route path="/settings/services" component={SettingsServicesPage} />
                       <Route path="/agents">{() => <Redirect to="/settings/agents" />}</Route>
                       <Route path="/agents/:id" component={AgentDetailPage} />
                       <Route path="/learning">{() => <Redirect to="/settings/policies" />}</Route>

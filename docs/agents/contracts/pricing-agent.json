@@ -1,0 +1,126 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "agentId": "pricing-agent",
+  "version": "1.0.0",
+  "name": "PricingAgent",
+  "description": "AI agent that calculates service pricing based on service catalog, property attributes, frequency modifiers, and applicable promotions. Outputs quote-ready pricing.",
+  "triggers": [
+    "SERVICE_SELECTED",
+    "QUOTE_REQUESTED",
+    "PRICE_REFRESH"
+  ],
+  "input": {
+    "type": "object",
+    "required": ["accountId", "serviceId"],
+    "properties": {
+      "accountId": {
+        "type": "integer",
+        "description": "Business account ID"
+      },
+      "serviceId": {
+        "type": "integer",
+        "description": "Service to price"
+      },
+      "customerId": {
+        "type": "integer",
+        "description": "Customer ID for loyalty pricing"
+      },
+      "propertyAttributes": {
+        "type": "object",
+        "properties": {
+          "lotSizeSqFt": { "type": "integer" },
+          "lotSizeCategory": { "type": "string", "enum": ["SMALL", "MEDIUM", "LARGE", "ESTATE"] },
+          "complexity": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH"] },
+          "accessDifficulty": { "type": "string", "enum": ["EASY", "MODERATE", "DIFFICULT"] }
+        }
+      },
+      "frequencyOption": {
+        "type": "string",
+        "enum": ["ONE_TIME", "WEEKLY", "BIWEEKLY", "MONTHLY", "SEASONAL", "ON_DEMAND"]
+      },
+      "quantity": {
+        "type": "number",
+        "description": "Quantity for unit-based services (e.g., yards of mulch)"
+      },
+      "requestedDate": {
+        "type": "string",
+        "format": "date",
+        "description": "For seasonal pricing adjustments"
+      },
+      "applyPromotions": {
+        "type": "boolean",
+        "default": true
+      }
+    }
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "basePrice": {
+        "type": "integer",
+        "description": "Base price in cents before modifiers"
+      },
+      "frequencyModifier": {
+        "type": "object",
+        "properties": {
+          "applied": { "type": "boolean" },
+          "frequency": { "type": "string" },
+          "percentChange": { "type": "integer" },
+          "adjustment": { "type": "integer" }
+        }
+      },
+      "promotionsApplied": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "promotionId": { "type": "integer" },
+            "name": { "type": "string" },
+            "discountAmount": { "type": "integer" }
+          }
+        }
+      },
+      "materialCost": {
+        "type": "integer",
+        "description": "Material cost in cents (if applicable)"
+      },
+      "laborCost": {
+        "type": "integer",
+        "description": "Calculated labor cost in cents"
+      },
+      "finalPrice": {
+        "type": "integer",
+        "description": "Final price in cents after all adjustments"
+      },
+      "priceConfidence": {
+        "type": "string",
+        "enum": ["HIGH", "MEDIUM", "LOW"],
+        "description": "Confidence in automated pricing"
+      },
+      "requiresManualReview": {
+        "type": "boolean",
+        "description": "True if price outside normal range or low confidence"
+      },
+      "pricingBreakdown": {
+        "type": "string",
+        "description": "Human-readable explanation of pricing"
+      }
+    }
+  },
+  "escalation": {
+    "conditions": [
+      "Price outside service min/max range",
+      "Low confidence score",
+      "Service marked requiresManualQuote",
+      "Complex property attributes"
+    ],
+    "target": "OWNER_ADMIN"
+  },
+  "policies": [
+    "MUST respect service minPrice/maxPrice bounds",
+    "MUST apply frequency modifiers before promotions",
+    "MUST include material costs when includesMaterials=true",
+    "SHOULD target mid-range pricing for high confidence",
+    "SHOULD flag outlier pricing for manual review"
+  ]
+}

@@ -10043,5 +10043,324 @@ Return JSON format:
     }
   });
 
+  // =====================================================
+  // SERVICE CATALOG API ROUTES
+  // =====================================================
+
+  // GET /api/services - List all services for the business
+  app.get("/api/services", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+      const { category, isActive } = req.query;
+      const serviceList = await storage.getServices(businessId, {
+        category: category as string,
+        isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+      });
+      res.json(serviceList);
+    } catch (error: any) {
+      console.error("[Services] Error fetching:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/services/:id - Get a single service with pricing and frequency options
+  app.get("/api/services/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const service = await storage.getService(id);
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+      
+      const [pricing, frequencyOptions, snowPolicy] = await Promise.all([
+        storage.getServicePricing(id),
+        storage.getServiceFrequencyOptions(id),
+        service.category === 'SNOW' ? storage.getSnowServicePolicy(id) : Promise.resolve(null),
+      ]);
+      
+      res.json({ ...service, pricing, frequencyOptions, snowPolicy });
+    } catch (error: any) {
+      console.error("[Services] Error fetching:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/services - Create a new service
+  app.post("/api/services", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+      const service = await storage.createService({ ...req.body, accountId: businessId });
+      res.status(201).json(service);
+    } catch (error: any) {
+      console.error("[Services] Error creating:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PATCH /api/services/:id - Update a service
+  app.patch("/api/services/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const service = await storage.updateService(id, req.body);
+      res.json(service);
+    } catch (error: any) {
+      console.error("[Services] Error updating:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/services/:id - Delete a service
+  app.delete("/api/services/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteService(id);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("[Services] Error deleting:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/services/:id/pricing - Add pricing to a service
+  app.post("/api/services/:id/pricing", async (req, res) => {
+    try {
+      const serviceId = parseInt(req.params.id);
+      const pricing = await storage.createServicePricing({ ...req.body, serviceId });
+      res.status(201).json(pricing);
+    } catch (error: any) {
+      console.error("[ServicePricing] Error creating:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PATCH /api/service-pricing/:id - Update pricing
+  app.patch("/api/service-pricing/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const pricing = await storage.updateServicePricing(id, req.body);
+      res.json(pricing);
+    } catch (error: any) {
+      console.error("[ServicePricing] Error updating:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/service-pricing/:id - Delete pricing
+  app.delete("/api/service-pricing/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteServicePricing(id);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("[ServicePricing] Error deleting:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/services/:id/frequency-options - Add frequency option
+  app.post("/api/services/:id/frequency-options", async (req, res) => {
+    try {
+      const serviceId = parseInt(req.params.id);
+      const option = await storage.createServiceFrequencyOption({ ...req.body, serviceId });
+      res.status(201).json(option);
+    } catch (error: any) {
+      console.error("[FrequencyOption] Error creating:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PATCH /api/frequency-options/:id - Update frequency option
+  app.patch("/api/frequency-options/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const option = await storage.updateServiceFrequencyOption(id, req.body);
+      res.json(option);
+    } catch (error: any) {
+      console.error("[FrequencyOption] Error updating:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/frequency-options/:id - Delete frequency option
+  app.delete("/api/frequency-options/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteServiceFrequencyOption(id);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("[FrequencyOption] Error deleting:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/promotions - List all promotion rules
+  app.get("/api/promotions", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+      const { isActive } = req.query;
+      const promotions = await storage.getPromotionRules(businessId, {
+        isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+      });
+      res.json(promotions);
+    } catch (error: any) {
+      console.error("[Promotions] Error fetching:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/promotions/:id - Get a single promotion
+  app.get("/api/promotions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const promotion = await storage.getPromotionRule(id);
+      if (!promotion) {
+        return res.status(404).json({ error: "Promotion not found" });
+      }
+      res.json(promotion);
+    } catch (error: any) {
+      console.error("[Promotions] Error fetching:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/promotions - Create a promotion rule
+  app.post("/api/promotions", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+      const promotion = await storage.createPromotionRule({ ...req.body, accountId: businessId });
+      res.status(201).json(promotion);
+    } catch (error: any) {
+      console.error("[Promotions] Error creating:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PATCH /api/promotions/:id - Update a promotion rule
+  app.patch("/api/promotions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const promotion = await storage.updatePromotionRule(id, req.body);
+      res.json(promotion);
+    } catch (error: any) {
+      console.error("[Promotions] Error updating:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/promotions/:id - Delete a promotion rule
+  app.delete("/api/promotions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deletePromotionRule(id);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("[Promotions] Error deleting:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/services/:id/snow-policy - Create or update snow policy
+  app.post("/api/services/:id/snow-policy", async (req, res) => {
+    try {
+      const serviceId = parseInt(req.params.id);
+      const existing = await storage.getSnowServicePolicy(serviceId);
+      if (existing) {
+        const policy = await storage.updateSnowServicePolicy(existing.id, req.body);
+        return res.json(policy);
+      }
+      const policy = await storage.createSnowServicePolicy({ ...req.body, serviceId });
+      res.status(201).json(policy);
+    } catch (error: any) {
+      console.error("[SnowPolicy] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/snow-policies/:id - Delete snow policy
+  app.delete("/api/snow-policies/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteSnowServicePolicy(id);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("[SnowPolicy] Error deleting:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/mulch-profiles - List mulch profiles
+  app.get("/api/mulch-profiles", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+      const customerId = req.query.customerId ? parseInt(req.query.customerId as string) : undefined;
+      const profiles = await storage.getMulchProfiles(businessId, customerId);
+      res.json(profiles);
+    } catch (error: any) {
+      console.error("[MulchProfiles] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/mulch-profiles - Create mulch profile
+  app.post("/api/mulch-profiles", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+      const profile = await storage.createMulchProfile({ ...req.body, accountId: businessId });
+      res.status(201).json(profile);
+    } catch (error: any) {
+      console.error("[MulchProfiles] Error creating:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PATCH /api/mulch-profiles/:id - Update mulch profile
+  app.patch("/api/mulch-profiles/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const profile = await storage.updateMulchProfile(id, req.body);
+      res.json(profile);
+    } catch (error: any) {
+      console.error("[MulchProfiles] Error updating:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/firewood-profiles - List firewood profiles
+  app.get("/api/firewood-profiles", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+      const customerId = req.query.customerId ? parseInt(req.query.customerId as string) : undefined;
+      const profiles = await storage.getFirewoodProfiles(businessId, customerId);
+      res.json(profiles);
+    } catch (error: any) {
+      console.error("[FirewoodProfiles] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/firewood-profiles - Create firewood profile
+  app.post("/api/firewood-profiles", async (req, res) => {
+    try {
+      const businessId = 1; // TODO: Get from session
+      const profile = await storage.createFirewoodProfile({ ...req.body, accountId: businessId });
+      res.status(201).json(profile);
+    } catch (error: any) {
+      console.error("[FirewoodProfiles] Error creating:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PATCH /api/firewood-profiles/:id - Update firewood profile
+  app.patch("/api/firewood-profiles/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const profile = await storage.updateFirewoodProfile(id, req.body);
+      res.json(profile);
+    } catch (error: any) {
+      console.error("[FirewoodProfiles] Error updating:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }

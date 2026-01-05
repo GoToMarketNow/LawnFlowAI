@@ -12,6 +12,7 @@ import {
   FileText,
   Zap,
   ChevronRight,
+  Package,
 } from "lucide-react";
 import { RoleGate } from "@/components/role-gate";
 
@@ -44,6 +45,13 @@ const settingsSections: SettingsSection[] = [
     description: "Define your coverage zones and do-not-serve areas",
     icon: MapPin,
     href: "/admin/coverage",
+  },
+  {
+    id: "services",
+    title: "Service Catalog",
+    description: "Manage services, pricing models, and promotions",
+    icon: Package,
+    href: "/settings/services",
   },
   {
     id: "pricing",

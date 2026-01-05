@@ -3841,3 +3841,201 @@ export interface BillingOverview {
   lastSyncAt: Date | null;
   totalOutstanding: number; // in cents
 }
+
+// ============================================================================
+// SERVICE CATALOG SYSTEM
+// ============================================================================
+
+// Service Category enum
+export const serviceCategoryEnum = z.enum(["LAWN", "TREE", "CLEANUP", "SNOW", "CUSTOM"]);
+export type ServiceCategory = z.infer<typeof serviceCategoryEnum>;
+
+// Service Type enum
+export const serviceTypeEnum = z.enum(["ONE_TIME", "RECURRING", "SEASONAL", "EVENT_BASED"]);
+export type ServiceType = z.infer<typeof serviceTypeEnum>;
+
+// Pricing Model enum
+export const pricingModelEnum = z.enum(["FLAT", "PER_VISIT", "PER_EVENT", "PER_SQFT", "RANGE"]);
+export type PricingModel = z.infer<typeof pricingModelEnum>;
+
+// Frequency enum
+export const frequencyEnum = z.enum(["WEEKLY", "BIWEEKLY", "MONTHLY", "SEASONAL", "ON_DEMAND"]);
+export type Frequency = z.infer<typeof frequencyEnum>;
+
+// Promotion Condition enum
+export const promotionConditionEnum = z.enum(["FIRST_TIME_CUSTOMER", "RECURRING_COMMITMENT", "BUNDLE", "SEASONAL"]);
+export type PromotionCondition = z.infer<typeof promotionConditionEnum>;
+
+// Discount Type enum
+export const discountTypeEnum = z.enum(["PERCENT", "FLAT"]);
+export type DiscountType = z.infer<typeof discountTypeEnum>;
+
+// Snow Service Mode enum
+export const snowServiceModeEnum = z.enum(["ROTATION", "ON_DEMAND"]);
+export type SnowServiceMode = z.infer<typeof snowServiceModeEnum>;
+
+// Snow Priority Level enum
+export const snowPriorityLevelEnum = z.enum(["LOW", "NORMAL", "HIGH"]);
+export type SnowPriorityLevel = z.infer<typeof snowPriorityLevelEnum>;
+
+// Mulch Volume Unit enum
+export const mulchVolumeUnitEnum = z.enum(["BAGS", "YARDS"]);
+export type MulchVolumeUnit = z.infer<typeof mulchVolumeUnitEnum>;
+
+// Firewood Cord Size enum
+export const firewoodCordSizeEnum = z.enum(["FULL", "HALF"]);
+export type FirewoodCordSize = z.infer<typeof firewoodCordSizeEnum>;
+
+// Services - main service catalog
+export const services = pgTable("services", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  name: text("name").notNull(),
+  category: text("category").notNull(), // LAWN, TREE, CLEANUP, SNOW, CUSTOM
+  description: text("description"),
+  isActive: boolean("is_active").default(true).notNull(),
+  serviceType: text("service_type").notNull(), // ONE_TIME, RECURRING, SEASONAL, EVENT_BASED
+  requiresManualQuote: boolean("requires_manual_quote").default(false).notNull(),
+  defaultDurationMinutes: integer("default_duration_minutes"),
+  // Extensions for mulch/firewood
+  requiresLeadTime: boolean("requires_lead_time").default(false).notNull(),
+  defaultLeadTimeDays: integer("default_lead_time_days"),
+  includesMaterials: boolean("includes_materials").default(false).notNull(),
+  requiresQualifiedCrew: boolean("requires_qualified_crew").default(false).notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountIdx: index("service_account_idx").on(table.accountId),
+  categoryIdx: index("service_category_idx").on(table.category),
+  activeIdx: index("service_active_idx").on(table.isActive),
+}));
+
+export const insertServiceSchema = createInsertSchema(services).omit({ id: true, createdAt: true, updatedAt: true });
+export type Service = typeof services.$inferSelect;
+export type InsertService = z.infer<typeof insertServiceSchema>;
+
+// Service Pricing - pricing models per service
+export const servicePricing = pgTable("service_pricing", {
+  id: serial("id").primaryKey(),
+  serviceId: integer("service_id").references(() => services.id).notNull(),
+  pricingModel: text("pricing_model").notNull(), // FLAT, PER_VISIT, PER_EVENT, PER_SQFT, RANGE
+  minPrice: integer("min_price").notNull(), // in cents
+  targetPrice: integer("target_price").notNull(), // in cents
+  maxPrice: integer("max_price").notNull(), // in cents
+  unitLabel: text("unit_label"), // sq ft, acre, visit, event
+  appliesToFrequency: text("applies_to_frequency").notNull().default("BOTH"), // ONE_TIME, RECURRING, BOTH
+  // Material cost tracking
+  materialCostIncluded: boolean("material_cost_included").default(false).notNull(),
+  materialCostEstimate: integer("material_cost_estimate"), // in cents
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  serviceIdx: index("service_pricing_service_idx").on(table.serviceId),
+}));
+
+export const insertServicePricingSchema = createInsertSchema(servicePricing).omit({ id: true, createdAt: true, updatedAt: true });
+export type ServicePricing = typeof servicePricing.$inferSelect;
+export type InsertServicePricing = z.infer<typeof insertServicePricingSchema>;
+
+// Service Frequency Options - frequency modifiers per service
+export const serviceFrequencyOptions = pgTable("service_frequency_options", {
+  id: serial("id").primaryKey(),
+  serviceId: integer("service_id").references(() => services.id).notNull(),
+  frequency: text("frequency").notNull(), // WEEKLY, BIWEEKLY, MONTHLY, SEASONAL, ON_DEMAND
+  priceModifierPercent: integer("price_modifier_percent").notNull().default(0), // e.g. -10 for recurring discount
+  isDefault: boolean("is_default").default(false).notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  serviceIdx: index("service_frequency_service_idx").on(table.serviceId),
+}));
+
+export const insertServiceFrequencyOptionSchema = createInsertSchema(serviceFrequencyOptions).omit({ id: true, createdAt: true, updatedAt: true });
+export type ServiceFrequencyOption = typeof serviceFrequencyOptions.$inferSelect;
+export type InsertServiceFrequencyOption = z.infer<typeof insertServiceFrequencyOptionSchema>;
+
+// Promotion Rules - automatic discounts and incentives
+export const promotionRules = pgTable("promotion_rules", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  name: text("name").notNull(),
+  appliesToServiceId: integer("applies_to_service_id").references(() => services.id),
+  appliesToCategory: text("applies_to_category"), // LAWN, TREE, CLEANUP, SNOW, CUSTOM
+  condition: text("condition").notNull(), // FIRST_TIME_CUSTOMER, RECURRING_COMMITMENT, BUNDLE, SEASONAL
+  discountType: text("discount_type").notNull(), // PERCENT, FLAT
+  discountValue: integer("discount_value").notNull(), // percent (10 = 10%) or cents for FLAT
+  requiresFrequency: text("requires_frequency"), // WEEKLY, BIWEEKLY, etc.
+  startAt: timestamp("start_at"),
+  endAt: timestamp("end_at"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountIdx: index("promotion_rule_account_idx").on(table.accountId),
+  activeIdx: index("promotion_rule_active_idx").on(table.isActive),
+}));
+
+export const insertPromotionRuleSchema = createInsertSchema(promotionRules).omit({ id: true, createdAt: true, updatedAt: true });
+export type PromotionRule = typeof promotionRules.$inferSelect;
+export type InsertPromotionRule = z.infer<typeof insertPromotionRuleSchema>;
+
+// Snow Service Policies - rotation vs on-demand configuration
+export const snowServicePolicies = pgTable("snow_service_policies", {
+  id: serial("id").primaryKey(),
+  serviceId: integer("service_id").references(() => services.id).notNull(),
+  mode: text("mode").notNull(), // ROTATION, ON_DEMAND
+  priceModifierPercent: integer("price_modifier_percent").notNull().default(0), // e.g. +20 for on-demand
+  priorityLevel: text("priority_level").notNull().default("NORMAL"), // LOW, NORMAL, HIGH
+  notes: text("notes"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  serviceIdx: uniqueIndex("snow_policy_service_idx").on(table.serviceId),
+}));
+
+export const insertSnowServicePolicySchema = createInsertSchema(snowServicePolicies).omit({ id: true, createdAt: true, updatedAt: true });
+export type SnowServicePolicy = typeof snowServicePolicies.$inferSelect;
+export type InsertSnowServicePolicy = z.infer<typeof insertSnowServicePolicySchema>;
+
+// Mulch Profiles - customer preferences for mulching services
+export const mulchProfiles = pgTable("mulch_profiles", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  customerId: integer("customer_id").notNull(), // FK to customers when table exists
+  serviceId: integer("service_id").references(() => services.id).notNull(),
+  mulchType: text("mulch_type").notNull(), // e.g. "brown hardwood", "red cedar", "black"
+  averageVolume: integer("average_volume").notNull(), // number of bags or yards
+  volumeUnit: text("volume_unit").notNull().default("BAGS"), // BAGS, YARDS
+  installZones: text("install_zones"), // description of where mulch goes
+  crewNotes: text("crew_notes"),
+  lastInstallAt: timestamp("last_install_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountIdx: index("mulch_profile_account_idx").on(table.accountId),
+  customerIdx: index("mulch_profile_customer_idx").on(table.customerId),
+}));
+
+export const insertMulchProfileSchema = createInsertSchema(mulchProfiles).omit({ id: true, createdAt: true, updatedAt: true });
+export type MulchProfile = typeof mulchProfiles.$inferSelect;
+export type InsertMulchProfile = z.infer<typeof insertMulchProfileSchema>;
+
+// Firewood Profiles - customer preferences for firewood delivery
+export const firewoodProfiles = pgTable("firewood_profiles", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => businessProfiles.id).notNull(),
+  customerId: integer("customer_id").notNull(), // FK to customers when table exists
+  preferredCordSize: text("preferred_cord_size").notNull().default("FULL"), // FULL, HALF
+  stackingRequired: boolean("stacking_required").default(false).notNull(),
+  deliveryLocationNotes: text("delivery_location_notes"),
+  frequency: text("frequency").notNull().default("ONE_TIME"), // ONE_TIME, SEASONAL, RECURRING
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  accountIdx: index("firewood_profile_account_idx").on(table.accountId),
+  customerIdx: index("firewood_profile_customer_idx").on(table.customerId),
+}));
+
+export const insertFirewoodProfileSchema = createInsertSchema(firewoodProfiles).omit({ id: true, createdAt: true, updatedAt: true });
+export type FirewoodProfile = typeof firewoodProfiles.$inferSelect;
+export type InsertFirewoodProfile = z.infer<typeof insertFirewoodProfileSchema>;

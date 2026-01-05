@@ -184,6 +184,28 @@ import {
   type BillingCustomer,
   type InsertBillingCustomer,
   type BillingOverview,
+  // Service Catalog
+  services,
+  servicePricing,
+  serviceFrequencyOptions,
+  promotionRules,
+  snowServicePolicies,
+  mulchProfiles,
+  firewoodProfiles,
+  type Service,
+  type InsertService,
+  type ServicePricing as ServicePricingType,
+  type InsertServicePricing,
+  type ServiceFrequencyOption,
+  type InsertServiceFrequencyOption,
+  type PromotionRule,
+  type InsertPromotionRule,
+  type SnowServicePolicy,
+  type InsertSnowServicePolicy,
+  type MulchProfile,
+  type InsertMulchProfile,
+  type FirewoodProfile,
+  type InsertFirewoodProfile,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, inArray, sql, and, gte, lte } from "drizzle-orm";
@@ -534,6 +556,50 @@ export interface IStorage {
   
   // Billing - Overview (computed)
   getBillingOverview(businessId: number): Promise<BillingOverview>;
+  
+  // Service Catalog - Services
+  getServices(businessId: number, options?: { category?: string; isActive?: boolean }): Promise<Service[]>;
+  getService(id: number): Promise<Service | undefined>;
+  createService(service: InsertService): Promise<Service>;
+  updateService(id: number, updates: Partial<InsertService>): Promise<Service>;
+  deleteService(id: number): Promise<boolean>;
+  
+  // Service Catalog - Pricing
+  getServicePricing(serviceId: number): Promise<ServicePricingType[]>;
+  createServicePricing(pricing: InsertServicePricing): Promise<ServicePricingType>;
+  updateServicePricing(id: number, updates: Partial<InsertServicePricing>): Promise<ServicePricingType>;
+  deleteServicePricing(id: number): Promise<boolean>;
+  
+  // Service Catalog - Frequency Options
+  getServiceFrequencyOptions(serviceId: number): Promise<ServiceFrequencyOption[]>;
+  createServiceFrequencyOption(option: InsertServiceFrequencyOption): Promise<ServiceFrequencyOption>;
+  updateServiceFrequencyOption(id: number, updates: Partial<InsertServiceFrequencyOption>): Promise<ServiceFrequencyOption>;
+  deleteServiceFrequencyOption(id: number): Promise<boolean>;
+  
+  // Service Catalog - Promotions
+  getPromotionRules(businessId: number, options?: { isActive?: boolean }): Promise<PromotionRule[]>;
+  getPromotionRule(id: number): Promise<PromotionRule | undefined>;
+  createPromotionRule(rule: InsertPromotionRule): Promise<PromotionRule>;
+  updatePromotionRule(id: number, updates: Partial<InsertPromotionRule>): Promise<PromotionRule>;
+  deletePromotionRule(id: number): Promise<boolean>;
+  
+  // Service Catalog - Snow Policies
+  getSnowServicePolicy(serviceId: number): Promise<SnowServicePolicy | undefined>;
+  createSnowServicePolicy(policy: InsertSnowServicePolicy): Promise<SnowServicePolicy>;
+  updateSnowServicePolicy(id: number, updates: Partial<InsertSnowServicePolicy>): Promise<SnowServicePolicy>;
+  deleteSnowServicePolicy(id: number): Promise<boolean>;
+  
+  // Service Catalog - Mulch Profiles
+  getMulchProfiles(businessId: number, customerId?: number): Promise<MulchProfile[]>;
+  getMulchProfile(id: number): Promise<MulchProfile | undefined>;
+  createMulchProfile(profile: InsertMulchProfile): Promise<MulchProfile>;
+  updateMulchProfile(id: number, updates: Partial<InsertMulchProfile>): Promise<MulchProfile>;
+  
+  // Service Catalog - Firewood Profiles
+  getFirewoodProfiles(businessId: number, customerId?: number): Promise<FirewoodProfile[]>;
+  getFirewoodProfile(id: number): Promise<FirewoodProfile | undefined>;
+  createFirewoodProfile(profile: InsertFirewoodProfile): Promise<FirewoodProfile>;
+  updateFirewoodProfile(id: number, updates: Partial<InsertFirewoodProfile>): Promise<FirewoodProfile>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3063,6 +3129,182 @@ export class DatabaseStorage implements IStorage {
       pendingPayments: Number(pendingPaymentsCount[0]?.count ?? 0),
       openIssues: Number(openIssues[0]?.count ?? 0),
     };
+  }
+
+  // ============================================================================
+  // SERVICE CATALOG IMPLEMENTATIONS
+  // ============================================================================
+
+  // Services
+  async getServices(businessId: number, options?: { category?: string; isActive?: boolean }): Promise<Service[]> {
+    let query = db.select().from(services).where(eq(services.accountId, businessId));
+    
+    if (options?.category) {
+      query = query.where(and(eq(services.accountId, businessId), eq(services.category, options.category))) as any;
+    }
+    if (options?.isActive !== undefined) {
+      query = query.where(and(eq(services.accountId, businessId), eq(services.isActive, options.isActive))) as any;
+    }
+    
+    return query.orderBy(asc(services.name));
+  }
+
+  async getService(id: number): Promise<Service | undefined> {
+    const [service] = await db.select().from(services).where(eq(services.id, id));
+    return service;
+  }
+
+  async createService(service: InsertService): Promise<Service> {
+    const [created] = await db.insert(services).values(service).returning();
+    return created;
+  }
+
+  async updateService(id: number, updates: Partial<InsertService>): Promise<Service> {
+    const [updated] = await db.update(services).set({ ...updates, updatedAt: new Date() }).where(eq(services.id, id)).returning();
+    return updated;
+  }
+
+  async deleteService(id: number): Promise<boolean> {
+    const result = await db.delete(services).where(eq(services.id, id));
+    return true;
+  }
+
+  // Service Pricing
+  async getServicePricing(serviceId: number): Promise<ServicePricingType[]> {
+    return db.select().from(servicePricing).where(eq(servicePricing.serviceId, serviceId));
+  }
+
+  async createServicePricing(pricing: InsertServicePricing): Promise<ServicePricingType> {
+    const [created] = await db.insert(servicePricing).values(pricing).returning();
+    return created;
+  }
+
+  async updateServicePricing(id: number, updates: Partial<InsertServicePricing>): Promise<ServicePricingType> {
+    const [updated] = await db.update(servicePricing).set({ ...updates, updatedAt: new Date() }).where(eq(servicePricing.id, id)).returning();
+    return updated;
+  }
+
+  async deleteServicePricing(id: number): Promise<boolean> {
+    await db.delete(servicePricing).where(eq(servicePricing.id, id));
+    return true;
+  }
+
+  // Service Frequency Options
+  async getServiceFrequencyOptions(serviceId: number): Promise<ServiceFrequencyOption[]> {
+    return db.select().from(serviceFrequencyOptions).where(eq(serviceFrequencyOptions.serviceId, serviceId));
+  }
+
+  async createServiceFrequencyOption(option: InsertServiceFrequencyOption): Promise<ServiceFrequencyOption> {
+    const [created] = await db.insert(serviceFrequencyOptions).values(option).returning();
+    return created;
+  }
+
+  async updateServiceFrequencyOption(id: number, updates: Partial<InsertServiceFrequencyOption>): Promise<ServiceFrequencyOption> {
+    const [updated] = await db.update(serviceFrequencyOptions).set({ ...updates, updatedAt: new Date() }).where(eq(serviceFrequencyOptions.id, id)).returning();
+    return updated;
+  }
+
+  async deleteServiceFrequencyOption(id: number): Promise<boolean> {
+    await db.delete(serviceFrequencyOptions).where(eq(serviceFrequencyOptions.id, id));
+    return true;
+  }
+
+  // Promotion Rules
+  async getPromotionRules(businessId: number, options?: { isActive?: boolean }): Promise<PromotionRule[]> {
+    let conditions = [eq(promotionRules.accountId, businessId)];
+    if (options?.isActive !== undefined) {
+      conditions.push(eq(promotionRules.isActive, options.isActive));
+    }
+    return db.select().from(promotionRules).where(and(...conditions)).orderBy(desc(promotionRules.createdAt));
+  }
+
+  async getPromotionRule(id: number): Promise<PromotionRule | undefined> {
+    const [rule] = await db.select().from(promotionRules).where(eq(promotionRules.id, id));
+    return rule;
+  }
+
+  async createPromotionRule(rule: InsertPromotionRule): Promise<PromotionRule> {
+    const [created] = await db.insert(promotionRules).values(rule).returning();
+    return created;
+  }
+
+  async updatePromotionRule(id: number, updates: Partial<InsertPromotionRule>): Promise<PromotionRule> {
+    const [updated] = await db.update(promotionRules).set({ ...updates, updatedAt: new Date() }).where(eq(promotionRules.id, id)).returning();
+    return updated;
+  }
+
+  async deletePromotionRule(id: number): Promise<boolean> {
+    await db.delete(promotionRules).where(eq(promotionRules.id, id));
+    return true;
+  }
+
+  // Snow Service Policies
+  async getSnowServicePolicy(serviceId: number): Promise<SnowServicePolicy | undefined> {
+    const [policy] = await db.select().from(snowServicePolicies).where(eq(snowServicePolicies.serviceId, serviceId));
+    return policy;
+  }
+
+  async createSnowServicePolicy(policy: InsertSnowServicePolicy): Promise<SnowServicePolicy> {
+    const [created] = await db.insert(snowServicePolicies).values(policy).returning();
+    return created;
+  }
+
+  async updateSnowServicePolicy(id: number, updates: Partial<InsertSnowServicePolicy>): Promise<SnowServicePolicy> {
+    const [updated] = await db.update(snowServicePolicies).set({ ...updates, updatedAt: new Date() }).where(eq(snowServicePolicies.id, id)).returning();
+    return updated;
+  }
+
+  async deleteSnowServicePolicy(id: number): Promise<boolean> {
+    await db.delete(snowServicePolicies).where(eq(snowServicePolicies.id, id));
+    return true;
+  }
+
+  // Mulch Profiles
+  async getMulchProfiles(businessId: number, customerId?: number): Promise<MulchProfile[]> {
+    let conditions = [eq(mulchProfiles.accountId, businessId)];
+    if (customerId !== undefined) {
+      conditions.push(eq(mulchProfiles.customerId, customerId));
+    }
+    return db.select().from(mulchProfiles).where(and(...conditions));
+  }
+
+  async getMulchProfile(id: number): Promise<MulchProfile | undefined> {
+    const [profile] = await db.select().from(mulchProfiles).where(eq(mulchProfiles.id, id));
+    return profile;
+  }
+
+  async createMulchProfile(profile: InsertMulchProfile): Promise<MulchProfile> {
+    const [created] = await db.insert(mulchProfiles).values(profile).returning();
+    return created;
+  }
+
+  async updateMulchProfile(id: number, updates: Partial<InsertMulchProfile>): Promise<MulchProfile> {
+    const [updated] = await db.update(mulchProfiles).set({ ...updates, updatedAt: new Date() }).where(eq(mulchProfiles.id, id)).returning();
+    return updated;
+  }
+
+  // Firewood Profiles
+  async getFirewoodProfiles(businessId: number, customerId?: number): Promise<FirewoodProfile[]> {
+    let conditions = [eq(firewoodProfiles.accountId, businessId)];
+    if (customerId !== undefined) {
+      conditions.push(eq(firewoodProfiles.customerId, customerId));
+    }
+    return db.select().from(firewoodProfiles).where(and(...conditions));
+  }
+
+  async getFirewoodProfile(id: number): Promise<FirewoodProfile | undefined> {
+    const [profile] = await db.select().from(firewoodProfiles).where(eq(firewoodProfiles.id, id));
+    return profile;
+  }
+
+  async createFirewoodProfile(profile: InsertFirewoodProfile): Promise<FirewoodProfile> {
+    const [created] = await db.insert(firewoodProfiles).values(profile).returning();
+    return created;
+  }
+
+  async updateFirewoodProfile(id: number, updates: Partial<InsertFirewoodProfile>): Promise<FirewoodProfile> {
+    const [updated] = await db.update(firewoodProfiles).set({ ...updates, updatedAt: new Date() }).where(eq(firewoodProfiles.id, id)).returning();
+    return updated;
   }
 }
 
