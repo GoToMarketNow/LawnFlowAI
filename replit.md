@@ -46,6 +46,12 @@ The system is built on a React + Vite frontend with Shadcn UI, an Express.js and
   - **ReconciliationWorker (Billing):** Validates invoice/payment integrity, detects status mismatches, overpayments, and creates billing issues for HIGH severity problems. Uses batched payment retrieval and dedupe keys to prevent duplicate issues.
   - **BillingAgent:** AI-driven reminder generation with tone control and escalation cadence
   - API endpoints: `POST /api/billing/invoices/generate`, `POST /api/billing/reconcile`, `POST /api/billing/actions/reminder`
+- **QuickBooks Sync Agent (Phase B2):**
+  - **QuickBooksClient:** API client class with OAuth token refresh placeholder, customer/invoice/payment CRUD operations
+  - **InvoiceSyncAgent:** Syncs local invoices to QuickBooks, handles already-synced detection via externalInvoiceId, creates billing issues on sync failure
+  - **PaymentSyncAgent:** Syncs payments from QuickBooks to local storage, uses pre-loaded data with O(1) Map lookups to avoid N^2 performance, batches invoice status updates at end
+  - Currency conversion: cents to dollars for QuickBooks API, dollars to cents for local storage
+  - API endpoints: `POST /api/billing/sync/invoice/:id`, `POST /api/billing/sync/invoices`, `POST /api/billing/sync/payments`, `GET /api/billing/integrations`
 - **Customer Comms Worker:** Produces customer-facing messages with strict tone, compliance rules, and templates, handling various job events.
 - **Renewal & Upsell Worker:** Weekly scans for upsell opportunities, computes next-best-offers, and creates draft quotes in Jobber.
 - **Customer Experience Vector Memory:** Semantic search-enabled customer memory system with pgvector integration for storing and retrieving customer interactions and preferences, using OpenAI embeddings for context enrichment.
