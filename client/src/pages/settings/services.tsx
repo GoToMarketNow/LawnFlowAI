@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -52,8 +53,9 @@ import {
   ChevronRight,
   Tag,
   Loader2,
+  Calendar,
 } from "lucide-react";
-import type { Service, PromotionRule, InsertService } from "@shared/schema";
+import type { Service, PromotionRule, InsertService, ServicePricing, ServiceFrequencyOption, SnowServicePolicy } from "@shared/schema";
 
 const serviceFormSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -82,6 +84,41 @@ const promotionFormSchema = z.object({
 });
 
 type PromotionFormValues = z.infer<typeof promotionFormSchema>;
+
+const pricingFormSchema = z.object({
+  pricingModel: z.enum(["FLAT", "PER_VISIT", "PER_EVENT", "PER_SQFT", "RANGE"]),
+  minPrice: z.coerce.number().min(0),
+  targetPrice: z.coerce.number().min(0),
+  maxPrice: z.coerce.number().min(0),
+  unitLabel: z.string().optional().nullable(),
+  appliesToFrequency: z.enum(["ONE_TIME", "RECURRING", "BOTH"]).default("BOTH"),
+  materialCostIncluded: z.boolean().default(false),
+  materialCostEstimate: z.coerce.number().min(0).optional().nullable(),
+});
+
+type PricingFormValues = z.infer<typeof pricingFormSchema>;
+
+const frequencyFormSchema = z.object({
+  frequency: z.enum(["WEEKLY", "BIWEEKLY", "MONTHLY", "SEASONAL", "ON_DEMAND"]),
+  priceModifierPercent: z.coerce.number(),
+  isDefault: z.boolean().default(false),
+});
+
+const snowPolicyFormSchema = z.object({
+  mode: z.enum(["ROTATION", "ON_DEMAND"]),
+  priceModifierPercent: z.coerce.number().default(0),
+  priorityLevel: z.enum(["LOW", "NORMAL", "HIGH"]).default("NORMAL"),
+  notes: z.string().optional().nullable(),
+});
+
+type FrequencyFormValues = z.infer<typeof frequencyFormSchema>;
+type SnowPolicyFormValues = z.infer<typeof snowPolicyFormSchema>;
+
+interface ServiceWithDetails extends Service {
+  pricing?: ServicePricing[];
+  frequencyOptions?: ServiceFrequencyOption[];
+  snowPolicy?: SnowServicePolicy | null;
+}
 
 const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   LAWN: Leaf,
@@ -725,7 +762,7 @@ function PromotionFormDialog({
   );
 }
 
-function ServiceCard({ service, onEdit }: { service: Service; onEdit: (s: Service) => void }) {
+function ServiceCard({ service, onEdit, onViewPricing }: { service: Service; onEdit: (s: Service) => void; onViewPricing: (id: number) => void }) {
   const { toast } = useToast();
   const CategoryIcon = CATEGORY_ICONS[service.category || "CUSTOM"] || Package;
   
@@ -782,14 +819,24 @@ function ServiceCard({ service, onEdit }: { service: Service; onEdit: (s: Servic
               disabled={toggleActive.isPending}
               data-testid={`switch-service-active-${service.id}`}
             />
-            <Button 
-              size="icon" 
-              variant="ghost" 
-              onClick={() => onEdit(service)}
-              data-testid={`button-edit-service-${service.id}`}
-            >
-              <Settings2 className="h-4 w-4" />
-            </Button>
+            <div className="flex gap-1">
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={() => onViewPricing(service.id)}
+                data-testid={`button-pricing-service-${service.id}`}
+              >
+                <DollarSign className="h-4 w-4" />
+              </Button>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={() => onEdit(service)}
+                data-testid={`button-edit-service-${service.id}`}
+              >
+                <Settings2 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </CardContent>
@@ -840,6 +887,753 @@ function PromotionCard({ promotion, onEdit }: { promotion: PromotionRule; onEdit
   );
 }
 
+function ServiceDetailDialog({
+  open,
+  onOpenChange,
+  serviceId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  serviceId: number | null;
+}) {
+  const { toast } = useToast();
+  const [showPricingForm, setShowPricingForm] = useState(false);
+  const [editingPricing, setEditingPricing] = useState<ServicePricing | null>(null);
+  const [showFrequencyForm, setShowFrequencyForm] = useState(false);
+  const [editingFrequency, setEditingFrequency] = useState<ServiceFrequencyOption | null>(null);
+  const [showSnowPolicyForm, setShowSnowPolicyForm] = useState(false);
+
+  const { data: serviceDetails, isLoading } = useQuery<ServiceWithDetails>({
+    queryKey: ["/api/services", serviceId],
+    enabled: !!serviceId && open,
+  });
+
+  const isSnowService = serviceDetails?.category === "SNOW";
+
+  const pricingForm = useForm<PricingFormValues>({
+    resolver: zodResolver(pricingFormSchema),
+    defaultValues: {
+      pricingModel: "FLAT",
+      minPrice: 0,
+      targetPrice: 0,
+      maxPrice: 0,
+      unitLabel: null,
+      appliesToFrequency: "BOTH",
+      materialCostIncluded: false,
+      materialCostEstimate: null,
+    },
+  });
+
+  const frequencyForm = useForm<FrequencyFormValues>({
+    resolver: zodResolver(frequencyFormSchema),
+    defaultValues: {
+      frequency: "WEEKLY",
+      priceModifierPercent: 0,
+      isDefault: false,
+    },
+  });
+
+  const snowPolicyForm = useForm<SnowPolicyFormValues>({
+    resolver: zodResolver(snowPolicyFormSchema),
+    defaultValues: {
+      mode: "ROTATION",
+      priceModifierPercent: 0,
+      priorityLevel: "NORMAL",
+      notes: null,
+    },
+  });
+
+  useEffect(() => {
+    if (serviceDetails?.snowPolicy) {
+      snowPolicyForm.reset({
+        mode: serviceDetails.snowPolicy.mode as SnowPolicyFormValues["mode"],
+        priceModifierPercent: serviceDetails.snowPolicy.priceModifierPercent || 0,
+        priorityLevel: (serviceDetails.snowPolicy.priorityLevel as SnowPolicyFormValues["priorityLevel"]) || "NORMAL",
+        notes: serviceDetails.snowPolicy.notes || null,
+      });
+      setShowSnowPolicyForm(true);
+    } else if (isSnowService) {
+      snowPolicyForm.reset({
+        mode: "ROTATION",
+        priceModifierPercent: 0,
+        priorityLevel: "NORMAL",
+        notes: null,
+      });
+      setShowSnowPolicyForm(false);
+    }
+  }, [serviceDetails?.snowPolicy, isSnowService, snowPolicyForm]);
+
+  useEffect(() => {
+    if (editingPricing) {
+      pricingForm.reset({
+        pricingModel: editingPricing.pricingModel as PricingFormValues["pricingModel"],
+        minPrice: (editingPricing.minPrice || 0) / 100,
+        targetPrice: (editingPricing.targetPrice || 0) / 100,
+        maxPrice: (editingPricing.maxPrice || 0) / 100,
+        unitLabel: editingPricing.unitLabel || null,
+        appliesToFrequency: (editingPricing.appliesToFrequency as PricingFormValues["appliesToFrequency"]) || "BOTH",
+        materialCostIncluded: editingPricing.materialCostIncluded || false,
+        materialCostEstimate: editingPricing.materialCostEstimate ? editingPricing.materialCostEstimate / 100 : null,
+      });
+    } else {
+      pricingForm.reset({
+        pricingModel: "FLAT",
+        minPrice: 0,
+        targetPrice: 0,
+        maxPrice: 0,
+        unitLabel: null,
+        appliesToFrequency: "BOTH",
+        materialCostIncluded: false,
+        materialCostEstimate: null,
+      });
+    }
+  }, [editingPricing, pricingForm]);
+
+  useEffect(() => {
+    if (editingFrequency) {
+      frequencyForm.reset({
+        frequency: editingFrequency.frequency as FrequencyFormValues["frequency"],
+        priceModifierPercent: editingFrequency.priceModifierPercent || 0,
+        isDefault: editingFrequency.isDefault || false,
+      });
+    } else {
+      frequencyForm.reset({
+        frequency: "WEEKLY",
+        priceModifierPercent: 0,
+        isDefault: false,
+      });
+    }
+  }, [editingFrequency, frequencyForm]);
+
+  const createPricingMutation = useMutation({
+    mutationFn: (data: PricingFormValues) =>
+      apiRequest("POST", `/api/services/${serviceId}/pricing`, {
+        ...data,
+        minPrice: Math.round(data.minPrice * 100),
+        targetPrice: Math.round(data.targetPrice * 100),
+        maxPrice: Math.round(data.maxPrice * 100),
+        materialCostEstimate: data.materialCostEstimate ? Math.round(data.materialCostEstimate * 100) : null,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services", serviceId] });
+      toast({ title: "Pricing added" });
+      setShowPricingForm(false);
+      pricingForm.reset();
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to add pricing", variant: "destructive" });
+    },
+  });
+
+  const updatePricingMutation = useMutation({
+    mutationFn: (data: PricingFormValues) =>
+      apiRequest("PATCH", `/api/service-pricing/${editingPricing?.id}`, {
+        ...data,
+        minPrice: Math.round(data.minPrice * 100),
+        targetPrice: Math.round(data.targetPrice * 100),
+        maxPrice: Math.round(data.maxPrice * 100),
+        materialCostEstimate: data.materialCostEstimate ? Math.round(data.materialCostEstimate * 100) : null,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services", serviceId] });
+      toast({ title: "Pricing updated" });
+      setShowPricingForm(false);
+      setEditingPricing(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update pricing", variant: "destructive" });
+    },
+  });
+
+  const deletePricingMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/service-pricing/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services", serviceId] });
+      toast({ title: "Pricing deleted" });
+    },
+  });
+
+  const createFrequencyMutation = useMutation({
+    mutationFn: (data: FrequencyFormValues) =>
+      apiRequest("POST", `/api/services/${serviceId}/frequency-options`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services", serviceId] });
+      toast({ title: "Frequency option added" });
+      setShowFrequencyForm(false);
+      frequencyForm.reset();
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to add frequency", variant: "destructive" });
+    },
+  });
+
+  const updateFrequencyMutation = useMutation({
+    mutationFn: (data: FrequencyFormValues) =>
+      apiRequest("PATCH", `/api/frequency-options/${editingFrequency?.id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services", serviceId] });
+      toast({ title: "Frequency option updated" });
+      setShowFrequencyForm(false);
+      setEditingFrequency(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update frequency", variant: "destructive" });
+    },
+  });
+
+  const deleteFrequencyMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/frequency-options/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services", serviceId] });
+      toast({ title: "Frequency option deleted" });
+    },
+  });
+
+  const saveSnowPolicyMutation = useMutation({
+    mutationFn: (data: SnowPolicyFormValues) =>
+      apiRequest("POST", `/api/services/${serviceId}/snow-policy`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services", serviceId] });
+      toast({ title: "Snow policy saved" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to save snow policy", variant: "destructive" });
+    },
+  });
+
+  const handleSnowPolicySubmit = (data: SnowPolicyFormValues) => {
+    saveSnowPolicyMutation.mutate(data);
+  };
+
+  const handlePricingSubmit = (data: PricingFormValues) => {
+    if (editingPricing) {
+      updatePricingMutation.mutate(data);
+    } else {
+      createPricingMutation.mutate(data);
+    }
+  };
+
+  const handleFrequencySubmit = (data: FrequencyFormValues) => {
+    if (editingFrequency) {
+      updateFrequencyMutation.mutate(data);
+    } else {
+      createFrequencyMutation.mutate(data);
+    }
+  };
+
+  const handleAddPricing = () => {
+    setEditingPricing(null);
+    setShowPricingForm(true);
+  };
+
+  const handleEditPricing = (p: ServicePricing) => {
+    setEditingPricing(p);
+    setShowPricingForm(true);
+  };
+
+  const handleAddFrequency = () => {
+    setEditingFrequency(null);
+    setShowFrequencyForm(true);
+  };
+
+  const handleEditFrequency = (f: ServiceFrequencyOption) => {
+    setEditingFrequency(f);
+    setShowFrequencyForm(true);
+  };
+
+  if (!serviceId) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{serviceDetails?.name || "Service Details"}</DialogTitle>
+          <DialogDescription>
+            Manage pricing tiers and frequency options
+          </DialogDescription>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="space-y-4">
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-20 w-full" />
+          </div>
+        ) : (
+          <Tabs defaultValue="pricing" className="w-full">
+            <TabsList className={`grid w-full ${isSnowService ? "grid-cols-3" : "grid-cols-2"}`}>
+              <TabsTrigger value="pricing" data-testid="tab-pricing">Pricing</TabsTrigger>
+              <TabsTrigger value="frequency" data-testid="tab-frequency">Frequency</TabsTrigger>
+              {isSnowService && (
+                <TabsTrigger value="snow-policy" data-testid="tab-snow-policy">Snow Policy</TabsTrigger>
+              )}
+            </TabsList>
+
+            <TabsContent value="pricing" className="space-y-4 mt-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium">Pricing Tiers</h3>
+                <Button size="sm" variant="outline" onClick={handleAddPricing} data-testid="button-add-pricing">
+                  <Plus className="h-4 w-4 mr-1" /> Add Pricing
+                </Button>
+              </div>
+
+              {showPricingForm && (
+                <Card className="border-dashed">
+                  <CardContent className="p-4">
+                    <Form {...pricingForm}>
+                      <form onSubmit={pricingForm.handleSubmit(handlePricingSubmit)} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField
+                            control={pricingForm.control}
+                            name="pricingModel"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Pricing Model</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger data-testid="select-pricing-model">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="FLAT">Flat Rate</SelectItem>
+                                    <SelectItem value="PER_VISIT">Per Visit</SelectItem>
+                                    <SelectItem value="PER_EVENT">Per Event</SelectItem>
+                                    <SelectItem value="PER_SQFT">Per Sq Ft</SelectItem>
+                                    <SelectItem value="RANGE">Price Range</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={pricingForm.control}
+                            name="appliesToFrequency"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Applies To</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger data-testid="select-applies-to-frequency">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="BOTH">All Customers</SelectItem>
+                                    <SelectItem value="ONE_TIME">One-Time Only</SelectItem>
+                                    <SelectItem value="RECURRING">Recurring Only</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4">
+                          <FormField
+                            control={pricingForm.control}
+                            name="minPrice"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Min Price ($)</FormLabel>
+                                <FormControl>
+                                  <Input type="number" min="0" step="0.01" {...field} data-testid="input-min-price" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={pricingForm.control}
+                            name="targetPrice"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Target Price ($)</FormLabel>
+                                <FormControl>
+                                  <Input type="number" min="0" step="0.01" {...field} data-testid="input-target-price" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={pricingForm.control}
+                            name="maxPrice"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Max Price ($)</FormLabel>
+                                <FormControl>
+                                  <Input type="number" min="0" step="0.01" {...field} data-testid="input-max-price" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField
+                            control={pricingForm.control}
+                            name="unitLabel"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Unit Label (optional)</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="e.g. sq ft, acre" {...field} value={field.value || ""} data-testid="input-unit-label" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={pricingForm.control}
+                            name="materialCostEstimate"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Material Cost ($)</FormLabel>
+                                <FormControl>
+                                  <Input type="number" min="0" step="0.01" placeholder="0" {...field} value={field.value ?? ""} data-testid="input-material-cost" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        <FormField
+                          control={pricingForm.control}
+                          name="materialCostIncluded"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center gap-2">
+                              <FormControl>
+                                <Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-material-included" />
+                              </FormControl>
+                              <FormLabel className="m-0">Material cost included in price</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className="flex justify-end gap-2">
+                          <Button type="button" variant="ghost" onClick={() => { setShowPricingForm(false); setEditingPricing(null); }} data-testid="button-cancel-pricing">
+                            Cancel
+                          </Button>
+                          <Button type="submit" disabled={createPricingMutation.isPending || updatePricingMutation.isPending} data-testid="button-save-pricing">
+                            {(createPricingMutation.isPending || updatePricingMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            {editingPricing ? "Update" : "Add"} Pricing
+                          </Button>
+                        </div>
+                      </form>
+                    </Form>
+                  </CardContent>
+                </Card>
+              )}
+
+              {serviceDetails?.pricing?.length === 0 && !showPricingForm && (
+                <div className="text-center py-6 text-muted-foreground">
+                  <DollarSign className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No pricing tiers configured</p>
+                </div>
+              )}
+
+              {serviceDetails?.pricing?.map((p) => (
+                <Card key={p.id} data-testid={`card-pricing-${p.id}`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="outline">{p.pricingModel}</Badge>
+                          <Badge variant="secondary" className="text-xs">{p.appliesToFrequency}</Badge>
+                        </div>
+                        <div className="text-sm">
+                          <span className="font-medium">
+                            {formatCents(p.minPrice)} - {formatCents(p.maxPrice)}
+                          </span>
+                          <span className="text-muted-foreground ml-2">
+                            (target: {formatCents(p.targetPrice)})
+                          </span>
+                          {p.unitLabel && <span className="text-muted-foreground ml-1">/ {p.unitLabel}</span>}
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button size="icon" variant="ghost" onClick={() => handleEditPricing(p)} data-testid={`button-edit-pricing-${p.id}`}>
+                          <Settings2 className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          onClick={() => deletePricingMutation.mutate(p.id)}
+                          disabled={deletePricingMutation.isPending}
+                          data-testid={`button-delete-pricing-${p.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </TabsContent>
+
+            <TabsContent value="frequency" className="space-y-4 mt-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium">Frequency Options</h3>
+                <Button size="sm" variant="outline" onClick={handleAddFrequency} data-testid="button-add-frequency">
+                  <Plus className="h-4 w-4 mr-1" /> Add Option
+                </Button>
+              </div>
+
+              {showFrequencyForm && (
+                <Card className="border-dashed">
+                  <CardContent className="p-4">
+                    <Form {...frequencyForm}>
+                      <form onSubmit={frequencyForm.handleSubmit(handleFrequencySubmit)} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField
+                            control={frequencyForm.control}
+                            name="frequency"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Frequency</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger data-testid="select-frequency">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="WEEKLY">Weekly</SelectItem>
+                                    <SelectItem value="BIWEEKLY">Bi-Weekly</SelectItem>
+                                    <SelectItem value="MONTHLY">Monthly</SelectItem>
+                                    <SelectItem value="SEASONAL">Seasonal</SelectItem>
+                                    <SelectItem value="ON_DEMAND">On Demand</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={frequencyForm.control}
+                            name="priceModifierPercent"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Price Modifier (%)</FormLabel>
+                                <FormControl>
+                                  <Input type="number" placeholder="-10 for discount, +20 for premium" {...field} data-testid="input-price-modifier" />
+                                </FormControl>
+                                <FormDescription className="text-xs">
+                                  Negative for discount, positive for premium
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        <FormField
+                          control={frequencyForm.control}
+                          name="isDefault"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center gap-2">
+                              <FormControl>
+                                <Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-is-default" />
+                              </FormControl>
+                              <FormLabel className="m-0">Default option</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className="flex justify-end gap-2">
+                          <Button type="button" variant="ghost" onClick={() => { setShowFrequencyForm(false); setEditingFrequency(null); }} data-testid="button-cancel-frequency">
+                            Cancel
+                          </Button>
+                          <Button type="submit" disabled={createFrequencyMutation.isPending || updateFrequencyMutation.isPending} data-testid="button-save-frequency">
+                            {(createFrequencyMutation.isPending || updateFrequencyMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            {editingFrequency ? "Update" : "Add"} Option
+                          </Button>
+                        </div>
+                      </form>
+                    </Form>
+                  </CardContent>
+                </Card>
+              )}
+
+              {serviceDetails?.frequencyOptions?.length === 0 && !showFrequencyForm && (
+                <div className="text-center py-6 text-muted-foreground">
+                  <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No frequency options configured</p>
+                </div>
+              )}
+
+              {serviceDetails?.frequencyOptions?.map((f) => (
+                <Card key={f.id} data-testid={`card-frequency-${f.id}`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{f.frequency}</span>
+                            {f.isDefault && <Badge variant="default" className="text-xs">Default</Badge>}
+                          </div>
+                          <span className={`text-sm ${f.priceModifierPercent < 0 ? "text-green-600 dark:text-green-400" : f.priceModifierPercent > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}>
+                            {f.priceModifierPercent > 0 ? "+" : ""}{f.priceModifierPercent}% price modifier
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button size="icon" variant="ghost" onClick={() => handleEditFrequency(f)} data-testid={`button-edit-frequency-${f.id}`}>
+                          <Settings2 className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          onClick={() => deleteFrequencyMutation.mutate(f.id)}
+                          disabled={deleteFrequencyMutation.isPending}
+                          data-testid={`button-delete-frequency-${f.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </TabsContent>
+
+            {isSnowService && (
+              <TabsContent value="snow-policy" className="space-y-4 mt-4">
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium mb-1">Snow Service Configuration</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Configure how this snow service operates (rotation schedule or on-demand)
+                  </p>
+                </div>
+
+                <Card>
+                  <CardContent className="p-4">
+                    <Form {...snowPolicyForm}>
+                      <form onSubmit={snowPolicyForm.handleSubmit(handleSnowPolicySubmit)} className="space-y-4">
+                        <FormField
+                          control={snowPolicyForm.control}
+                          name="mode"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Service Mode</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger data-testid="select-snow-mode">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="ROTATION">Rotation (scheduled visits)</SelectItem>
+                                  <SelectItem value="ON_DEMAND">On-Demand (per request)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormDescription className="text-xs">
+                                Rotation: automatic service when snowfall exceeds threshold. On-Demand: customer requests each service.
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField
+                            control={snowPolicyForm.control}
+                            name="priceModifierPercent"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Price Modifier (%)</FormLabel>
+                                <FormControl>
+                                  <Input type="number" placeholder="0" {...field} data-testid="input-snow-price-modifier" />
+                                </FormControl>
+                                <FormDescription className="text-xs">
+                                  Adjust pricing (e.g., +20 for on-demand premium)
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={snowPolicyForm.control}
+                            name="priorityLevel"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Priority Level</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger data-testid="select-snow-priority">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="LOW">Low</SelectItem>
+                                    <SelectItem value="NORMAL">Normal</SelectItem>
+                                    <SelectItem value="HIGH">High</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        <FormField
+                          control={snowPolicyForm.control}
+                          name="notes"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Policy Notes</FormLabel>
+                              <FormControl>
+                                <Textarea 
+                                  placeholder="Additional notes about this snow policy..."
+                                  className="resize-none"
+                                  {...field}
+                                  value={field.value || ""}
+                                  data-testid="input-snow-notes"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className="flex justify-end">
+                          <Button type="submit" disabled={saveSnowPolicyMutation.isPending} data-testid="button-save-snow-policy">
+                            {saveSnowPolicyMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            Save Snow Policy
+                          </Button>
+                        </div>
+                      </form>
+                    </Form>
+                  </CardContent>
+                </Card>
+
+                {serviceDetails?.snowPolicy && (
+                  <div className="p-3 bg-muted/50 rounded-md text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <Snowflake className="h-4 w-4" />
+                      <span>
+                        Current mode: <strong>{serviceDetails.snowPolicy.mode}</strong> | 
+                        Priority: <strong>{serviceDetails.snowPolicy.priorityLevel}</strong>
+                        {serviceDetails.snowPolicy.priceModifierPercent !== 0 && (
+                          <> | Modifier: <strong>{serviceDetails.snowPolicy.priceModifierPercent > 0 ? "+" : ""}{serviceDetails.snowPolicy.priceModifierPercent}%</strong></>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </TabsContent>
+            )}
+          </Tabs>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function LoadingSkeleton() {
   return (
     <div className="space-y-4">
@@ -870,6 +1664,8 @@ export default function SettingsServicesPage() {
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [promotionDialogOpen, setPromotionDialogOpen] = useState(false);
   const [editingPromotion, setEditingPromotion] = useState<PromotionRule | null>(null);
+  const [serviceDetailDialogOpen, setServiceDetailDialogOpen] = useState(false);
+  const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
 
   const { data: services, isLoading: servicesLoading } = useQuery<Service[]>({
     queryKey: ["/api/services"],
@@ -890,6 +1686,11 @@ export default function SettingsServicesPage() {
   const handleEditService = (service: Service) => {
     setEditingService(service);
     setServiceDialogOpen(true);
+  };
+
+  const handleViewPricing = (serviceId: number) => {
+    setSelectedServiceId(serviceId);
+    setServiceDetailDialogOpen(true);
   };
 
   const handleAddPromotion = () => {
@@ -924,7 +1725,7 @@ export default function SettingsServicesPage() {
       ) : (
         <div className="space-y-4 mb-8">
           {activeServices.map((service) => (
-            <ServiceCard key={service.id} service={service} onEdit={handleEditService} />
+            <ServiceCard key={service.id} service={service} onEdit={handleEditService} onViewPricing={handleViewPricing} />
           ))}
           
           {inactiveServices.length > 0 && (
@@ -934,7 +1735,7 @@ export default function SettingsServicesPage() {
                 <span>Inactive Services ({inactiveServices.length})</span>
               </div>
               {inactiveServices.map((service) => (
-                <ServiceCard key={service.id} service={service} onEdit={handleEditService} />
+                <ServiceCard key={service.id} service={service} onEdit={handleEditService} onViewPricing={handleViewPricing} />
               ))}
             </>
           )}
@@ -1004,6 +1805,12 @@ export default function SettingsServicesPage() {
         open={promotionDialogOpen}
         onOpenChange={setPromotionDialogOpen}
         promotion={editingPromotion}
+      />
+
+      <ServiceDetailDialog
+        open={serviceDetailDialogOpen}
+        onOpenChange={setServiceDetailDialogOpen}
+        serviceId={selectedServiceId}
       />
 
       <div className="mt-8 p-4 bg-muted/50 rounded-md">
