@@ -74,6 +74,27 @@ export async function runServiceSelectionAgent(
     defaultLeadTimeDays: s.defaultLeadTimeDays,
   }));
 
+  let customerPreferencesContext = "No stored preferences";
+  if (input.customerId) {
+    const prefs = await storage.getCustomerServicePreferences(input.accountId, input.customerId);
+    if (prefs.length > 0) {
+      const generalPref = prefs.find(p => !p.serviceId);
+      const servicePrefs = prefs.filter(p => p.serviceId);
+      customerPreferencesContext = `
+General preferences: ${generalPref ? JSON.stringify({
+        frequency: generalPref.preferredFrequency,
+        dayOfWeek: generalPref.preferredDayOfWeek,
+        timeWindow: generalPref.preferredTimeWindow,
+        priceFlexibility: generalPref.priceFlexibility,
+      }) : 'None'}
+Service-specific preferences: ${servicePrefs.length > 0 ? JSON.stringify(servicePrefs.map(p => ({
+        serviceId: p.serviceId,
+        frequency: p.preferredFrequency,
+        timeWindow: p.preferredTimeWindow,
+      }))) : 'None'}`;
+    }
+  }
+
   const systemPrompt = `You are a service selection AI for a landscaping business.
 
 Your job is to match customer requests to the most appropriate services from the catalog.
@@ -88,12 +109,17 @@ Customer context:
 - Last service date: ${input.propertyContext?.lastServiceDate ?? 'Unknown'}
 - Requested date: ${input.requestedDate ?? 'Not specified'}
 
+Customer preferences:
+${customerPreferencesContext}
+
 Rules:
 1. Only recommend services that are active
 2. Check lead time requirements if a date is specified
 3. Prefer recurring services over one-time for eligible customers
 4. Identify bundle opportunities when multiple services are recommended
 5. Set escalationRequired=true if customer intent is unclear or no matching services
+6. Use customer preferences to suggest appropriate frequency and timing when available
+7. If customer has price flexibility preference, factor that into recommendations
 
 Respond in JSON format:
 {

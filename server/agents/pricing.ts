@@ -94,6 +94,25 @@ export async function runPricingAgent(input: PricingInput): Promise<PricingAgent
     };
   }
 
+  let customerPreferencesContext = "No stored preferences";
+  if (input.customerId) {
+    const prefs = await storage.getCustomerServicePreferences(input.accountId, input.customerId);
+    if (prefs.length > 0) {
+      const generalPref = prefs.find(p => !p.serviceId);
+      customerPreferencesContext = generalPref?.priceFlexibility 
+        ? `Price flexibility: ${generalPref.priceFlexibility}` 
+        : "No price preference";
+      
+      const servicePrefs = prefs.filter(p => p.serviceId);
+      if (servicePrefs.length > 0) {
+        customerPreferencesContext += `. Service preferences: ${JSON.stringify(servicePrefs.map(p => ({
+          serviceId: p.serviceId,
+          priceFlexibility: p.priceFlexibility,
+        })))}`;
+      }
+    }
+  }
+
   const catalogForAI = pricingData.map(d => ({
     serviceId: d.service.id,
     serviceName: d.service.name,
@@ -130,6 +149,9 @@ Property context:
 - Lot size: ${propertyContext.lotSizeSqFt ? `${propertyContext.lotSizeSqFt} sq ft` : 'Unknown'}
 - Address: ${propertyContext.address ?? 'Not provided'}
 
+Customer preferences:
+${customerPreferencesContext}
+
 Requested services:
 ${JSON.stringify(input.serviceRequests, null, 2)}
 
@@ -139,6 +161,7 @@ Pricing Rules:
 3. Include material costs if specified
 4. Set confidence=LOW if lot size unknown and PER_SQFT pricing
 5. Set requiresManualReview=true for services with requiresManualQuote=true
+6. Consider customer price flexibility: BUDGET = use minPrice, PREMIUM = use maxPrice, STANDARD = use targetPrice
 
 All prices should be in cents (integers).
 
