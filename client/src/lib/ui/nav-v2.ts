@@ -111,6 +111,46 @@ const navigationV2Admin: NavGroupV2[] = [
     ],
   },
   {
+    id: 'billing',
+    label: 'Billing',
+    items: [
+      { 
+        id: 'billing-overview', 
+        label: 'Overview', 
+        href: '/billing', 
+        icon: 'Receipt', 
+        roles: ['OWNER', 'ADMIN'],
+        shortcut: 'g b',
+        description: 'Billing dashboard',
+      },
+      { 
+        id: 'billing-invoices', 
+        label: 'Invoices', 
+        href: '/billing/invoices', 
+        icon: 'FileText', 
+        roles: ['OWNER', 'ADMIN'],
+        description: 'Invoice management',
+      },
+      { 
+        id: 'billing-payments', 
+        label: 'Payments', 
+        href: '/billing/payments', 
+        icon: 'CreditCard', 
+        roles: ['OWNER', 'ADMIN'],
+        description: 'Payment tracking',
+      },
+      { 
+        id: 'billing-issues', 
+        label: 'Issues', 
+        href: '/billing/issues', 
+        icon: 'AlertTriangle', 
+        badge: 'count', 
+        roles: ['OWNER', 'ADMIN'],
+        description: 'Billing exceptions',
+      },
+    ],
+  },
+  {
     id: 'admin',
     label: 'Admin',
     items: [
@@ -328,6 +368,10 @@ export function getPageTitleV2(pathname: string): string {
     '/settings/observability': 'Observability',
     '/settings/exports': 'Exports',
     '/crew-inbox': 'Notifications',
+    '/billing': 'Billing',
+    '/billing/invoices': 'Invoices',
+    '/billing/payments': 'Payments',
+    '/billing/issues': 'Billing Issues',
   };
   
   if (pathname.startsWith('/operations/crews/')) return 'Crew Details';
