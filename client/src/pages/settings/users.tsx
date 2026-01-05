@@ -65,7 +65,7 @@ export default function SettingsUsersPage() {
   const [roleFilter, setRoleFilter] = useState<string>("all");
 
   const { data: users = [], isLoading } = useQuery<User[]>({
-    queryKey: ["/api/users"],
+    queryKey: ["/api/settings/users"],
     staleTime: 60000,
   });
 

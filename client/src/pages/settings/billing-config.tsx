@@ -22,40 +22,99 @@ import {
   Save,
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 
 interface BillingConfig {
-  invoiceTermsDays: number;
-  taxRatePercent: number;
-  creditApprovalThreshold: number;
-  reminderDays: number[];
-  autoSendInvoices: boolean;
-  includeLateFeeLanguage: boolean;
+  id?: number;
+  accountId?: number;
+  defaultInvoiceTerms: string;
   paymentMethods: string[];
-  quickBooksEnabled: boolean;
-  quickBooksLastSync?: string;
+  lateFeePercent: number;
+  lateFeeGraceDays: number;
+  reminderDays: number[];
+  collectionsStartDay: number;
+  autoReminders: boolean;
+  reminderTone: string;
+  defaultTaxRatePercent: number;
+  taxEnabled: boolean;
+  quickbooksConnected: boolean;
+  quickbooksCompanyId?: string | null;
 }
 
 export default function SettingsBillingConfigPage() {
   const { toast } = useToast();
   
   const [config, setConfig] = useState<BillingConfig>({
-    invoiceTermsDays: 30,
-    taxRatePercent: 0,
-    creditApprovalThreshold: 50,
-    reminderDays: [3, 7, 14],
-    autoSendInvoices: true,
-    includeLateFeeLanguage: false,
+    defaultInvoiceTerms: "net_30",
     paymentMethods: ["card", "ach"],
-    quickBooksEnabled: false,
-    quickBooksLastSync: undefined,
+    lateFeePercent: 0,
+    lateFeeGraceDays: 7,
+    reminderDays: [3, 7, 14],
+    collectionsStartDay: 30,
+    autoReminders: true,
+    reminderTone: "friendly",
+    defaultTaxRatePercent: 0,
+    taxEnabled: false,
+    quickbooksConnected: false,
   });
 
   const { data: savedConfig, isLoading } = useQuery<BillingConfig>({
-    queryKey: ["/api/billing/config"],
+    queryKey: ["/api/settings/billing-config"],
     staleTime: 60000,
+  });
+
+  const defaultConfig: BillingConfig = {
+    defaultInvoiceTerms: "net_30",
+    paymentMethods: ["card", "ach"],
+    lateFeePercent: 0,
+    lateFeeGraceDays: 7,
+    reminderDays: [3, 7, 14],
+    collectionsStartDay: 30,
+    autoReminders: true,
+    reminderTone: "friendly",
+    defaultTaxRatePercent: 0,
+    taxEnabled: false,
+    quickbooksConnected: false,
+  };
+
+  useEffect(() => {
+    if (savedConfig) {
+      // Safely merge with defaults to handle undefined/null values
+      setConfig({
+        ...defaultConfig,
+        ...savedConfig,
+        // Ensure arrays are not undefined
+        paymentMethods: savedConfig.paymentMethods ?? defaultConfig.paymentMethods,
+        reminderDays: savedConfig.reminderDays ?? defaultConfig.reminderDays,
+        // Ensure numbers are valid
+        lateFeePercent: savedConfig.lateFeePercent ?? 0,
+        lateFeeGraceDays: savedConfig.lateFeeGraceDays ?? 7,
+        collectionsStartDay: savedConfig.collectionsStartDay ?? 30,
+        defaultTaxRatePercent: savedConfig.defaultTaxRatePercent ?? 0,
+      });
+    }
+  }, [savedConfig]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: Partial<BillingConfig>) => {
+      return apiRequest("PUT", "/api/settings/billing-config", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/billing-config"] });
+      toast({
+        title: "Settings saved",
+        description: "Billing configuration has been updated.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save billing configuration.",
+        variant: "destructive",
+      });
+    },
   });
 
   const updateField = <K extends keyof BillingConfig>(field: K, value: BillingConfig[K]) => {
@@ -63,10 +122,20 @@ export default function SettingsBillingConfigPage() {
   };
 
   const handleSave = () => {
-    toast({
-      title: "Settings saved",
-      description: "Billing configuration has been updated.",
-    });
+    // Only send mutable fields to the API, exclude read-only fields
+    const payload = {
+      defaultInvoiceTerms: config.defaultInvoiceTerms,
+      paymentMethods: config.paymentMethods,
+      lateFeePercent: config.lateFeePercent,
+      lateFeeGraceDays: config.lateFeeGraceDays,
+      reminderDays: config.reminderDays,
+      collectionsStartDay: config.collectionsStartDay,
+      autoReminders: config.autoReminders,
+      reminderTone: config.reminderTone,
+      defaultTaxRatePercent: config.defaultTaxRatePercent,
+      taxEnabled: config.taxEnabled,
+    };
+    saveMutation.mutate(payload);
   };
 
   return (
@@ -78,9 +147,9 @@ export default function SettingsBillingConfigPage() {
             Configure invoice terms, collections, and accounting sync
           </p>
         </div>
-        <Button onClick={handleSave} data-testid="button-save-config">
+        <Button onClick={handleSave} disabled={saveMutation.isPending} data-testid="button-save-config">
           <Save className="h-4 w-4 mr-2" />
-          Save Changes
+          {saveMutation.isPending ? "Saving..." : "Save Changes"}
         </Button>
       </div>
 
@@ -105,20 +174,19 @@ export default function SettingsBillingConfigPage() {
             <CardContent className="space-y-6">
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="invoiceTerms">Payment Terms (Days)</Label>
+                  <Label htmlFor="invoiceTerms">Payment Terms</Label>
                   <Select 
-                    value={String(config.invoiceTermsDays)} 
-                    onValueChange={(v) => updateField("invoiceTermsDays", parseInt(v))}
+                    value={config.defaultInvoiceTerms} 
+                    onValueChange={(v) => updateField("defaultInvoiceTerms", v)}
                   >
                     <SelectTrigger id="invoiceTerms" data-testid="select-invoice-terms">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="7">Net 7</SelectItem>
-                      <SelectItem value="15">Net 15</SelectItem>
-                      <SelectItem value="30">Net 30</SelectItem>
-                      <SelectItem value="45">Net 45</SelectItem>
-                      <SelectItem value="60">Net 60</SelectItem>
+                      <SelectItem value="due_on_receipt">Due on Receipt</SelectItem>
+                      <SelectItem value="net_7">Net 7</SelectItem>
+                      <SelectItem value="net_14">Net 14</SelectItem>
+                      <SelectItem value="net_30">Net 30</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
@@ -133,29 +201,62 @@ export default function SettingsBillingConfigPage() {
                     type="number"
                     min="0"
                     max="25"
-                    step="0.1"
-                    value={config.taxRatePercent}
-                    onChange={(e) => updateField("taxRatePercent", parseFloat(e.target.value) || 0)}
+                    step="0.25"
+                    value={(config.defaultTaxRatePercent ?? 0) / 100}
+                    onChange={(e) => updateField("defaultTaxRatePercent", Math.round(parseFloat(e.target.value || "0") * 100))}
                     data-testid="input-tax-rate"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Applied to taxable line items
+                    Applied to taxable line items (e.g., 7.5 = 7.5%)
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center justify-between gap-4 p-4 rounded-md border">
                 <div>
-                  <Label>Auto-send invoices</Label>
+                  <Label>Enable Tax</Label>
                   <p className="text-sm text-muted-foreground">
-                    Automatically send invoices when jobs are completed
+                    Apply tax to eligible invoice line items
                   </p>
                 </div>
                 <Switch
-                  checked={config.autoSendInvoices}
-                  onCheckedChange={(v) => updateField("autoSendInvoices", v)}
-                  data-testid="switch-auto-send"
+                  checked={config.taxEnabled}
+                  onCheckedChange={(v) => updateField("taxEnabled", v)}
+                  data-testid="switch-tax-enabled"
                 />
+              </div>
+
+              <div className="space-y-4">
+                <Label>Accepted Payment Methods</Label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { key: "card", label: "Credit Card" },
+                    { key: "ach", label: "ACH/Bank Transfer" },
+                    { key: "cash", label: "Cash" },
+                    { key: "check", label: "Check" },
+                  ].map((method) => {
+                    const isSelected = config.paymentMethods.includes(method.key);
+                    return (
+                      <Button
+                        key={method.key}
+                        variant={isSelected ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          const newMethods = isSelected
+                            ? config.paymentMethods.filter((m) => m !== method.key)
+                            : [...config.paymentMethods, method.key];
+                          updateField("paymentMethods", newMethods.length > 0 ? newMethods : ["card"]);
+                        }}
+                        data-testid={`button-payment-${method.key}`}
+                      >
+                        {method.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Select which payment methods customers can use
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -202,33 +303,91 @@ export default function SettingsBillingConfigPage() {
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="creditThreshold">Credit Approval Threshold ($)</Label>
-                <Input
-                  id="creditThreshold"
-                  type="number"
-                  min="0"
-                  value={config.creditApprovalThreshold}
-                  onChange={(e) => updateField("creditApprovalThreshold", parseInt(e.target.value) || 0)}
-                  data-testid="input-credit-threshold"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Credits above this amount require owner approval
-                </p>
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="lateFee">Late Fee (%)</Label>
+                  <Input
+                    id="lateFee"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={config.lateFeePercent}
+                    onChange={(e) => updateField("lateFeePercent", parseInt(e.target.value) || 0)}
+                    data-testid="input-late-fee"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Percentage applied to overdue invoices
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="graceDays">Late Fee Grace Days</Label>
+                  <Input
+                    id="graceDays"
+                    type="number"
+                    min="0"
+                    max="30"
+                    value={config.lateFeeGraceDays}
+                    onChange={(e) => updateField("lateFeeGraceDays", parseInt(e.target.value) || 0)}
+                    data-testid="input-grace-days"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Days after due date before late fee applies
+                  </p>
+                </div>
               </div>
 
               <div className="flex items-center justify-between gap-4 p-4 rounded-md border">
                 <div>
-                  <Label>Include late fee language</Label>
+                  <Label>Auto-send Reminders</Label>
                   <p className="text-sm text-muted-foreground">
-                    Mention late fees in collection reminders
+                    Automatically send payment reminders
                   </p>
                 </div>
                 <Switch
-                  checked={config.includeLateFeeLanguage}
-                  onCheckedChange={(v) => updateField("includeLateFeeLanguage", v)}
-                  data-testid="switch-late-fee"
+                  checked={config.autoReminders}
+                  onCheckedChange={(v) => updateField("autoReminders", v)}
+                  data-testid="switch-auto-reminders"
                 />
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="collectionsStartDay">Collections Start Day</Label>
+                  <Input
+                    id="collectionsStartDay"
+                    type="number"
+                    min="14"
+                    max="90"
+                    value={config.collectionsStartDay}
+                    onChange={(e) => updateField("collectionsStartDay", parseInt(e.target.value) || 30)}
+                    data-testid="input-collections-start-day"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Days after due date to escalate to collections
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="reminderTone">Reminder Tone</Label>
+                  <Select
+                    value={config.reminderTone}
+                    onValueChange={(v) => updateField("reminderTone", v)}
+                  >
+                    <SelectTrigger id="reminderTone" data-testid="select-reminder-tone">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="friendly">Friendly</SelectItem>
+                      <SelectItem value="firm">Firm</SelectItem>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Tone used in automated reminder messages
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -288,25 +447,25 @@ export default function SettingsBillingConfigPage() {
                   <div>
                     <p className="font-medium">QuickBooks Online</p>
                     <p className="text-sm text-muted-foreground">
-                      {config.quickBooksEnabled ? "Connected" : "Not connected"}
+                      {config.quickbooksConnected ? "Connected" : "Not connected"}
                     </p>
                   </div>
                 </div>
                 <Button 
-                  variant={config.quickBooksEnabled ? "outline" : "default"}
+                  variant={config.quickbooksConnected ? "outline" : "default"}
                   data-testid="button-quickbooks-connect"
                 >
-                  {config.quickBooksEnabled ? "Disconnect" : "Connect"}
+                  {config.quickbooksConnected ? "Disconnect" : "Connect"}
                 </Button>
               </div>
 
-              {config.quickBooksEnabled && (
+              {config.quickbooksConnected && (
                 <>
                   <div className="flex items-center justify-between gap-4 p-4 rounded-md bg-muted/50">
                     <div>
                       <p className="text-sm font-medium">Last sync</p>
                       <p className="text-xs text-muted-foreground">
-                        {config.quickBooksLastSync || "Never"}
+                        {config.quickbooksCompanyId ? "Connected" : "Never"}
                       </p>
                     </div>
                     <Button variant="outline" size="sm" data-testid="button-sync-now">

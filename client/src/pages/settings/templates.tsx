@@ -59,7 +59,7 @@ export default function SettingsTemplatesPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
 
   const { data: templates = [], isLoading } = useQuery<Template[]>({
-    queryKey: ["/api/templates"],
+    queryKey: ["/api/settings/templates"],
     staleTime: 60000,
   });
 
