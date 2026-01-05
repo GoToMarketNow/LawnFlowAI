@@ -10362,5 +10362,65 @@ Return JSON format:
     }
   });
 
+  // ============================================================
+  // Service Catalog Agents
+  // ============================================================
+
+  // POST /api/agents/service-selection - Match customer intent to services
+  app.post("/api/agents/service-selection", async (req, res) => {
+    try {
+      const { runServiceSelectionAgent } = await import("./agents/service-selection");
+      const accountId = 1; // TODO: Get from session
+      const result = await runServiceSelectionAgent({
+        accountId,
+        customerId: req.body.customerId,
+        customerIntent: req.body.customerIntent,
+        propertyContext: req.body.propertyContext,
+        requestedDate: req.body.requestedDate,
+      });
+      res.json(result);
+    } catch (error: any) {
+      console.error("[ServiceSelectionAgent] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/agents/pricing - Calculate pricing for services
+  app.post("/api/agents/pricing", async (req, res) => {
+    try {
+      const { runPricingAgent } = await import("./agents/pricing");
+      const accountId = 1; // TODO: Get from session
+      const result = await runPricingAgent({
+        accountId,
+        serviceRequests: req.body.serviceRequests,
+        propertyContext: req.body.propertyContext,
+        customerId: req.body.customerId,
+      });
+      res.json(result);
+    } catch (error: any) {
+      console.error("[PricingAgent] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/agents/promotion - Apply promotions and calculate discounts
+  app.post("/api/agents/promotion", async (req, res) => {
+    try {
+      const { runPromotionAgent } = await import("./agents/promotion");
+      const accountId = 1; // TODO: Get from session
+      const result = await runPromotionAgent({
+        accountId,
+        customerId: req.body.customerId,
+        isFirstTimeCustomer: req.body.isFirstTimeCustomer ?? true,
+        serviceQuotes: req.body.serviceQuotes,
+        totalBeforeDiscount: req.body.totalBeforeDiscount,
+      });
+      res.json(result);
+    } catch (error: any) {
+      console.error("[PromotionAgent] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }
