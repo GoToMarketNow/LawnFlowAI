@@ -5,7 +5,10 @@ import {
   Inbox,
   Briefcase,
   FileText,
+  FileEdit,
   Calendar,
+  CalendarCheck,
+  ClipboardList,
   Users,
   Bot,
   Settings,
@@ -15,10 +18,23 @@ import {
   CheckCircle,
   Bell,
   DollarSign,
+  CreditCard,
   Plug,
   Activity,
   Download,
   Map,
+  Truck,
+  AlertTriangle,
+  Tag,
+  Percent,
+  UserPlus,
+  Eye,
+  Cpu,
+  Shield,
+  Sliders,
+  Package,
+  Building,
+  Layers,
 } from "lucide-react";
 import {
   Sidebar,
@@ -37,6 +53,7 @@ import {
 import { useUserRole } from "@/components/role-gate";
 import { getFilteredNavigation } from "@/lib/ui/nav";
 import { getFilteredNavigationV2, shouldUseV2Navigation } from "@/lib/ui/nav-v2";
+import { getFilteredNavigationV3, shouldUseV3Navigation } from "@/lib/ui/nav-v3";
 import { Badge } from "@/components/ui/badge";
 import { SystemStatus } from "@/components/system-status";
 import { Separator } from "@/components/ui/separator";
@@ -46,7 +63,10 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Inbox,
   Briefcase,
   FileText,
+  FileEdit,
   Calendar,
+  CalendarCheck,
+  ClipboardList,
   Users,
   Bot,
   Settings,
@@ -55,10 +75,23 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   CheckCircle,
   Bell,
   DollarSign,
+  CreditCard,
   Plug,
   Activity,
   Download,
   Map,
+  Truck,
+  AlertTriangle,
+  Tag,
+  Percent,
+  UserPlus,
+  Eye,
+  Cpu,
+  Shield,
+  Sliders,
+  Package,
+  Building,
+  Layers,
 };
 
 interface AppSidebarProps {
@@ -69,7 +102,9 @@ export function AppSidebar({ isOnboardingComplete }: AppSidebarProps) {
   const [location] = useLocation();
   const userRole = useUserRole();
   const { state } = useSidebar();
+  const useV3 = shouldUseV3Navigation();
   const useV2 = shouldUseV2Navigation();
+  const useEnhanced = useV3 || useV2;
   
   const { data: pendingActions } = useQuery<any[]>({
     queryKey: ["/api/pending-actions"],
@@ -82,7 +117,7 @@ export function AppSidebar({ isOnboardingComplete }: AppSidebarProps) {
     : 0;
 
   const isActive = (url: string) => {
-    if (useV2) {
+    if (useEnhanced) {
       if (url === "/home") {
         return location === "/" || location === "/home" || location === "/dashboard";
       }
@@ -94,9 +129,11 @@ export function AppSidebar({ isOnboardingComplete }: AppSidebarProps) {
     return location === url || location.startsWith(url + "/");
   };
 
-  const filteredNavigation = useV2 
-    ? getFilteredNavigationV2(userRole) 
-    : getFilteredNavigation(userRole);
+  const filteredNavigation = useV3 
+    ? getFilteredNavigationV3(userRole) 
+    : useV2 
+      ? getFilteredNavigationV2(userRole) 
+      : getFilteredNavigation(userRole);
 
   return (
     <Sidebar aria-label="Primary" collapsible="icon">
@@ -111,7 +148,7 @@ export function AppSidebar({ isOnboardingComplete }: AppSidebarProps) {
                 LawnFlow AI
               </span>
               <span className="text-xs text-muted-foreground truncate">
-                {useV2 ? 'Command Center' : 'Agentic Automation'}
+                {useEnhanced ? 'Command Center' : 'Agentic Automation'}
               </span>
             </div>
           )}
@@ -128,9 +165,11 @@ export function AppSidebar({ isOnboardingComplete }: AppSidebarProps) {
               <SidebarMenu>
                 {group.items.map((item) => {
                   const Icon = iconMap[item.icon] || LayoutDashboard;
-                  const homeId = useV2 ? "home" : "dashboard";
-                  const disabled = !isOnboardingComplete && item.id !== homeId;
+                  const homeId = useEnhanced ? "home" : "dashboard";
+                  const isSettingsItem = item.id.startsWith('settings-') || item.id === 'settings-overview';
+                  const disabled = !isOnboardingComplete && item.id !== homeId && !isSettingsItem;
                   const showBadge = item.badge === "count" && pendingCount > 0;
+                  const showSlaBadge = item.badge === "sla" && pendingCount > 0;
                   
                   return (
                     <SidebarMenuItem key={item.id}>
