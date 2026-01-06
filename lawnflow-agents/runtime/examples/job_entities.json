@@ -1,0 +1,159 @@
+[
+  {
+    "id": "job_001",
+    "customerId": "cust_123",
+    "customerName": "John Smith",
+    "status": "scheduled",
+    "createdAt": "2024-01-10T08:00:00Z",
+    "scheduledDate": "2024-01-16",
+    "scheduledTime": "10:00",
+    "estimatedDuration": 90,
+    "services": [
+      {
+        "type": "mowing",
+        "description": "Standard lawn mowing",
+        "area": 5000,
+        "price": 45.00,
+        "frequency": "weekly"
+      },
+      {
+        "type": "edging",
+        "description": "Walkway and bed edging",
+        "price": 15.00,
+        "frequency": "weekly"
+      }
+    ],
+    "property": {
+      "address": "456 Maple Ave, Springfield, IL 62701",
+      "coordinates": {
+        "lat": 39.7817,
+        "lng": -89.6501
+      },
+      "size": 5000,
+      "features": ["driveway", "sidewalks", "flower beds"],
+      "accessNotes": "Dog in backyard - please call when arriving"
+    },
+    "crew": {
+      "id": "crew_a",
+      "name": "Mike's Team",
+      "members": 2,
+      "equipment": ["riding_mower", "edger", "blower"]
+    },
+    "financial": {
+      "subtotal": 60.00,
+      "tax": 4.80,
+      "total": 64.80,
+      "deposit": 20.00,
+      "paid": 20.00,
+      "outstanding": 44.80,
+      "margin": 35.0
+    },
+    "notes": "Customer prefers crew to park on street. Has been a loyal customer for 2 years.",
+    "priority": "medium"
+  },
+  {
+    "id": "job_002",
+    "customerId": "cust_456",
+    "customerName": "Sarah Johnson",
+    "status": "in_progress",
+    "createdAt": "2024-01-14T10:00:00Z",
+    "scheduledDate": "2024-01-15",
+    "scheduledTime": "14:00",
+    "estimatedDuration": 120,
+    "services": [
+      {
+        "type": "mowing",
+        "description": "Overgrown lawn mowing",
+        "area": 8000,
+        "price": 65.00,
+        "frequency": "one_time"
+      },
+      {
+        "type": "cleanup",
+        "description": "Leaf and debris removal",
+        "price": 40.00,
+        "frequency": "one_time"
+      }
+    ],
+    "property": {
+      "address": "789 Pine Street, Springfield, IL 62702",
+      "coordinates": {
+        "lat": 39.8017,
+        "lng": -89.6401
+      },
+      "size": 8000,
+      "features": ["large_yard", "trees", "sloped_areas"],
+      "accessNotes": "Gate code: 1234"
+    },
+    "crew": {
+      "id": "crew_b",
+      "name": "Dave's Team",
+      "members": 3,
+      "equipment": ["zero_turn_mower", "blower", "rake", "truck"]
+    },
+    "financial": {
+      "subtotal": 105.00,
+      "tax": 8.40,
+      "total": 113.40,
+      "deposit": 50.00,
+      "paid": 50.00,
+      "outstanding": 63.40,
+      "margin": 32.0
+    },
+    "notes": "Urgent request - lawn was very overgrown. Customer mentioned they were out of town.",
+    "priority": "high"
+  },
+  {
+    "id": "job_003",
+    "customerId": "cust_789",
+    "customerName": "Mike Wilson",
+    "status": "completed",
+    "createdAt": "2024-01-12T09:00:00Z",
+    "scheduledDate": "2024-01-13",
+    "scheduledTime": "11:00",
+    "estimatedDuration": 75,
+    "actualDuration": 80,
+    "services": [
+      {
+        "type": "mowing",
+        "description": "Bi-weekly lawn maintenance",
+        "area": 6000,
+        "price": 50.00,
+        "frequency": "biweekly"
+      }
+    ],
+    "property": {
+      "address": "321 Elm Drive, Springfield, IL 62703",
+      "coordinates": {
+        "lat": 39.7717,
+        "lng": -89.6601
+      },
+      "size": 6000,
+      "features": ["corner_lot", "mature_trees"],
+      "accessNotes": "Please knock on door if no answer at doorbell"
+    },
+    "crew": {
+      "id": "crew_c",
+      "name": "Lisa's Team",
+      "members": 2,
+      "equipment": ["riding_mower", "trimmer"]
+    },
+    "financial": {
+      "subtotal": 50.00,
+      "tax": 4.00,
+      "total": 54.00,
+      "deposit": 0.00,
+      "paid": 54.00,
+      "outstanding": 0.00,
+      "margin": 38.0
+    },
+    "quality": {
+      "rating": 5,
+      "photos": ["before_001.jpg", "after_001.jpg"],
+      "notes": "Excellent condition lawn. Customer very pleased with edging work.",
+      "followUp": "Sent satisfaction survey - 5-star response received"
+    },
+    "notes": "Regular bi-weekly customer. Always pays promptly and leaves positive reviews.",
+    "priority": "low"
+  }
+]

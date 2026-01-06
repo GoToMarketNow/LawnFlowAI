@@ -1,0 +1,139 @@
+{
+  "orchestrator": {
+    "currentStage": "intake|enrichment|processing|communication|followup",
+    "activeAgents": ["agent1", "agent2"],
+    "pendingActions": [
+      {
+        "id": "string",
+        "type": "string",
+        "priority": "high|medium|low",
+        "dueDate": "ISO8601",
+        "assignedTo": "agent_name"
+      }
+    ],
+    "conversationContext": {
+      "customerId": "string",
+      "channel": "sms|email|phone|web",
+      "threadId": "string",
+      "lastActivity": "ISO8601",
+      "sentiment": "positive|neutral|negative"
+    },
+    "decisionHistory": [
+      {
+        "timestamp": "ISO8601",
+        "decision": "string",
+        "confidence": "high|medium|low",
+        "outcome": "success|failure|pending"
+      }
+    ]
+  },
+  "customer": {
+    "id": "string",
+    "contact": {
+      "name": "string",
+      "phone": "string",
+      "email": "string",
+      "address": {
+        "street": "string",
+        "city": "string",
+        "state": "string",
+        "zip": "string",
+        "coordinates": {
+          "lat": 0.0,
+          "lng": 0.0
+        }
+      }
+    },
+    "profile": {
+      "serviceHistory": 5,
+      "lifetimeValue": 1500.00,
+      "preferredServices": ["mowing", "edging"],
+      "frequency": "weekly",
+      "paymentMethod": "credit_card",
+      "rating": 4.5,
+      "tags": ["loyal", "premium"]
+    },
+    "currentInteraction": {
+      "type": "inquiry|complaint|booking",
+      "urgency": "low|medium|high",
+      "value": 150.00,
+      "stage": "new|qualified|quoted|booked|completed"
+    }
+  },
+  "job": {
+    "id": "string",
+    "customerId": "string",
+    "status": "quoted|scheduled|in_progress|completed|cancelled",
+    "services": [
+      {
+        "type": "mowing",
+        "area": 5000,
+        "frequency": "weekly",
+        "price": 45.00
+      }
+    ],
+    "schedule": {
+      "date": "2024-01-15",
+      "startTime": "09:00",
+      "endTime": "11:00",
+      "crew": "Crew A",
+      "equipment": ["mower", "edger"]
+    },
+    "financial": {
+      "quote": 150.00,
+      "deposit": 50.00,
+      "paid": 150.00,
+      "outstanding": 0.00,
+      "margin": 35.0
+    },
+    "quality": {
+      "photos": ["before.jpg", "after.jpg"],
+      "rating": 5,
+      "notes": "Excellent service, customer very satisfied"
+    }
+  },
+  "crew": {
+    "id": "string",
+    "name": "string",
+    "skills": ["mowing", "trimming", "cleanup"],
+    "availability": {
+      "monday": "08:00-17:00",
+      "tuesday": "08:00-17:00",
+      "schedule": [
+        {
+          "date": "2024-01-15",
+          "jobs": ["job1", "job2"],
+          "hours": 8.5
+        }
+      ]
+    },
+    "performance": {
+      "rating": 4.8,
+      "jobsCompleted": 150,
+      "customerSatisfaction": 4.9,
+      "efficiency": 95.2
+    },
+    "equipment": ["truck", "mower", "blower"]
+  },
+  "business": {
+    "metrics": {
+      "monthlyRevenue": 25000.00,
+      "activeCustomers": 150,
+      "jobsCompleted": 450,
+      "averageMargin": 32.5,
+      "customerSatisfaction": 4.6
+    },
+    "capacity": {
+      "totalCrews": 5,
+      "serviceArea": "25 mile radius",
+      "peakCapacity": 50,
+      "currentUtilization": 85.0
+    },
+    "policies": {
+      "minMargin": 25.0,
+      "maxDiscount": 15.0,
+      "responseTime": "2 hours",
+      "serviceGuarantee": true
+    }
+  }
+}
