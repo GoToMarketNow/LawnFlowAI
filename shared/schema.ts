@@ -4423,3 +4423,18 @@ export const opsCommsActionItems = pgTable("ops_comms_action_items", {
 export const insertOpsCommsActionItemSchema = createInsertSchema(opsCommsActionItems).omit({ id: true, createdAt: true, updatedAt: true });
 export type OpsCommsActionItem = typeof opsCommsActionItems.$inferSelect;
 export type InsertOpsCommsActionItem = z.infer<typeof insertOpsCommsActionItemSchema>;
+
+// ============================================
+// Post-Job QA & Review Management
+// ============================================
+// Re-export from schema-postjob-qa.ts
+export {
+  jobPhotos,
+  csatRecords,
+  reviewModerationQueue,
+  csatAnalytics,
+  insertJobPhotoSchema,
+  insertCsatRecordSchema,
+  insertReviewModerationQueueSchema,
+  insertCsatAnalyticsSchema,
+} from "./schema-postjob-qa";

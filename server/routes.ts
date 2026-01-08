@@ -15,6 +15,7 @@ import { PolicyService } from "./policy";
 import { growthAdvisor } from "./growth-advisor";
 import { registerAuthRoutes } from "./auth-routes";
 import onboardingRoutes from "./onboarding/routes";
+import postJobQARoutes from "./routes-postjob-qa";
 import { z } from "zod";
 import { 
   getEligibleCrews, 
