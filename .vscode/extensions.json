@@ -1,6 +1,7 @@
 {
     "recommendations": [
         "ms-playwright.playwright",
-        "frenco.vscode-vercel"
+        "frenco.vscode-vercel",
+        "anthropic.claude-code"
     ]
 }
