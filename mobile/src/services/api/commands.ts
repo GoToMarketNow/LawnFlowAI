@@ -312,3 +312,81 @@ export async function requestAssignmentChange(params: {
     requestedAt: new Date().toISOString(),
   });
 }
+
+// ============================================
+// Schedule Acceptance Commands (NEW)
+// ============================================
+
+export async function acceptSchedule(): Promise<CommandResult<{ acceptedAt: string }>> {
+  const userId = await getUserId();
+  const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+  return executeCommand('accept-daily-schedule', {
+    entityId: `schedule_${userId}_${date}`,
+    accepted: true,
+    acceptedAt: new Date().toISOString(),
+  });
+}
+
+export async function requestScheduleChanges(note: string): Promise<CommandResult<{ requestId: number }>> {
+  const userId = await getUserId();
+  const date = new Date().toISOString().split('T')[0];
+
+  return executeCommand('request-schedule-changes', {
+    entityId: `schedule_${userId}_${date}`,
+    note,
+    requestedAt: new Date().toISOString(),
+  });
+}
+
+// ============================================
+// Work Request Commands (NEW)
+// ============================================
+
+export async function submitWorkRequest(params: {
+  timeframe: 'today' | 'this_week';
+  note?: string;
+}): Promise<CommandResult<{ requestId: number }>> {
+  const userId = await getUserId();
+
+  return executeCommand('submit-work-request', {
+    entityId: `work_request_${userId}_${Date.now()}`,
+    ...params,
+    submittedAt: new Date().toISOString(),
+  });
+}
+
+// ============================================
+// Payroll Preferences Commands (NEW)
+// ============================================
+
+export async function updatePayrollPreferences(params: {
+  payFrequency: 'per_job' | 'daily' | 'weekly' | 'scheduled';
+  payMethods: ('cash' | 'zelle' | 'cashapp' | 'ach')[];
+  preferredMethod: 'cash' | 'zelle' | 'cashapp' | 'ach';
+  payoutDetails: Record<string, any>;
+}): Promise<CommandResult<any>> {
+  const userId = await getUserId();
+
+  return executeCommand('update-payroll-preferences', {
+    entityId: `payroll_${userId}`,
+    ...params,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+// ============================================
+// Job Status Commands (NEW)
+// ============================================
+
+export async function updateJobStatus(params: {
+  jobId: number;
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETE' | 'DELAYED' | 'RESCHEDULED';
+  reason?: string;
+}): Promise<CommandResult<any>> {
+  return executeCommand('update-job-status', {
+    entityId: `job_${params.jobId}`,
+    ...params,
+    updatedAt: new Date().toISOString(),
+  });
+}

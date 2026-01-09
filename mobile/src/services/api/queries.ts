@@ -309,3 +309,64 @@ export async function getDashboardStats(params?: {
 }>> {
   return executeQuery('/dashboard/stats', params);
 }
+
+// ============================================
+// Crew Mobile Queries (NEW)
+// ============================================
+
+import type {
+  DashboardData,
+  AcceptanceState,
+  Crew as CrewDetail,
+  WorkRequest,
+  PayrollPreferences,
+  CrewStatusType,
+} from './types';
+
+export async function getDashboardToday(): Promise<QueryResult<DashboardData>> {
+  return executeQuery<DashboardData>('/api/mobile/dashboard/today');
+}
+
+export async function getScheduleToday(): Promise<QueryResult<{
+  jobs: Job[];
+  acceptanceState: AcceptanceState;
+}>> {
+  return executeQuery('/api/mobile/schedule/today');
+}
+
+export async function getCrewMe(): Promise<QueryResult<CrewDetail>> {
+  return executeQuery<CrewDetail>('/api/mobile/crew/me');
+}
+
+export async function getPayrollPreferences(): Promise<QueryResult<PayrollPreferences>> {
+  return executeQuery<PayrollPreferences>('/api/mobile/payroll/preferences');
+}
+
+export async function getWorkRequests(): Promise<QueryResult<WorkRequest[]>> {
+  return executeQuery<WorkRequest[]>('/api/mobile/work-requests');
+}
+
+// Crew status update (could be a command, but implemented as query for simplicity)
+export async function updateCrewStatus(status: CrewStatusType): Promise<QueryResult<any>> {
+  try {
+    const traceId = generateTraceId('crew_status');
+    const response = await apiClient.patch('/api/mobile/crew/status', {
+      crewStatus: status,
+    }, {
+      headers: {
+        'X-Trace-Id': traceId,
+      },
+    });
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error: any) {
+    console.error('[Queries] Failed to update crew status', error);
+    return {
+      success: false,
+      error: formatApiError(error),
+    };
+  }
+}
