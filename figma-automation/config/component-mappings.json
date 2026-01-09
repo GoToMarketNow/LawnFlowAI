@@ -1,0 +1,131 @@
+{
+  "reactNativeToFigma": {
+    "View": {
+      "figmaType": "FRAME",
+      "autoLayout": true,
+      "description": "Container with Auto Layout"
+    },
+    "ScrollView": {
+      "figmaType": "FRAME",
+      "autoLayout": true,
+      "verticalScrolling": true,
+      "description": "Scrollable container"
+    },
+    "Text": {
+      "figmaType": "TEXT",
+      "defaultFont": {
+        "family": "Inter",
+        "style": "Regular"
+      },
+      "description": "Text node"
+    },
+    "TextInput": {
+      "figmaType": "FRAME",
+      "autoLayout": false,
+      "children": [
+        {
+          "type": "TEXT",
+          "placeholder": true
+        }
+      ],
+      "description": "Input field with border"
+    },
+    "TouchableOpacity": {
+      "figmaType": "FRAME",
+      "autoLayout": true,
+      "interactive": true,
+      "description": "Clickable button/area"
+    },
+    "Image": {
+      "figmaType": "RECTANGLE",
+      "fills": [
+        {
+          "type": "IMAGE"
+        }
+      ],
+      "description": "Image placeholder"
+    },
+    "ActivityIndicator": {
+      "figmaType": "ELLIPSE",
+      "description": "Loading spinner"
+    },
+    "FlatList": {
+      "figmaType": "FRAME",
+      "autoLayout": true,
+      "direction": "VERTICAL",
+      "spacing": 8,
+      "description": "Vertical list container"
+    },
+    "Card": {
+      "figmaType": "FRAME",
+      "autoLayout": true,
+      "cornerRadius": 8,
+      "shadow": true,
+      "description": "Material card component"
+    },
+    "Button": {
+      "figmaType": "FRAME",
+      "autoLayout": true,
+      "interactive": true,
+      "children": [
+        {
+          "type": "TEXT"
+        }
+      ],
+      "description": "Material button"
+    }
+  },
+  "styleMapping": {
+    "flex": "layoutGrow",
+    "flexDirection": "layoutMode",
+    "justifyContent": "primaryAxisAlignItems",
+    "alignItems": "counterAxisAlignItems",
+    "padding": "paddingAll",
+    "paddingVertical": "paddingVertical",
+    "paddingHorizontal": "paddingHorizontal",
+    "margin": "itemSpacing",
+    "gap": "itemSpacing",
+    "backgroundColor": "fills",
+    "borderRadius": "cornerRadius",
+    "borderWidth": "strokeWeight",
+    "borderColor": "strokes",
+    "fontSize": "fontSize",
+    "fontWeight": "fontWeight",
+    "color": "fills",
+    "textAlign": "textAlignHorizontal"
+  },
+  "flexDirectionMapping": {
+    "row": "HORIZONTAL",
+    "column": "VERTICAL",
+    "row-reverse": "HORIZONTAL",
+    "column-reverse": "VERTICAL"
+  },
+  "justifyContentMapping": {
+    "flex-start": "MIN",
+    "center": "CENTER",
+    "flex-end": "MAX",
+    "space-between": "SPACE_BETWEEN",
+    "space-around": "SPACE_BETWEEN",
+    "space-evenly": "SPACE_BETWEEN"
+  },
+  "alignItemsMapping": {
+    "flex-start": "MIN",
+    "center": "CENTER",
+    "flex-end": "MAX",
+    "stretch": "STRETCH",
+    "baseline": "CENTER"
+  },
+  "fontWeightMapping": {
+    "normal": "Regular",
+    "bold": "Bold",
+    "100": "Thin",
+    "200": "ExtraLight",
+    "300": "Light",
+    "400": "Regular",
+    "500": "Medium",
+    "600": "SemiBold",
+    "700": "Bold",
+    "800": "ExtraBold",
+    "900": "Black"
+  }
+}
