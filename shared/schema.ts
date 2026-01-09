@@ -134,7 +134,17 @@ export const jobs = pgTable("jobs", {
   estimatedPrice: integer("estimated_price"), // in cents
   status: text("status").notNull().default("pending"), // pending, scheduled, in_progress, completed, cancelled
   notes: text("notes"),
+
+  // Mobile crew app fields
+  customerNotes: text("customer_notes"), // Customer-provided notes for crew
+  accessInstructions: text("access_instructions"), // Gate codes, parking, etc.
+  whatWereDoing: text("what_were_doing"), // Job description/instructions
+  timeWindow: text("time_window"), // e.g., "9AM-12PM"
+  lat: doublePrecision("lat"), // Property latitude
+  lng: doublePrecision("lng"), // Property longitude
+
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 // Audit Log - tracks all system actions
@@ -4423,6 +4433,138 @@ export const opsCommsActionItems = pgTable("ops_comms_action_items", {
 export const insertOpsCommsActionItemSchema = createInsertSchema(opsCommsActionItems).omit({ id: true, createdAt: true, updatedAt: true });
 export type OpsCommsActionItem = typeof opsCommsActionItems.$inferSelect;
 export type InsertOpsCommsActionItem = z.infer<typeof insertOpsCommsActionItemSchema>;
+
+// ============================================
+// Mobile Crew App Tables
+// ============================================
+
+// Job Crew Assignments - maps jobs to crews
+export const jobCrewAssignments = pgTable("job_crew_assignments", {
+  id: serial("id").primaryKey(),
+  jobId: integer("job_id").references(() => jobs.id).notNull(),
+  crewId: integer("crew_id").references(() => crews.id).notNull(),
+  assignedAt: timestamp("assigned_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  assignedBy: integer("assigned_by").references(() => users.id),
+}, (table) => ({
+  jobIdx: index("job_crew_assign_job_idx").on(table.jobId),
+  crewIdx: index("job_crew_assign_crew_idx").on(table.crewId),
+  uniqueAssignment: uniqueIndex("job_crew_unique_idx").on(table.jobId, table.crewId),
+}));
+
+export const insertJobCrewAssignmentSchema = createInsertSchema(jobCrewAssignments).omit({ id: true, assignedAt: true });
+export type JobCrewAssignment = typeof jobCrewAssignments.$inferSelect;
+export type InsertJobCrewAssignment = z.infer<typeof insertJobCrewAssignmentSchema>;
+
+// Crew Status Updates - tracks crew location and work state
+export const crewStatusUpdates = pgTable("crew_status_updates", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  crewId: integer("crew_id").references(() => crews.id).notNull(),
+  status: text("status").notNull(), // ON_SITE, EN_ROUTE, ON_BREAK
+  jobId: integer("job_id").references(() => jobs.id), // null if not at a job
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  userIdx: index("crew_status_user_idx").on(table.userId),
+  crewIdx: index("crew_status_crew_idx").on(table.crewId),
+  jobIdx: index("crew_status_job_idx").on(table.jobId),
+  createdIdx: index("crew_status_created_idx").on(table.createdAt),
+}));
+
+export const insertCrewStatusUpdateSchema = createInsertSchema(crewStatusUpdates).omit({ id: true, createdAt: true });
+export type CrewStatusUpdate = typeof crewStatusUpdates.$inferSelect;
+export type InsertCrewStatusUpdate = z.infer<typeof insertCrewStatusUpdateSchema>;
+
+// Daily Schedule Acceptances - tracks crew acknowledgment of daily schedule
+export const dailyScheduleAcceptances = pgTable("daily_schedule_acceptances", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  date: text("date").notNull(), // YYYY-MM-DD format
+  accepted: boolean("accepted").notNull(),
+  acceptedAt: timestamp("accepted_at"),
+  requestedChanges: text("requested_changes"), // Freeform text if they want changes
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  userDateIdx: uniqueIndex("schedule_acceptance_user_date_idx").on(table.userId, table.date),
+  dateIdx: index("schedule_acceptance_date_idx").on(table.date),
+}));
+
+export const insertDailyScheduleAcceptanceSchema = createInsertSchema(dailyScheduleAcceptances).omit({ id: true, createdAt: true, updatedAt: true });
+export type DailyScheduleAcceptance = typeof dailyScheduleAcceptances.$inferSelect;
+export type InsertDailyScheduleAcceptance = z.infer<typeof insertDailyScheduleAcceptanceSchema>;
+
+// Work Requests - crew requests for additional work
+export const workRequests = pgTable("work_requests", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  crewId: integer("crew_id").references(() => crews.id),
+  timeframe: text("timeframe").notNull(), // today, this_week
+  note: text("note"), // Availability details
+  status: text("status").notNull().default("pending"), // pending, reviewed, assigned
+  reviewedBy: integer("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewNotes: text("review_notes"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  userIdx: index("work_request_user_idx").on(table.userId),
+  crewIdx: index("work_request_crew_idx").on(table.crewId),
+  statusIdx: index("work_request_status_idx").on(table.status),
+  createdIdx: index("work_request_created_idx").on(table.createdAt),
+}));
+
+export const insertWorkRequestSchema = createInsertSchema(workRequests).omit({ id: true, createdAt: true, updatedAt: true });
+export type WorkRequest = typeof workRequests.$inferSelect;
+export type InsertWorkRequest = z.infer<typeof insertWorkRequestSchema>;
+
+// Payroll Preferences - crew payment configuration
+export const payrollPreferences = pgTable("payroll_preferences", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull().unique(),
+  payFrequency: text("pay_frequency").notNull().default("weekly"), // per_job, daily, weekly, scheduled
+  payMethods: text("pay_methods").array().notNull(), // cash, zelle, cashapp, ach
+  preferredMethod: text("preferred_method").notNull(), // One of the above
+
+  // Encrypted payout details (JSON)
+  payoutDetailsEncrypted: text("payout_details_encrypted"), // Encrypted JSON with method-specific fields
+
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  userIdx: uniqueIndex("payroll_pref_user_idx").on(table.userId),
+}));
+
+export const insertPayrollPreferenceSchema = createInsertSchema(payrollPreferences).omit({ id: true, createdAt: true, updatedAt: true });
+export type PayrollPreference = typeof payrollPreferences.$inferSelect;
+export type InsertPayrollPreference = z.infer<typeof insertPayrollPreferenceSchema>;
+
+// Event Outbox - agent integration events
+export const eventOutbox = pgTable("event_outbox", {
+  id: serial("id").primaryKey(),
+  eventType: text("event_type").notNull(), // job_status_changed, crew_status_changed, etc.
+  entityType: text("entity_type").notNull(), // job, crew_status, work_request, etc.
+  entityId: integer("entity_id").notNull(),
+  payload: jsonb("payload").notNull(), // Full event data
+
+  // Processing state
+  processed: boolean("processed").notNull().default(false),
+  processedAt: timestamp("processed_at"),
+  acknowledgedBy: text("acknowledged_by"), // Agent ID that acked
+  acknowledgedAt: timestamp("acknowledged_at"),
+
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  processedIdx: index("event_outbox_processed_idx").on(table.processed),
+  typeIdx: index("event_outbox_type_idx").on(table.eventType),
+  createdIdx: index("event_outbox_created_idx").on(table.createdAt),
+  entityIdx: index("event_outbox_entity_idx").on(table.entityType, table.entityId),
+}));
+
+export const insertEventOutboxSchema = createInsertSchema(eventOutbox).omit({ id: true, createdAt: true });
+export type EventOutbox = typeof eventOutbox.$inferSelect;
+export type InsertEventOutbox = z.infer<typeof insertEventOutboxSchema>;
 
 // ============================================
 // Post-Job QA & Review Management
