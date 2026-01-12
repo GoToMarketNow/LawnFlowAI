@@ -626,4 +626,115 @@ router.post("/reviews/:id/complete", requireAuth, requireRole(["owner", "admin"]
   }
 });
 
+// ============================================
+// KNOWLEDGE BUILDER AGENT
+// ============================================
+
+/**
+ * POST /api/knowledge/builder/generate
+ * Auto-generate knowledge base from business configuration
+ */
+router.post("/builder/generate", requireAuth, requireRole(["owner", "admin"]), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { includeTypes, overwrite } = req.body;
+
+    // Dynamic import to avoid circular dependencies
+    const { buildKnowledgeBase } = await import("../lib/knowledge/builderAgent");
+
+    const result = await buildKnowledgeBase(req.user!.businessId, req.user!.id, {
+      includeTypes,
+      overwrite: overwrite || false,
+    });
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error: any) {
+    console.error("Knowledge builder error:", error);
+    res.status(500).json({ error: error.message || "Knowledge builder failed" });
+  }
+});
+
+// ============================================
+// KNOWLEDGE STEWARD AGENT
+// ============================================
+
+/**
+ * POST /api/knowledge/steward/detect-changes
+ * Detect config changes and propose knowledge updates
+ */
+router.post("/steward/detect-changes", requireAuth, requireRole(["owner", "admin"]), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { sinceTimestamp } = req.body;
+
+    // Dynamic import
+    const { detectConfigChangesAndPropose } = await import("../lib/knowledge/stewardAgent");
+
+    const since = sinceTimestamp ? new Date(sinceTimestamp) : undefined;
+    const result = await detectConfigChangesAndPropose(req.user!.businessId, req.user!.id, since);
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error: any) {
+    console.error("Knowledge steward error:", error);
+    res.status(500).json({ error: error.message || "Knowledge steward failed" });
+  }
+});
+
+/**
+ * POST /api/knowledge/steward/apply-proposal
+ * Apply a knowledge update proposal
+ */
+router.post("/steward/apply-proposal", requireAuth, requireRole(["owner", "admin"]), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { proposal } = req.body;
+
+    if (!proposal) {
+      return res.status(400).json({ error: "Missing required field: proposal" });
+    }
+
+    // Dynamic import
+    const { applyProposal } = await import("../lib/knowledge/stewardAgent");
+
+    const result = await applyProposal(req.user!.businessId, req.user!.id, proposal);
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error || "Failed to apply proposal" });
+    }
+
+    res.json({
+      success: true,
+      knowledgeItemId: result.knowledgeItemId,
+      versionId: result.versionId,
+    });
+  } catch (error: any) {
+    console.error("Apply proposal error:", error);
+    res.status(500).json({ error: error.message || "Failed to apply proposal" });
+  }
+});
+
+/**
+ * POST /api/knowledge/steward/run-periodic
+ * Run periodic steward check (call from cron)
+ */
+router.post("/steward/run-periodic", requireAuth, requireRole(["owner", "admin"]), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    // Dynamic import
+    const { runPeriodicStewardCheck } = await import("../lib/knowledge/stewardAgent");
+
+    const result = await runPeriodicStewardCheck(req.user!.businessId, req.user!.id);
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error: any) {
+    console.error("Periodic steward error:", error);
+    res.status(500).json({ error: error.message || "Periodic steward check failed" });
+  }
+});
+
 export default router;

@@ -78,6 +78,13 @@ import BillingPage from "@/pages/billing";
 import BillingInvoicesPage from "@/pages/billing-invoices";
 import BillingPaymentsPage from "@/pages/billing-payments";
 import BillingIssuesPage from "@/pages/billing-issues";
+import KnowledgeListPage from "@/pages/knowledge-list";
+import KnowledgeBuilderPage from "@/pages/knowledge-builder";
+import KnowledgeApprovalsPage from "@/pages/knowledge-approvals";
+import KnowledgeReviewsPage from "@/pages/knowledge-reviews";
+import SupportQueuePage from "@/pages/support-queue";
+import ThreadDetailPage from "@/pages/thread-detail";
+import CoverageGapsPage from "@/pages/coverage-gaps";
 import NotFound from "@/pages/not-found";
 import { Loader2, AlertCircle } from "lucide-react";
 import { useUserRole } from "@/components/role-gate";
@@ -294,6 +301,13 @@ function AuthenticatedLayout() {
                   <Route path="/views" component={ViewsPage} />
                   <Route path="/sms" component={SmsSessionsPage} />
                   <Route path="/agent-setup" component={AgentSetupPage} />
+                  <Route path="/knowledge" component={KnowledgeListPage} />
+                  <Route path="/knowledge/builder" component={KnowledgeBuilderPage} />
+                  <Route path="/knowledge/approvals" component={KnowledgeApprovalsPage} />
+                  <Route path="/knowledge/reviews" component={KnowledgeReviewsPage} />
+                  <Route path="/support/queue" component={SupportQueuePage} />
+                  <Route path="/support/thread/:id" component={ThreadDetailPage} />
+                  <Route path="/support/gaps" component={CoverageGapsPage} />
                   <Route component={NotFound} />
                 </Switch>
               </div>

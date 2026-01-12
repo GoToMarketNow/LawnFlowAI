@@ -117,31 +117,97 @@ const navigationV3Admin: NavGroupV3[] = [
     id: 'billing',
     label: 'Billing',
     items: [
-      { 
-        id: 'billing-invoices', 
-        label: 'Invoices', 
-        href: '/billing/invoices', 
-        icon: 'FileText', 
+      {
+        id: 'billing-invoices',
+        label: 'Invoices',
+        href: '/billing/invoices',
+        icon: 'FileText',
         roles: ['OWNER', 'ADMIN'],
         shortcut: 'g i',
         description: 'Draft, sent, paid, and overdue',
       },
-      { 
-        id: 'billing-issues', 
-        label: 'Issues', 
-        href: '/billing/issues', 
-        icon: 'AlertTriangle', 
-        badge: 'count', 
+      {
+        id: 'billing-issues',
+        label: 'Issues',
+        href: '/billing/issues',
+        icon: 'AlertTriangle',
+        badge: 'count',
         roles: ['OWNER', 'ADMIN'],
         description: 'Disputes, sync errors, and variances',
       },
-      { 
-        id: 'billing-payments', 
-        label: 'Payments', 
-        href: '/billing/payments', 
-        icon: 'CreditCard', 
+      {
+        id: 'billing-payments',
+        label: 'Payments',
+        href: '/billing/payments',
+        icon: 'CreditCard',
         roles: ['OWNER', 'ADMIN'],
         description: 'Payment status from accounting',
+      },
+    ],
+  },
+  {
+    id: 'knowledge',
+    label: 'Knowledge',
+    items: [
+      {
+        id: 'knowledge-list',
+        label: 'Knowledge Base',
+        href: '/knowledge',
+        icon: 'BookOpen',
+        roles: ['OWNER', 'ADMIN'],
+        shortcut: 'g k',
+        description: 'Browse and manage knowledge articles',
+      },
+      {
+        id: 'knowledge-builder',
+        label: 'Builder',
+        href: '/knowledge/builder',
+        icon: 'Zap',
+        roles: ['OWNER', 'ADMIN'],
+        description: 'Auto-generate knowledge base from config',
+      },
+      {
+        id: 'knowledge-approvals',
+        label: 'Approvals',
+        href: '/knowledge/approvals',
+        icon: 'CheckCircle',
+        badge: 'count',
+        roles: ['OWNER', 'ADMIN'],
+        description: 'Review and approve knowledge drafts',
+      },
+      {
+        id: 'knowledge-reviews',
+        label: 'Reviews Due',
+        href: '/knowledge/reviews',
+        icon: 'Clock',
+        badge: 'count',
+        roles: ['OWNER', 'ADMIN'],
+        description: 'Scheduled knowledge reviews to keep content fresh',
+      },
+    ],
+  },
+  {
+    id: 'support',
+    label: 'Support',
+    items: [
+      {
+        id: 'support-queue',
+        label: 'Support Queue',
+        href: '/support/queue',
+        icon: 'MessageSquare',
+        badge: 'count',
+        roles: ['OWNER', 'ADMIN'],
+        shortcut: 'g q',
+        description: 'Customer support threads with SLA tracking',
+      },
+      {
+        id: 'coverage-gaps',
+        label: 'Coverage Gaps',
+        href: '/support/gaps',
+        icon: 'AlertTriangle',
+        badge: 'count',
+        roles: ['OWNER', 'ADMIN'],
+        description: 'Identify uncovered intents and recommend knowledge',
       },
     ],
   },
@@ -514,6 +580,12 @@ export function getPageTitleV3(pathname: string): string {
     '/billing/invoices': 'Invoices',
     '/billing/payments': 'Payments',
     '/billing/issues': 'Billing Issues',
+    '/knowledge': 'Knowledge Base',
+    '/knowledge/builder': 'Knowledge Builder',
+    '/knowledge/approvals': 'Knowledge Approvals',
+    '/knowledge/reviews': 'Knowledge Reviews',
+    '/support/queue': 'Support Queue',
+    '/support/gaps': 'Coverage Gaps',
     '/settings': 'Business Profile',
     '/settings/services': 'Services',
     '/settings/pricing': 'Pricing & Policies',
@@ -529,6 +601,8 @@ export function getPageTitleV3(pathname: string): string {
   
   if (pathname.startsWith('/operations/crews/')) return 'Crew Details';
   if (pathname.startsWith('/customers/')) return 'Customer Details';
+  if (pathname.startsWith('/support/thread/')) return 'Thread Details';
+  if (pathname.startsWith('/knowledge/') && pathname.match(/\/knowledge\/\d+$/)) return 'Knowledge Detail';
   if (pathname.startsWith('/settings/')) {
     const subPage = settingsNavigationV3.find(item => item.href === pathname);
     if (subPage) return subPage.label;

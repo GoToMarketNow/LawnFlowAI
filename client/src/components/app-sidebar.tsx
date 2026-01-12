@@ -35,6 +35,8 @@ import {
   Package,
   Building,
   Layers,
+  BookOpen,
+  Clock,
 } from "lucide-react";
 import {
   Sidebar,
@@ -92,6 +94,9 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Package,
   Building,
   Layers,
+  BookOpen,
+  Clock,
+  Zap,
 };
 
 interface AppSidebarProps {
