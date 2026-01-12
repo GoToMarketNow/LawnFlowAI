@@ -17,6 +17,8 @@ import { registerAuthRoutes } from "./auth-routes";
 import onboardingRoutes from "./onboarding/routes";
 import postJobQARoutes from "./routes-postjob-qa";
 import { registerMobileRoutes } from "./routes-mobile";
+import knowledgeRoutes from "./routes/knowledge";
+import supportQueueRoutes from "./routes/support-queue";
 import { z } from "zod";
 import { 
   getEligibleCrews, 
@@ -87,6 +89,16 @@ export async function registerRoutes(
   // Mobile Crew App Routes
   // ============================================
   registerMobileRoutes(app);
+
+  // ============================================
+  // Knowledge Base Routes
+  // ============================================
+  app.use("/api/knowledge", knowledgeRoutes);
+
+  // ============================================
+  // Support Queue Routes
+  // ============================================
+  app.use("/api/support", supportQueueRoutes);
 
   // ============================================
   // Metrics API Route
