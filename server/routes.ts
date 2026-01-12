@@ -19,6 +19,7 @@ import postJobQARoutes from "./routes-postjob-qa";
 import { registerMobileRoutes } from "./routes-mobile";
 import knowledgeRoutes from "./routes/knowledge";
 import supportQueueRoutes from "./routes/support-queue";
+import assistantRoutes from "./routes/assistant";
 import { z } from "zod";
 import { 
   getEligibleCrews, 
@@ -99,6 +100,11 @@ export async function registerRoutes(
   // Support Queue Routes
   // ============================================
   app.use("/api/support", supportQueueRoutes);
+
+  // ============================================
+  // AI Assistant Routes
+  // ============================================
+  app.use("/api/assistant", assistantRoutes);
 
   // ============================================
   // Metrics API Route
