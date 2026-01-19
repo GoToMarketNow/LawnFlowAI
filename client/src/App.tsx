@@ -86,6 +86,11 @@ import SupportQueuePage from "@/pages/support-queue";
 import ThreadDetailPage from "@/pages/thread-detail";
 import CoverageGapsPage from "@/pages/coverage-gaps";
 import NotFound from "@/pages/not-found";
+// Figma UI V2 pages
+import FigmaHomePage from "@/pages/figma/home";
+import FigmaJobsPage from "@/pages/figma/jobs";
+import FigmaQuotesPage from "@/pages/figma/quotes";
+import FigmaBillingPage from "@/pages/figma/billing";
 import { Loader2, AlertCircle } from "lucide-react";
 import { useUserRole } from "@/components/role-gate";
 import { canAccess, accessLevels } from "@/lib/ui/tokens";
@@ -235,8 +240,18 @@ function AuthenticatedLayout() {
                 <Switch>
                   {isFeatureEnabled('UI_REFACTOR_V1') ? (
                     <>
-                      <Route path="/" component={HomePage} />
-                      <Route path="/home" component={HomePage} />
+                      {/* Home routes - use Figma UI if enabled */}
+                      {isFeatureEnabled('UI_FIGMA_V2') ? (
+                        <>
+                          <Route path="/" component={FigmaHomePage} />
+                          <Route path="/home" component={FigmaHomePage} />
+                        </>
+                      ) : (
+                        <>
+                          <Route path="/" component={HomePage} />
+                          <Route path="/home" component={HomePage} />
+                        </>
+                      )}
                       <Route path="/dashboard">{() => <Redirect to="/home" />}</Route>
                       <Route path="/work" component={WorkQueuePage} />
                       <Route path="/inbox">{() => <Redirect to="/work" />}</Route>
@@ -261,7 +276,12 @@ function AuthenticatedLayout() {
                       <Route path="/learning">{() => <Redirect to="/settings/policies" />}</Route>
                       <Route path="/pricing">{() => <Redirect to="/settings/pricing" />}</Route>
                       <Route path="/audit">{() => <Redirect to="/settings/observability" />}</Route>
-                      <Route path="/billing" component={BillingPage} />
+                      {/* Billing routes - use Figma UI if enabled */}
+                      {isFeatureEnabled('UI_FIGMA_V2') ? (
+                        <Route path="/billing" component={FigmaBillingPage} />
+                      ) : (
+                        <Route path="/billing" component={BillingPage} />
+                      )}
                       <Route path="/billing/invoices" component={BillingInvoicesPage} />
                       <Route path="/billing/payments" component={BillingPaymentsPage} />
                       <Route path="/billing/issues" component={BillingIssuesPage} />
@@ -279,8 +299,17 @@ function AuthenticatedLayout() {
                       <Route path="/learning" component={LearningDashboard} />
                     </>
                   )}
-                  <Route path="/jobs" component={JobsPage} />
-                  <Route path="/quotes" component={QuotesPage} />
+                  {isFeatureEnabled('UI_FIGMA_V2') ? (
+                    <>
+                      <Route path="/jobs" component={FigmaJobsPage} />
+                      <Route path="/quotes" component={FigmaQuotesPage} />
+                    </>
+                  ) : (
+                    <>
+                      <Route path="/jobs" component={JobsPage} />
+                      <Route path="/quotes" component={QuotesPage} />
+                    </>
+                  )}
                   <Route path="/quote-builder" component={QuoteBuilder} />
                   <Route path="/schedule" component={SchedulePage} />
                   <Route path="/customers" component={CustomersPage} />
