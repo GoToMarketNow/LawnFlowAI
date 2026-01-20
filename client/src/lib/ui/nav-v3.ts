@@ -212,6 +212,22 @@ const navigationV3Admin: NavGroupV3[] = [
     ],
   },
   {
+    id: 'workflows',
+    label: 'Workflows',
+    items: [
+      {
+        id: 'workflow-tasks',
+        label: 'Task Queue',
+        href: '/workflow-tasks',
+        icon: 'ClipboardCheck',
+        badge: 'count',
+        roles: ['OWNER', 'ADMIN'],
+        shortcut: 'g t',
+        description: 'Human-in-the-loop tasks awaiting action',
+      },
+    ],
+  },
+  {
     id: 'settings',
     label: 'Settings',
     collapsed: true,
@@ -586,6 +602,7 @@ export function getPageTitleV3(pathname: string): string {
     '/knowledge/reviews': 'Knowledge Reviews',
     '/support/queue': 'Support Queue',
     '/support/gaps': 'Coverage Gaps',
+    '/workflow-tasks': 'Workflow Task Queue',
     '/settings': 'Business Profile',
     '/settings/services': 'Services',
     '/settings/pricing': 'Pricing & Policies',

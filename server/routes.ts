@@ -20,6 +20,11 @@ import { registerMobileRoutes } from "./routes-mobile";
 import knowledgeRoutes from "./routes/knowledge";
 import supportQueueRoutes from "./routes/support-queue";
 import assistantRoutes from "./routes/assistant";
+import temporalRoutes from "./temporal/api";
+import temporalTasksRoutes from "./temporal/api-tasks";
+import finopsRoutes from "./temporal/api-finops";
+import observabilityRoutes from "./temporal/api-observability";
+import { stripeWebhookRouter } from "./temporal/webhooks/stripe";
 import { z } from "zod";
 import { 
   getEligibleCrews, 
@@ -105,6 +110,33 @@ export async function registerRoutes(
   // AI Assistant Routes
   // ============================================
   app.use("/api/assistant", assistantRoutes);
+
+  // ============================================
+  // Temporal Workflow Routes
+  // ============================================
+  app.use("/api/temporal", temporalRoutes);
+
+  // ============================================
+  // Human Task Queue Routes (HITL)
+  // ============================================
+  app.use("/api/tasks", temporalTasksRoutes);
+
+  // ============================================
+  // FinOps Routes (Budget, Usage, Memory)
+  // ============================================
+  app.use("/api/finops", finopsRoutes);
+
+  // ============================================
+  // Observability Routes (Dashboards, Metrics)
+  // ============================================
+  app.use("/api/observability", observabilityRoutes);
+
+  // ============================================
+  // Stripe Webhook Routes (requires raw body)
+  // ============================================
+  // Note: Stripe webhooks need raw body for signature verification
+  // The express.raw() middleware should be applied at the app level for /api/webhooks/stripe
+  app.use("/api/webhooks/stripe", stripeWebhookRouter);
 
   // ============================================
   // Metrics API Route

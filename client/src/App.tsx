@@ -85,6 +85,7 @@ import KnowledgeReviewsPage from "@/pages/knowledge-reviews";
 import SupportQueuePage from "@/pages/support-queue";
 import ThreadDetailPage from "@/pages/thread-detail";
 import CoverageGapsPage from "@/pages/coverage-gaps";
+import WorkflowTasksPage from "@/pages/workflow-tasks";
 import NotFound from "@/pages/not-found";
 import { Loader2, AlertCircle } from "lucide-react";
 import { useUserRole } from "@/components/role-gate";
@@ -308,6 +309,7 @@ function AuthenticatedLayout() {
                   <Route path="/support/queue" component={SupportQueuePage} />
                   <Route path="/support/thread/:id" component={ThreadDetailPage} />
                   <Route path="/support/gaps" component={CoverageGapsPage} />
+                  <Route path="/workflow-tasks" component={WorkflowTasksPage} />
                   <Route component={NotFound} />
                 </Switch>
               </div>
