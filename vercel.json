@@ -9,13 +9,6 @@
     "NODE_ENV": "production"
   },
   "regions": ["iad1"],
-  "functions": {
-    "dist/index.cjs": {
-      "runtime": "nodejs20.x",
-      "memory": 1024,
-      "maxDuration": 10
-    }
-  },
   "routes": [
     {
       "src": "/api/(.*)",
