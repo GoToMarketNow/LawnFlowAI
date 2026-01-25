@@ -13,7 +13,6 @@ const allowlist = [
   "drizzle-orm",
   "drizzle-zod",
   "express",
-  "express-rate-limit",
   "express-session",
   "jsonwebtoken",
   "memorystore",
@@ -46,6 +45,7 @@ async function buildAll() {
   ];
   const externals = allDeps.filter((dep) => !allowlist.includes(dep));
   externals.push("@anthropic-ai/sdk"); // Not in package.json but imported
+  externals.push("express-rate-limit"); // Not in package.json but imported
 
   await esbuild({
     entryPoints: ["server/index.ts"],
