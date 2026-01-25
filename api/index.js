@@ -1,4 +1,4 @@
 // Vercel serverless entry point
-// Simple handler that just imports and exports the Express app
+// Use the simplified serverless build
 
-module.exports = require('../dist/index.cjs').default;
+module.exports = require('../dist/serverless.cjs').default;

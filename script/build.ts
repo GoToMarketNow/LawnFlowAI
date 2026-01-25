@@ -47,12 +47,33 @@ async function buildAll() {
   externals.push("@anthropic-ai/sdk"); // Not in package.json but imported
   externals.push("express-rate-limit"); // Not in package.json but imported
 
+  // Build main server (for local development)
   await esbuild({
     entryPoints: ["server/index.ts"],
     platform: "node",
     bundle: true,
     format: "cjs",
     outfile: "dist/index.cjs",
+    define: {
+      "process.env.NODE_ENV": '"production"',
+    },
+    minify: true,
+    external: externals,
+    logLevel: "info",
+    alias: {
+      "@db": "./server/db.ts",
+      "@shared": "./shared",
+    },
+  });
+
+  console.log("building serverless entry...");
+  // Build simplified serverless entry
+  await esbuild({
+    entryPoints: ["server/serverless.ts"],
+    platform: "node",
+    bundle: true,
+    format: "cjs",
+    outfile: "dist/serverless.cjs",
     define: {
       "process.env.NODE_ENV": '"production"',
     },
