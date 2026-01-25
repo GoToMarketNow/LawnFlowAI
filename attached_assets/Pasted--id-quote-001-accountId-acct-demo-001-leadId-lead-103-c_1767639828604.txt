@@ -1,0 +1,171 @@
+[
+  {
+    "id": "quote_001",
+    "accountId": "acct_demo_001",
+    "leadId": "lead_103",
+    "customerId": null,
+    "status": "PENDING_APPROVAL",
+    "services": ["Seasonal Cleanup", "Brush Clearing"],
+    "priceRange": { "low": 1800, "high": 3200, "currency": "USD" },
+    "assumptions": [
+      "Includes haul-away up to 2 dump runs; additional haul billed separately",
+      "Brush clearing excludes tree removal > 6 inches diameter",
+      "Final price confirmed after site walk or photos"
+    ],
+    "confidence": 0.62,
+    "createdAt": "2026-01-04T15:40:00-05:00"
+  },
+  {
+    "id": "quote_102",
+    "accountId": "acct_demo_001",
+    "leadId": "lead_102",
+    "customerId": "cust_from_lead_102",
+    "status": "SENT",
+    "services": ["Mulch Delivery", "Mulch Installation"],
+    "priceRange": { "low": 620, "high": 980, "currency": "USD" },
+    "assumptions": [
+      "Estimate assumes 6–10 yards (customer to confirm bed count)",
+      "Includes edging touch-up; excludes new bed creation",
+      "1–2 week lead time for preferred mulch color if supply constrained"
+    ],
+    "confidence": 0.72,
+    "createdAt": "2026-01-05T10:18:00-05:00"
+  },
+  {
+    "id": "quote_105",
+    "accountId": "acct_demo_001",
+    "leadId": "lead_105",
+    "customerId": "cust_from_lead_105",
+    "status": "SENT",
+    "services": ["Recurring Lawn Maintenance"],
+    "priceRange": { "low": 55, "high": 85, "currency": "USD" },
+    "assumptions": [
+      "Weekly mow/trim/blow for typical < 0.35 acre lot",
+      "Biweekly option available at adjusted rate",
+      "Final pricing verified after first visit"
+    ],
+    "confidence": 0.78,
+    "createdAt": "2026-01-05T09:10:00-05:00"
+  },
+  {
+    "id": "quote_106",
+    "accountId": "acct_demo_001",
+    "leadId": "lead_106",
+    "customerId": "cust_from_lead_106",
+    "status": "NEEDS_INFO",
+    "services": ["Commercial Lawn Maintenance"],
+    "priceRange": { "low": 450, "high": 950, "currency": "USD" },
+    "assumptions": [
+      "Monthly figure depends on acreage + mowing frequency",
+      "Includes line trimming and blow-off",
+      "Excludes landscaping installs and irrigation repair"
+    ],
+    "confidence": 0.55,
+    "createdAt": "2026-01-05T10:10:00-05:00"
+  },
+  {
+    "id": "quote_107",
+    "accountId": "acct_demo_001",
+    "leadId": "lead_107",
+    "customerId": "cust_from_lead_107",
+    "status": "APPROVED",
+    "services": ["One-Time Lawn Mowing"],
+    "priceRange": { "low": 75, "high": 115, "currency": "USD" },
+    "assumptions": [
+      "Assumes typical residential lot; heavy overgrowth may increase",
+      "Includes mow/trim/blow"
+    ],
+    "confidence": 0.84,
+    "createdAt": "2026-01-05T11:28:00-05:00"
+  },
+  {
+    "id": "quote_111",
+    "accountId": "acct_demo_001",
+    "leadId": "lead_111",
+    "customerId": "cust_from_lead_111",
+    "status": "SENT",
+    "services": ["Mulch Installation"],
+    "priceRange": { "low": 480, "high": 860, "currency": "USD" },
+    "assumptions": [
+      "Estimate assumes 5–8 yards and 4–6 beds",
+      "Includes spreading/installation; delivery included if within local radius"
+    ],
+    "confidence": 0.7,
+    "createdAt": "2026-01-05T09:25:00-05:00"
+  },
+  {
+    "id": "quote_112",
+    "accountId": "acct_demo_001",
+    "leadId": "lead_112",
+    "customerId": null,
+    "status": "PENDING_APPROVAL",
+    "services": ["Commercial Lawn Maintenance", "Brush Clearing"],
+    "priceRange": { "low": 1200, "high": 2400, "currency": "USD" },
+    "assumptions": [
+      "Monthly pricing depends on acreage + mowing cadence",
+      "Brush clearing is a one-time add-on; quote assumes light-to-moderate density"
+    ],
+    "confidence": 0.6,
+    "createdAt": "2026-01-04T14:12:00-05:00"
+  },
+  {
+    "id": "quote_114",
+    "accountId": "acct_demo_001",
+    "leadId": "lead_114",
+    "customerId": "cust_from_lead_114",
+    "status": "APPROVED",
+    "services": ["One-Time Lawn Mowing"],
+    "priceRange": { "low": 70, "high": 110, "currency": "USD" },
+    "assumptions": [
+      "Includes mow/trim/blow; assumes no heavy debris",
+      "If overgrown > 10 inches, first cut may be higher"
+    ],
+    "confidence": 0.83,
+    "createdAt": "2026-01-05T09:06:00-05:00"
+  },
+  {
+    "id": "quote_116",
+    "accountId": "acct_demo_001",
+    "leadId": "lead_116",
+    "customerId": "cust_from_lead_116",
+    "status": "SENT",
+    "services": ["One-Time Lawn Mowing", "Hedge Trimming"],
+    "priceRange": { "low": 140, "high": 220, "currency": "USD" },
+    "assumptions": [
+      "Hedge trimming assumes up to ~20 linear feet; more billed per foot",
+      "Includes cleanup and haul-away of clippings (small amount)"
+    ],
+    "confidence": 0.76,
+    "createdAt": "2026-01-05T12:35:00-05:00"
+  },
+  {
+    "id": "quote_120",
+    "accountId": "acct_demo_001",
+    "leadId": "lead_120",
+    "customerId": "cust_from_lead_120",
+    "status": "SENT",
+    "services": ["Snow Removal (Rotation)"],
+    "priceRange": { "low": 45, "high": 85, "currency": "USD" },
+    "assumptions": [
+      "Per-event pricing depends on driveway length and surface type",
+      "Priority routing during storms for rotation members"
+    ],
+    "confidence": 0.68,
+    "createdAt": "2026-01-05T10:50:00-05:00"
+  },
+  {
+    "id": "quote_122",
+    "accountId": "acct_demo_001",
+    "leadId": "lead_122",
+    "customerId": "cust_from_lead_122",
+    "status": "SENT",
+    "services": ["Recurring Lawn Maintenance"],
+    "priceRange": { "low": 60, "high": 95, "currency": "USD" },
+    "assumptions": [
+      "Weekly mow/trim/blow; biweekly available",
+      "Final pricing verified after first service"
+    ],
+    "confidence": 0.74,
+    "createdAt": "2026-01-05T12:10:00-05:00"
+  }
+]

@@ -1,0 +1,94 @@
+Implement a Quote Range workflow in LawnFlow MVP that uses ZIP-first parcel coverage checks and customer validation fallback.
+
+FEATURE GOAL
+When a new service request arrives with an address + services requested, LawnFlow should:
+1) Determine if parcel coverage exists for the property (using ZIP -> county -> coverage registry).
+2) If coverage exists:
+   - geocode address -> lat/lng
+   - fetch parcel lot size sqft
+   - map lot size to an area band
+3) If coverage does not exist or parcel confidence is low:
+   - ask customer for lot size band + complexity OR request photos
+   - optionally propose site visit
+4) Generate a quote range with assumptions and next step.
+
+BACKEND TOOLS TO IMPLEMENT (can be mocked but must exist):
+- geo.resolveCountyByZip(zip) -> { state, county_fips, county_name, confidence }
+- geo.checkParcelCoverage(state, county_fips) -> { coverage: full|partial|none|unknown, provider, notes }
+- geo.geocodeAddress(address) -> { lat, lng, normalized_address, zip }
+- geo.fetchParcelByLatLng(lat,lng) -> { lot_area_sqft, parcel_id, confidence, source }
+- quote.calculateRange(inputs) -> { low, high, line_items, confidence, assumptions } (rules-based)
+- comms.sendSms(to, text) -> existing tool
+- scheduling.proposeSiteVisit(...) -> existing or mocked
+
+DATA MODELS
+Add tables:
+1) ParcelCoverageRegistry:
+- state (string)
+- countyFips (string)
+- countyName (string)
+- coverageStatus (full|partial|none|unknown)
+- provider (string|null)
+- lookupUrl (string|null)
+- updatedAt
+
+2) PropertyQuoteContext:
+- leadId
+- normalizedAddress
+- zip
+- countyName
+- parcelCoverageStatus
+- lotAreaSqft (nullable)
+- areaBand
+- source (parcel|customer|unknown)
+- confidence (high|medium|low)
+- notes
+
+QUOTE CALCULATOR (rules-based MVP)
+Inputs:
+- services requested
+- frequency
+- area band
+- complexity flags (trees/shrubs/beds/slope/access) default unknown
+- business min prices + pricing rules
+
+Implement:
+- Convert area band -> base minutes per service
+- Apply multipliers:
+  trees/shrubs (1.0/1.15/1.35)
+  beds/edges (1.0/1.1/1.25)
+  slope (1.0/1.1/1.25)
+  access (1.0/1.05/1.1)
+  frequency (weekly 1.0, biweekly 1.2–1.35, monthly 1.6–2.2)
+- Compute minutes low/high and price low/high with minimums
+- Determine confidence:
+  - high if parcel lot size present and services are standard
+  - medium if customer band present
+  - low if unknown area or high variance service (cleanup/mulch/shrubs) without photos
+
+QUOTING AGENT PROMPTS
+Add a Quoting Agent that:
+- calls the geo tools in order (ZIP coverage -> parcel -> fallback)
+- if fallback needed, asks max 3 questions OR requests photos
+- produces quote range with assumptions and next step
+- returns JSON validated via zod
+
+CUSTOMER MESSAGING
+If confidence high/medium:
+- send a short range estimate and ask 1 confirmation question
+If confidence low:
+- send “range is broad” + ask for photos OR propose site visit
+Always keep SMS under 320 characters.
+
+HUMAN APPROVAL
+- Always require human approval for sending fixed prices or booking.
+- For range quotes in Starter tier, allow auto-send if within policy; otherwise request approval.
+
+DELIVERABLES
+- New geo service layer + mocked implementations
+- Coverage registry seeded with a few sample counties (unknown by default)
+- Quote calculator module + unit tests
+- Quoting agent + zod schemas + tests
+- Wiring into orchestrator: new inbound quote_request flow
+- Minimal admin UI view to see quote context, assumptions, and approve/deny send
+- README explaining how ZIP->county->coverage works and how to expand coverage over time

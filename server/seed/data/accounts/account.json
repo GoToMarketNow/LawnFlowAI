@@ -1,0 +1,27 @@
+{
+  "id": "acct_demo_001",
+  "name": "LawnFlow Demo Operator",
+  "timezone": "America/New_York",
+  "createdAt": "2026-01-05T12:00:00-05:00",
+  "serviceArea": {
+    "homeBase": {
+      "city": "Charlottesville",
+      "state": "VA",
+      "lat": 38.0293,
+      "lng": -78.4767
+    },
+    "primaryRadiusMiles": 40,
+    "zips": [
+      "22901",
+      "22902",
+      "22903",
+      "22911",
+      "22904",
+      "22947",
+      "22968",
+      "22973",
+      "22980",
+      "24590"
+    ]
+  }
+}

@@ -1,0 +1,412 @@
+You are a senior full-stack engineer + agentic systems architect implementing LawnFlow’s LEARNING SYSTEM
+(feedback-driven “reinforcement-like” improvement loop) into the existing MVP.
+
+STACK
+- Next.js App Router + TypeScript
+- Prisma + Postgres
+- Existing: OrchestratorRun/Step, Leads, Quotes, ScheduleItem, Crew Assignment, CustomerMemory (pgvector)
+
+PRIMARY GOAL
+Implement a closed-loop learning architecture that captures:
+1) Every AI decision (DecisionLog)
+2) Every human action (HumanActionLog) with reason codes + diffs
+3) Every downstream outcome (OutcomeLog)
+
+Then:
+4) Add UI patterns that force structured feedback capture (reasons + diff editor)
+5) Add a weekly “Policy Tuning Suggestions” job that analyzes logs and proposes threshold/policy changes
+6) Add an Admin “Learning” dashboard to review suggestions and approve them
+7) Ensure versioning + replay safety (policy versions, prompt hashes, kill switches)
+
+CONSTRAINTS
+- Do not implement academic RL. Implement a safe, deterministic feedback loop.
+- Do not change pricing math behavior without an approved policy revision.
+- Store structured logs at every step so we can replay.
+- Keep PII minimal; never store payment details.
+
+================================================================================
+A) DATA MODEL (PRISMA) — ADD THESE MODELS + ENUMS
+================================================================================
+
+ENUMS
+- DecisionType:
+  quote_range, next_question, schedule_windows, crew_assignment, channel_choice, feasibility_gate, escalate_human
+- HumanActionType:
+  approve, reject, edit, request_info, change_channel, escalate, assign_different_crew, send_quote, pause, resume
+- OutcomeType:
+  quote_accepted, quote_declined, quote_no_response, job_booked, job_completed, job_canceled, complaint, refund, churn, retention_event
+- ConfidenceLevel: high, medium, low
+- SuggestionStatus: proposed, approved, rejected, applied
+- PolicyChangeType: threshold_update, pricing_parameter_update, routing_rule_update, channel_rule_update
+- KillSwitchScope: global, service_type, stage, channel
+
+MODELS
+
+1) DecisionLog
+- id (uuid)
+- accountId
+- runId (nullable OrchestrationRun.id)
+- leadId (nullable Lead.id)
+- jobRequestId (nullable JobRequest.id)
+- customerId (nullable Customer.id)
+- decisionType (DecisionType)
+- stage (nullable OrchestrationStage) // if decision was in orchestrator stage
+- agentName (string)                 // e.g., QuoteBuildAgent
+- agentVersion (string)              // prompt hash or git sha
+- policyVersion (nullable string)    // pricing policy revision id/hash
+- inputsSnapshotJson (jsonb)         // minimal but sufficient context
+- recommendedActionJson (jsonb)      // structured recommendation payload
+- confidence (ConfidenceLevel)
+- reasonsJson (jsonb default [])     // structured reasons list
+- createdAt
+
+Indexes:
+- (accountId, createdAt desc)
+- (accountId, decisionType, createdAt desc)
+
+2) HumanActionLog
+- id (uuid)
+- accountId
+- decisionId (FK DecisionLog)
+- userId (FK User)
+- role (string)                      // OWNER/ADMIN/CREW_LEAD/STAFF
+- actionType (HumanActionType)
+- finalActionJson (jsonb)            // final approved/edited result
+- editDeltaJson (jsonb default {})   // computed diff between recommended and final
+- reasonCodesJson (jsonb default []) // selected reason codes
+- note (text nullable)
+- timeToActionSeconds (int nullable)
+- createdAt
+
+Index:
+- (accountId, createdAt desc)
+- (decisionId)
+
+3) OutcomeLog
+- id (uuid)
+- accountId
+- decisionId (nullable FK DecisionLog)
+- leadId (nullable)
+- jobRequestId (nullable)
+- customerId (nullable)
+- outcomeType (OutcomeType)
+- outcomeValueJson (jsonb default {})  // e.g., {accepted:true, nps:9, margin:0.52}
+- occurredAt (timestamp default now())
+- createdAt
+
+Index:
+- (accountId, occurredAt desc)
+- (decisionId)
+
+4) ReasonCode (seeded)
+- id (uuid)
+- accountId
+- code (string)        // e.g., LOT_SIZE_UNCERTAIN
+- label (string)
+- appliesTo (jsonb)    // decisionTypes/actions it applies to
+- isActive (boolean default true)
+- createdAt
+
+Unique:
+- (accountId, code)
+
+5) PolicyVersion
+- id (uuid)
+- accountId
+- version (string)             // e.g., "pricing-v3-2026-01-03"
+- policyJson (jsonb)           // full policy template set
+- status (draft|active|archived)
+- createdAt, updatedAt
+
+6) PolicyTuningSuggestion
+- id (uuid)
+- accountId
+- createdBy (string default "system")
+- policyChangeType (PolicyChangeType)
+- target (string)              // e.g., "quote.auto_send_threshold"
+- proposedValueJson (jsonb)
+- currentValueJson (jsonb)
+- evidenceJson (jsonb)          // metrics, counts, examples
+- status (SuggestionStatus default proposed)
+- reviewedByUserId (nullable)
+- reviewedAt (nullable)
+- appliedAt (nullable)
+- createdAt, updatedAt
+
+7) KillSwitch
+- id (uuid)
+- accountId
+- scope (KillSwitchScope)
+- scopeValue (string)          // e.g., "cleanup" or "QUOTE_BUILD"
+- isEnabled (boolean default false)
+- reason (text nullable)
+- createdAt, updatedAt
+
+MIGRATION
+- Create migration
+- Seed ReasonCodes (account-level) including:
+  LOT_SIZE_UNCERTAIN
+  SCOPE_MISSING
+  SEASONAL_PRICING
+  TRAVEL_TOO_HIGH
+  CREW_CAPABILITY_MISMATCH
+  CUSTOMER_PRICE_SENSITIVE
+  CUSTOMER_REQUESTED_HUMAN
+  NEEDS_PHOTOS
+  NEEDS_SITE_VISIT
+  CHANNEL_PREFERENCE_MISMATCH
+
+Also seed an initial PolicyVersion as ACTIVE using existing policy templates.
+
+================================================================================
+B) LOGGING INSTRUMENTATION — WHERE TO WRITE DECISIONLOGS
+================================================================================
+
+Implement a helper in /lib/learning/logDecision.ts:
+logDecision({
+  accountId, runId?, leadId?, jobRequestId?, customerId?,
+  decisionType, stage?, agentName, agentVersion, policyVersion?,
+  inputsSnapshot, recommendedAction, confidence, reasons
+}) -> creates DecisionLog row and returns decisionId
+
+Implement /lib/learning/logHumanAction.ts:
+logHumanAction({
+  accountId, decisionId, userId, role,
+  actionType, finalAction, editDelta, reasonCodes, note?, timeToActionSeconds?
+})
+
+Implement /lib/learning/logOutcome.ts:
+logOutcome({ accountId, decisionId?, leadId?, jobRequestId?, customerId?, outcomeType, outcomeValue, occurredAt? })
+
+INTEGRATE:
+- In orchestrator step execution, whenever an agent produces a recommendation:
+  create DecisionLog with:
+    agentName, agentVersion (prompt hash const in code), policyVersion (active policy id)
+    recommendedActionJson (structured)
+- When a human approves/edits/rejects from Inbox:
+  create HumanActionLog with reason codes + computed diff
+- When outcomes occur:
+  - quote accepted/declined from customer messages
+  - job booked from Jobber writeback
+  - job completed/canceled from Jobber webhooks
+  write OutcomeLog
+
+================================================================================
+C) DIFF ENGINE — EDIT DELTA COMPUTATION
+================================================================================
+
+Create /lib/learning/diff.ts:
+- computeJsonDiff(recommendedActionJson, finalActionJson) -> editDeltaJson
+Rules:
+- Only compute diffs for keys relevant to decisionType (quote_range: rangeLow/rangeHigh/services/assumptions)
+- Output a compact diff format:
+  { changed: [{path:"rangeHigh", from:180, to:220}], added:[], removed:[] }
+
+Add tests for diff.
+
+================================================================================
+D) UI/UX — STRUCTURED FEEDBACK CAPTURE IN INBOX
+================================================================================
+
+Update Inbox approval drawers (quotes, crew assignment, schedule) to enforce feedback:
+
+When user clicks:
+- Approve: optional reason code (not required)
+- Edit/Reject: reason code REQUIRED (choose 1–3) + optional note
+- Edit flow:
+  - show recommended values
+  - allow edits inline
+  - show live diff preview
+  - on submit, call /api/learning/human-action endpoint (below)
+
+Add a “Why are you changing this?” prompt and reason code selector.
+
+Make it fast:
+- defaults to top 3 likely reason codes based on decisionType
+- keyboard shortcuts: A=approve, E=edit, R=reject
+
+Acceptance:
+- Cannot submit Edit/Reject without reason code selection
+- HumanActionLog created on each action
+
+================================================================================
+E) API ENDPOINTS — LEARNING
+================================================================================
+
+Create:
+
+1) GET /api/learning/reason-codes?decisionType=&isActive=true
+- returns account-specific reason codes
+
+2) POST /api/learning/human-action
+Body:
+{
+  decisionId,
+  actionType,
+  finalActionJson,
+  reasonCodesJson,
+  note?
+}
+Behavior:
+- compute editDelta from DecisionLog.recommendedActionJson
+- compute timeToActionSeconds from DecisionLog.createdAt
+- write HumanActionLog
+- trigger orchestrator resume if relevant:
+  - call /api/orchestrator/ops/approve internally if action resolves a waiting_ops step
+Return: success
+
+3) POST /api/learning/outcome
+- creates OutcomeLog (used by SMS interpreter + Jobber webhook processing)
+
+4) GET /api/learning/metrics
+- returns aggregate metrics:
+  approval rate by decisionType
+  average edit delta magnitude for quotes
+  rejection reasons frequency
+  time-to-action medians
+  outcome correlations (accepted vs edited etc.)
+
+5) GET /api/learning/suggestions
+- list suggestions
+
+6) POST /api/learning/suggestions/[id]/review
+Body: { status: approved|rejected, reviewerNote? }
+- updates suggestion status + reviewedBy
+
+7) POST /api/learning/suggestions/[id]/apply
+- applies suggestion by creating a new PolicyVersion draft->active OR updating thresholds table
+- records appliedAt
+- never mutate active policy in place; always version
+
+================================================================================
+F) POLICY + THRESHOLDS — VERSIONING + KILL SWITCHES
+================================================================================
+
+1) Policy retrieval:
+Create /lib/policy/getActivePolicy.ts:
+- returns active PolicyVersion.policyJson
+- returns policyVersion string/id
+
+2) Threshold storage:
+Either:
+- store thresholds inside PolicyVersion.policyJson
+OR
+- create a small table PolicyThreshold (optional)
+Prefer embedding thresholds inside policyJson for simplicity.
+
+3) Kill Switch check:
+Create /lib/learning/killSwitch.ts:
+- isKillSwitchEnabled(accountId, scope, scopeValue) -> boolean
+Integrate checks in orchestrator:
+- If kill switch enabled for stage QUOTE_BUILD, force waiting_ops for that stage
+
+Add Settings UI for kill switches (owner/admin only).
+
+================================================================================
+G) WEEKLY TUNING JOB — “POLICY TUNING SUGGESTIONS”
+================================================================================
+
+Implement /lib/learning/tuning.ts:
+- generateSuggestions(accountId, windowDays=30) -> PolicyTuningSuggestion[]
+Logic MVP (deterministic heuristics):
+- If quote edits upward occur > 25% for a serviceType AND avg increase > 10%:
+  propose pricing_parameter_update for that serviceType multiplier
+- If quote rejections correlate with lotConfidence=low AND auto-send threshold is permissive:
+  propose threshold_update: require photos when lotConfidence=low
+- If crew assignment overrides correlate with travelMinutesDelta > X:
+  propose routing_rule_update: reduce maxTravelMinutes
+
+Each suggestion includes:
+- currentValueJson
+- proposedValueJson
+- evidenceJson:
+  counts, examples decisionIds, impact estimates
+
+Schedule:
+- Add an admin button “Generate Suggestions Now”
+- Optional cron endpoint /api/learning/suggestions/generate (owner/admin only)
+- For true weekly scheduling, leave as manual trigger in MVP.
+
+================================================================================
+H) ADMIN “LEARNING” DASHBOARD
+================================================================================
+
+Create /ops/learning page:
+
+Sections:
+1) Overview Metrics:
+- approval/edit/reject rates
+- top reason codes
+- time-to-action
+- outcome rates
+
+2) Suggestions:
+- table of PolicyTuningSuggestion (proposed)
+- open drawer with evidence + examples
+- approve/reject buttons
+- apply button (only if approved)
+
+3) Policy Versions:
+- list versions
+- highlight active
+- view policy JSON (read-only) and diff between versions
+
+4) Kill Switches:
+- toggle list (global/stage/service/channel)
+
+Acceptance:
+- Owner can approve and apply a suggestion -> new PolicyVersion becomes active
+- Audit trail: suggestion status + reviewer captured
+
+================================================================================
+I) REPLAY HARNESS (MVP OFFLINE EVAL)
+================================================================================
+
+Implement /lib/learning/replay.ts:
+- replayDecisions(accountId, decisionType, policyVersionId, limit=200)
+Behavior:
+- Loads past DecisionLogs + inputsSnapshot
+- Runs policy engine with new policy version (no external calls)
+- Compares recommendedAction vs original and logs summary stats
+Expose via /api/learning/replay endpoint and Admin UI “Run Replay”.
+
+This is safety: see effects before applying globally.
+
+================================================================================
+J) TESTS
+================================================================================
+
+Add Vitest tests:
+- DecisionLog creation from orchestrator step mock
+- HumanActionLog requires reason codes for edit/reject (UI + API validation)
+- Diff computation correctness
+- Tuning heuristics produce expected suggestions given synthetic logs
+- Applying suggestion creates new PolicyVersion and updates active status
+
+================================================================================
+K) DELIVERABLES (OUTPUT CODE FILES)
+================================================================================
+
+Generate code file-by-file with paths:
+
+- prisma/schema.prisma changes + migration
+- seeds for ReasonCode + initial PolicyVersion
+- /lib/learning/logDecision.ts
+- /lib/learning/logHumanAction.ts
+- /lib/learning/logOutcome.ts
+- /lib/learning/diff.ts
+- /lib/learning/killSwitch.ts
+- /lib/policy/getActivePolicy.ts
+- /lib/learning/tuning.ts
+- /lib/learning/replay.ts
+- /app/api/learning/* routes
+- Update Inbox drawers to include reason code capture + diff preview
+- /app/ops/learning/page.tsx (+ components)
+- /tests/learning.test.ts
+
+QUALITY BAR
+- Deterministic, auditable, versioned
+- No silent policy mutation
+- Kill switches prevent risky automation
+- UI forces structured feedback and keeps actions <=2 clicks
+- Works in Replit Postgres with Prisma

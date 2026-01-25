@@ -1,0 +1,176 @@
+You are a senior full-stack engineer + UX designer implementing a “Service Area by ZIP Codes” flow in the LawnFlow Business Profile setup.
+
+GOAL
+Allow an owner-operator to enter a list of ZIP codes they service. The UI must then automatically highlight those ZIP areas on an embedded Google Map so they can visually validate coverage.
+
+STACK
+- Next.js (App Router) + TypeScript
+- Prisma + SQLite
+- Google Maps JavaScript API (required)
+- Use server-side API routes for validation/geocoding as needed
+
+KEY UX REQUIREMENTS
+- Simple input: paste or type ZIP codes (comma/space/newline separated)
+- Validate ZIPs: only 5-digit US ZIPs; dedupe; show invalid ZIPs inline
+- Map preview updates automatically on “Preview Coverage”
+- Coverage highlight is visual and clear:
+  - highlight ZIP regions if possible
+  - otherwise approximate using polygons/bounds or clustered markers + convex hull
+- Provide “Looks right ✅ Save” button
+- Provide “Convert to circle” option (optional): compute center + radius from ZIPs
+
+DATA MODEL (Prisma)
+Extend BusinessProfile with ZIP coverage fields:
+- serviceZipCodes: String?   // store as JSON string array or comma-separated canonical
+- serviceAreaMode: "CIRCLE" | "ZIP"  // if both supported
+Optional:
+- serviceZipCoverageGeoJson: String? // cached polygons/geometry if you implement it
+
+VALIDATION RULES
+- Accept only continental US ZIPs (optional for MVP: accept any 5-digit ZIP and rely on Google results)
+- Must have at least 1 ZIP to proceed in ZIP mode
+- Max ZIP count for MVP: 100 (prevent abuse and expensive geocoding)
+
+IMPLEMENTATION OVERVIEW
+You will implement:
+1) A wizard step: “Service Area (ZIP Codes)”
+2) ZIP parsing + validation on client
+3) A server endpoint to resolve ZIPs -> geometry/bounds/centroids
+4) Map rendering that highlights each ZIP region
+
+ZIP INPUT UI
+- Textarea labeled “ZIP codes you service”
+- Helper text: “Paste ZIP codes separated by commas, spaces, or new lines”
+- Buttons:
+  - Preview Coverage (build map highlight)
+  - Clear
+- A small list preview:
+  - Valid ZIPs (count)
+  - Invalid ZIPs (list)
+  - Duplicates removed (count)
+
+ZIP PARSING (client)
+- Normalize:
+  - Split on comma, whitespace, newline
+  - Trim
+  - Keep only 5-digit strings matching /^\d{5}$/
+  - Dedupe
+Return:
+{
+  validZipCodes: string[],
+  invalidEntries: string[]
+}
+
+SERVER ENDPOINT
+POST /api/geo/zip-coverage
+Input:
+{
+  "zipCodes": ["22901","22902",...]
+}
+Output (choose one approach; implement MVP-friendly):
+Option A (preferred if feasible): polygons per ZIP
+{
+  "zipAreas": [
+    { "zip": "22901", "geojson": {...} },
+    ...
+  ],
+  "bounds": { "north":..., "south":..., "east":..., "west":... }
+}
+
+Option B (MVP fallback): bounding boxes + centroids
+{
+  "zipAreas": [
+    { "zip": "22901", "center": {"lat":..., "lng":...}, "bounds": {...} },
+    ...
+  ],
+  "bounds": { ... }
+}
+
+IMPORTANT NOTE ON ZIP POLYGONS
+Google Maps API does NOT directly provide ZIP code boundary polygons via a simple built-in call.
+For MVP, implement Option B using Google Geocoding API:
+- Geocode each ZIP (components=postal_code)
+- Use returned geometry:
+  - location (centroid)
+  - viewport (bounds rectangle)
+Then on the map:
+- Draw a rectangle (google.maps.Rectangle) using viewport bounds OR
+- Drop a semi-transparent circle around centroid sized to approximate ZIP footprint
+This creates a clear “highlight” effect without needing external polygon datasets.
+
+COST GUARDRAILS
+- Cache ZIP geocode results in DB (ZipGeo table) to avoid repeated calls
+- Throttle geocoding: batch with limited concurrency (e.g., 5 at a time)
+- Enforce max ZIP count 100
+- Only geocode when user clicks “Preview Coverage” (not on every keystroke)
+
+CACHING (Prisma)
+Create ZipGeo table:
+- zip (String @id)
+- centerLat (Float)
+- centerLng (Float)
+- viewportNorth (Float)
+- viewportSouth (Float)
+- viewportEast (Float)
+- viewportWest (Float)
+- updatedAt
+
+When /api/geo/zip-coverage called:
+- Check cache for each ZIP
+- Geocode missing ones via Google Geocoding API
+- Store results
+- Return areas + computed overall bounds
+
+MAP RENDERING (Google Maps)
+On Preview Coverage:
+- Fit map to overall bounds
+- For each ZIP area:
+  - Render google.maps.Rectangle with semi-transparent fill using viewport bounds
+  - Add a small label marker at centroid showing the ZIP (optional)
+- Provide a toggle:
+  - “Show ZIP labels” on/off (optional)
+
+SAVE FLOW
+When user clicks “Save”:
+- Persist:
+  - serviceAreaMode = "ZIP"
+  - serviceZipCodes = JSON.stringify(validZipCodes)
+- Optionally store derived:
+  - serviceAreaCenterLat/Lng and radiusMi from overall bounds (if you want circle conversion later)
+
+AGENT USAGE (IMPORTANT)
+Update service eligibility check to support ZIP mode:
+- If serviceAreaMode == "ZIP":
+  - When lead address is available:
+    - Geocode lead address -> postal_code (ZIP)
+    - eligible if leadZIP in serviceZipCodes
+  - If lead ZIP is missing/unknown:
+    - ask customer for ZIP or address before scheduling
+
+WIZARD STEP COPY (microcopy)
+Title: “Where do you provide service?”
+Subtitle: “Enter the ZIP codes you serve. We’ll highlight them on the map so you can confirm coverage.”
+Hint: “Example: 22901, 22902, 22903”
+
+IMPLEMENTATION TASKS (DO IN ORDER)
+1) Add Prisma fields to BusinessProfile: serviceAreaMode, serviceZipCodes
+2) Add ZipGeo cache table
+3) Implement POST /api/geo/zip-coverage with caching + geocoding
+4) Build Wizard step UI:
+   - textarea + validation + preview button
+   - map rendering with rectangles
+   - save results to business profile
+5) Update service eligibility logic for ZIP mode
+6) Add tests for ZIP parsing + server caching logic
+
+ENV VARS
+- NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+- GOOGLE_GEOCODING_API_KEY (can reuse same key if enabled; document required APIs)
+- Ensure the Google Geocoding API is enabled in the GCP project
+
+OUTPUT FORMAT
+Generate code file-by-file with paths and include:
+- Prisma migration
+- API route implementation
+- Wizard step React component
+- Utility functions: parseZipCodes, fetchZipCoverage

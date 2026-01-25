@@ -1,0 +1,458 @@
+[
+  {
+    "id": "cust_001",
+    "accountId": "acct_demo_001",
+    "name": "Sarah Nguyen",
+    "phoneE164": "+14345559901",
+    "email": "sarah.nguyen@example.com",
+    "address": {
+      "line1": "1200 Market St",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22902",
+      "lat": 38.0335,
+      "lng": -78.48
+    },
+    "tags": [
+      "RECURRENT",
+      "HIGH_NPS"
+    ],
+    "language": "EN",
+    "sitePreferences": {
+      "mulch": {
+        "mulchType": "Black hardwood",
+        "averageVolume": 4,
+        "volumeUnit": "YARDS",
+        "installZones": "Front beds + side walkway",
+        "crewNotes": "Gate code 2580; avoid sprinkler heads",
+        "lastInstallAt": "2025-05-10T10:00:00-05:00"
+      },
+      "firewood": {
+        "preferredCordSize": "HALF",
+        "stackingRequired": true,
+        "deliveryLocationNotes": "Stack under back porch; watch for dog",
+        "frequency": "SEASONAL"
+      }
+    },
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_002",
+    "accountId": "acct_demo_001",
+    "name": "James Carter",
+    "phoneE164": "+14345559902",
+    "email": "james.carter@example.com",
+    "address": {
+      "line1": "85 Ivy Rd",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22903",
+      "lat": 38.046,
+      "lng": -78.53
+    },
+    "tags": [
+      "ONE_TIME"
+    ],
+    "language": "EN",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_003",
+    "accountId": "acct_demo_001",
+    "name": "La Tienda Coffee Roasters",
+    "phoneE164": "+14345559903",
+    "email": "la.roasters@example.com",
+    "address": {
+      "line1": "300 Commerce Ave",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22911",
+      "lat": 38.0712,
+      "lng": -78.4363
+    },
+    "tags": [
+      "COMMERCIAL",
+      "RECURRING"
+    ],
+    "language": "ES",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_004",
+    "accountId": "acct_demo_001",
+    "name": "Helen Brooks",
+    "phoneE164": "+14345559904",
+    "email": "helen.brooks@example.com",
+    "address": {
+      "line1": "410 Ridge St",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22902",
+      "lat": 38.035,
+      "lng": -78.49
+    },
+    "tags": [
+      "RECURRENT"
+    ],
+    "language": "EN",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_005",
+    "accountId": "acct_demo_001",
+    "name": "Oak Hill Dental",
+    "phoneE164": "+14345559905",
+    "email": "ops_cust_005@example.com",
+    "address": {
+      "line1": "900 Rio Rd E",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22901",
+      "lat": 38.0724,
+      "lng": -78.4922
+    },
+    "tags": [
+      "COMMERCIAL"
+    ],
+    "language": "EN",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_006",
+    "accountId": "acct_demo_001",
+    "name": "Miguel Santos",
+    "phoneE164": "+14345559906",
+    "email": "miguel.santos@example.com",
+    "address": {
+      "line1": "2100 Barracks Rd",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22903",
+      "lat": 38.06,
+      "lng": -78.507
+    },
+    "tags": [
+      "RECURRENT"
+    ],
+    "language": "ES",
+    "sitePreferences": {
+      "mulch": {
+        "mulchType": "Natural hardwood",
+        "averageVolume": 3,
+        "volumeUnit": "YARDS",
+        "installZones": "Back patio beds",
+        "crewNotes": "Park on street; narrow gate",
+        "lastInstallAt": "2025-07-09T11:00:00-05:00"
+      }
+    },
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_007",
+    "accountId": "acct_demo_001",
+    "name": "Emily Price",
+    "phoneE164": "+14345559907",
+    "email": "emily.price@example.com",
+    "address": {
+      "line1": "55 Pantops Dr",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22911",
+      "lat": 38.0388,
+      "lng": -78.4475
+    },
+    "tags": [
+      "RECURRENT"
+    ],
+    "language": "EN",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_008",
+    "accountId": "acct_demo_001",
+    "name": "Ruckersville Hardware",
+    "phoneE164": "+14345559908",
+    "email": "ops_cust_008@example.com",
+    "address": {
+      "line1": "12 Main St",
+      "city": "Ruckersville",
+      "state": "VA",
+      "zip": "22968",
+      "lat": 38.233,
+      "lng": -78.369
+    },
+    "tags": [
+      "COMMERCIAL"
+    ],
+    "language": "EN",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_009",
+    "accountId": "acct_demo_001",
+    "name": "Thomas Greene",
+    "phoneE164": "+14345559909",
+    "email": "thomas.greene@example.com",
+    "address": {
+      "line1": "640 Seminole Trl",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22901",
+      "lat": 38.083,
+      "lng": -78.497
+    },
+    "tags": [
+      "RECURRENT"
+    ],
+    "language": "EN",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_010",
+    "accountId": "acct_demo_001",
+    "name": "Ana Lopez",
+    "phoneE164": "+14345559910",
+    "email": "ana.lopez@example.com",
+    "address": {
+      "line1": "1011 Crozet Ave",
+      "city": "Crozet",
+      "state": "VA",
+      "zip": "22932",
+      "lat": 38.071,
+      "lng": -78.7
+    },
+    "tags": [
+      "LEAD_CONVERTED"
+    ],
+    "language": "ES",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_011",
+    "accountId": "acct_demo_001",
+    "name": "Blue Ridge HOA",
+    "phoneE164": "+14345559911",
+    "email": "ops_cust_011@example.com",
+    "address": {
+      "line1": "501 Skyline Dr",
+      "city": "Ruckersville",
+      "state": "VA",
+      "zip": "22968",
+      "lat": 38.2355,
+      "lng": -78.384
+    },
+    "tags": [
+      "COMMERCIAL",
+      "HOA"
+    ],
+    "language": "EN",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_012",
+    "accountId": "acct_demo_001",
+    "name": "Sunset Rentals",
+    "phoneE164": "+14345559912",
+    "email": "ops_cust_012@example.com",
+    "address": {
+      "line1": "77 East Main",
+      "city": "Stanardsville",
+      "state": "VA",
+      "zip": "22973",
+      "lat": 38.299,
+      "lng": -78.44
+    },
+    "tags": [
+      "COMMERCIAL"
+    ],
+    "language": "EN",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_013",
+    "accountId": "acct_demo_001",
+    "name": "Priya Patel",
+    "phoneE164": "+14345559913",
+    "email": "priya.patel@example.com",
+    "address": {
+      "line1": "800 High St",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22902",
+      "lat": 38.037,
+      "lng": -78.4805
+    },
+    "tags": [
+      "RECURRENT"
+    ],
+    "language": "EN",
+    "sitePreferences": {
+      "firewood": {
+        "preferredCordSize": "FULL",
+        "stackingRequired": false,
+        "deliveryLocationNotes": "Drop by shed",
+        "frequency": "RECURRING"
+      }
+    },
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_014",
+    "accountId": "acct_demo_001",
+    "name": "Carlos & Maria Home",
+    "phoneE164": "+14345559914",
+    "email": "carlos.home@example.com",
+    "address": {
+      "line1": "15 Cherry Ave",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22903",
+      "lat": 38.03,
+      "lng": -78.495
+    },
+    "tags": [
+      "RECURRENT"
+    ],
+    "language": "ES",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_015",
+    "accountId": "acct_demo_001",
+    "name": "Willow Creek Church",
+    "phoneE164": "+14345559915",
+    "email": "ops_cust_015@example.com",
+    "address": {
+      "line1": "1180 Stony Point Rd",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22911",
+      "lat": 38.07,
+      "lng": -78.42
+    },
+    "tags": [
+      "COMMERCIAL"
+    ],
+    "language": "EN",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_016",
+    "accountId": "acct_demo_001",
+    "name": "Harrison Family",
+    "phoneE164": "+14345559916",
+    "email": "harrison.family@example.com",
+    "address": {
+      "line1": "4200 Ivy Rd",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22903",
+      "lat": 38.055,
+      "lng": -78.6
+    },
+    "tags": [
+      "RECURRENT"
+    ],
+    "language": "EN",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_017",
+    "accountId": "acct_demo_001",
+    "name": "Greene County Library",
+    "phoneE164": "+14345559917",
+    "email": "ops_cust_017@example.com",
+    "address": {
+      "line1": "20 Library Ln",
+      "city": "Stanardsville",
+      "state": "VA",
+      "zip": "22973",
+      "lat": 38.297,
+      "lng": -78.4405
+    },
+    "tags": [
+      "COMMERCIAL"
+    ],
+    "language": "EN",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_018",
+    "accountId": "acct_demo_001",
+    "name": "Cville Fitness Club",
+    "phoneE164": "+14345559918",
+    "email": "ops_cust_018@example.com",
+    "address": {
+      "line1": "200 Preston Ave",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22903",
+      "lat": 38.0385,
+      "lng": -78.4905
+    },
+    "tags": [
+      "COMMERCIAL",
+      "RECURRING"
+    ],
+    "language": "EN",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_019",
+    "accountId": "acct_demo_001",
+    "name": "Monroe Meadows HOA",
+    "phoneE164": "+14345559919",
+    "email": "ops_cust_019@example.com",
+    "address": {
+      "line1": "2 Meadow Ct",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22911",
+      "lat": 38.075,
+      "lng": -78.44
+    },
+    "tags": [
+      "HOA",
+      "COMMERCIAL"
+    ],
+    "language": "EN",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "cust_020",
+    "accountId": "acct_demo_001",
+    "name": "Julia Kim",
+    "phoneE164": "+14345559920",
+    "email": "julia.kim@example.com",
+    "address": {
+      "line1": "909 Jefferson Park Ave",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22903",
+      "lat": 38.033,
+      "lng": -78.505
+    },
+    "tags": [
+      "ONE_TIME"
+    ],
+    "language": "EN",
+    "sitePreferences": {},
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  }
+]

@@ -1,0 +1,94 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InvoiceBuildAgent Contract",
+  "description": "Generates invoice drafts from completed jobs with configurable pricing rules",
+  
+  "input": {
+    "type": "object",
+    "required": ["accountId", "jobId"],
+    "properties": {
+      "accountId": {
+        "type": "integer",
+        "description": "Business account ID"
+      },
+      "jobId": {
+        "type": "integer",
+        "description": "Completed job ID to invoice"
+      },
+      "job": {
+        "type": "object",
+        "description": "Optional pre-fetched job object"
+      },
+      "quote": {
+        "type": "object",
+        "description": "Optional associated quote object"
+      },
+      "customer": {
+        "type": "object",
+        "description": "Optional customer object"
+      },
+      "lineItemOverrides": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string" },
+            "amount": { "type": "number" },
+            "quantity": { "type": "number" }
+          }
+        },
+        "description": "Manual line item overrides"
+      }
+    }
+  },
+  
+  "output": {
+    "type": "object",
+    "required": ["invoice", "lineItems", "summary", "requiresApproval"],
+    "properties": {
+      "invoice": {
+        "type": "object",
+        "properties": {
+          "customerId": { "type": "integer" },
+          "jobId": { "type": "integer" },
+          "subtotalCents": { "type": "integer" },
+          "taxCents": { "type": "integer" },
+          "totalCents": { "type": "integer" },
+          "status": { "type": "string" },
+          "dueDate": { "type": "string", "format": "date" },
+          "terms": { "type": "string" }
+        }
+      },
+      "lineItems": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string" },
+            "quantity": { "type": "number" },
+            "unitPriceCents": { "type": "integer" },
+            "totalCents": { "type": "integer" }
+          }
+        }
+      },
+      "summary": {
+        "type": "object",
+        "properties": {
+          "subtotal": { "type": "number" },
+          "tax": { "type": "number" },
+          "total": { "type": "number" },
+          "varianceFromQuote": { "type": "number" }
+        }
+      },
+      "requiresApproval": { "type": "boolean" },
+      "approvalReasons": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    }
+  },
+  
+  "triggers": ["Job completion event", "Manual invoice generation"],
+  "escalation": "Variance >15% from quote requires approval",
+  "apiEndpoint": "POST /api/billing/invoices/generate"
+}

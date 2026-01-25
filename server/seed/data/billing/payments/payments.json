@@ -1,0 +1,74 @@
+[
+  {
+    "id": "pay_inv_004",
+    "accountId": "acct_demo_001",
+    "invoiceId": "inv_004",
+    "status": "SUCCEEDED",
+    "amount": 600,
+    "method": "CARD",
+    "externalProvider": "QUICKBOOKS",
+    "externalPaymentId": "QBPAY-INV_004",
+    "occurredAt": "2025-12-26T14:00:00-05:00",
+    "createdAt": "2025-12-26T14:00:00-05:00"
+  },
+  {
+    "id": "pay_inv_005",
+    "accountId": "acct_demo_001",
+    "invoiceId": "inv_005",
+    "status": "PARTIAL",
+    "amount": 300.0,
+    "method": "ACH",
+    "externalProvider": "QUICKBOOKS",
+    "externalPaymentId": "QBPAY-INV_005-P1",
+    "occurredAt": "2026-01-03T10:00:00-05:00",
+    "createdAt": "2026-01-03T10:00:00-05:00"
+  },
+  {
+    "id": "pay_inv_010",
+    "accountId": "acct_demo_001",
+    "invoiceId": "inv_010",
+    "status": "SUCCEEDED",
+    "amount": 260,
+    "method": "CARD",
+    "externalProvider": "QUICKBOOKS",
+    "externalPaymentId": "QBPAY-INV_010",
+    "occurredAt": "2026-01-07T16:00:00-05:00",
+    "createdAt": "2026-01-07T16:00:00-05:00"
+  },
+  {
+    "id": "pay_inv_012",
+    "accountId": "acct_demo_001",
+    "invoiceId": "inv_012",
+    "status": "SUCCEEDED",
+    "amount": 340,
+    "method": "CARD",
+    "externalProvider": "QUICKBOOKS",
+    "externalPaymentId": "QBPAY-INV_012",
+    "occurredAt": "2026-01-02T13:00:00-05:00",
+    "createdAt": "2026-01-02T13:00:00-05:00"
+  },
+  {
+    "id": "pay_inv_018",
+    "accountId": "acct_demo_001",
+    "invoiceId": "inv_018",
+    "status": "SUCCEEDED",
+    "amount": 85,
+    "method": "CARD",
+    "externalProvider": "QUICKBOOKS",
+    "externalPaymentId": "QBPAY-INV_018",
+    "occurredAt": "2026-01-01T13:00:00-05:00",
+    "createdAt": "2026-01-01T13:00:00-05:00"
+  },
+  {
+    "id": "pay_inv_020",
+    "accountId": "acct_demo_001",
+    "invoiceId": "inv_020",
+    "status": "SUCCEEDED",
+    "amount": 480,
+    "method": "CARD",
+    "externalProvider": "QUICKBOOKS",
+    "externalPaymentId": "QBPAY-INV_020",
+    "occurredAt": "2025-12-28T11:00:00-05:00",
+    "createdAt": "2025-12-28T11:00:00-05:00"
+  }
+]

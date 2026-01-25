@@ -1,0 +1,212 @@
+You are a senior full-stack engineer working in Replit on LawnFlow.ai (Next.js + Postgres + Prisma).
+Implement a Service Catalog system that powers lead intake, quote automation, promotions, and billing.
+
+This is an MVP implementation, but the data model must support future autonomy.
+
+================================================================================
+GOAL
+================================================================================
+Create a configurable Service Catalog per LawnFlow customer that:
+- Defines offered services
+- Controls pricing logic
+- Drives lead → quote → invoice flows
+- Supports recurring, one-time, seasonal, and event-based services
+- Enables automatic promotions and incentives
+
+================================================================================
+1) DATA MODELS (PRISMA)
+================================================================================
+
+Service
+- id
+- accountId
+- name
+- category (LAWN | TREE | CLEANUP | SNOW | CUSTOM)
+- description
+- isActive
+- serviceType (ONE_TIME | RECURRING | SEASONAL | EVENT_BASED)
+- requiresManualQuote (bool)
+- defaultDurationMinutes (nullable)
+- createdAt, updatedAt
+
+ServicePricing
+- id
+- serviceId
+- pricingModel (FLAT | PER_VISIT | PER_EVENT | PER_SQFT | RANGE)
+- minPrice
+- targetPrice
+- maxPrice
+- unitLabel (nullable) // sq ft, acre, visit, event
+- appliesToFrequency (ONE_TIME | RECURRING | BOTH)
+- createdAt, updatedAt
+
+ServiceFrequencyOption
+- id
+- serviceId
+- frequency (WEEKLY | BIWEEKLY | MONTHLY | SEASONAL | ON_DEMAND)
+- priceModifierPercent // e.g. -10 for recurring
+- isDefault
+- createdAt, updatedAt
+
+PromotionRule
+- id
+- accountId
+- name
+- appliesToServiceId (nullable)
+- appliesToCategory (nullable)
+- condition (FIRST_TIME_CUSTOMER | RECURRING_COMMITMENT | BUNDLE)
+- discountType (PERCENT | FLAT)
+- discountValue
+- requiresFrequency (nullable)
+- startAt, endAt
+- isActive
+
+SnowServicePolicy
+- id
+- serviceId
+- mode (ROTATION | ON_DEMAND)
+- priceModifierPercent
+- priorityLevel (LOW | NORMAL | HIGH)
+- notes
+
+================================================================================
+2) AGENT CONTRACT UPDATES
+================================================================================
+
+Update /lib/agents/contracts to include:
+
+ServiceSelectionAgent
+INPUT:
+- leadMessage
+- detectedIntent
+- serviceCatalog
+
+OUTPUT:
+- selectedServices[]
+- clarifyingQuestions[]
+- confidence
+
+PricingAgent
+INPUT:
+- selectedServices
+- servicePricing
+- frequencyOption
+- promotions
+- customerHistory
+
+OUTPUT:
+- priceRange
+- appliedDiscounts
+- explanationText
+- requiresApproval
+
+PromotionAgent
+INPUT:
+- customerStatus (NEW | RETURNING)
+- selectedServices
+- frequencyChoice
+- promotionRules
+
+OUTPUT:
+- eligiblePromotions[]
+- appliedPromotions[]
+- rejectedPromotions (with reason)
+
+================================================================================
+3) FRONT-END UI (MINIMAL, CLEAN)
+================================================================================
+
+Add Settings → Services
+
+/ settings / services
+- List of services offered
+- Toggle active/inactive
+- Edit service
+
+Service Detail:
+- Description
+- Pricing ranges
+- Frequency options
+- Promotions applicable
+- Snow policy (if category = SNOW)
+
+No complex UI. Forms only.
+
+================================================================================
+4) LEAD → QUOTE FLOW INTEGRATION
+================================================================================
+
+Update lead intake flow:
+1) Lead message parsed
+2) ServiceSelectionAgent maps intent → services
+3) If ambiguity:
+   - ask clarifying question via Comms Agent
+4) PricingAgent calculates range
+5) PromotionAgent applies incentives
+6) QuoteAgent assembles quote with:
+   - service breakdown
+   - frequency options
+   - explanation of savings
+
+Snow-specific logic:
+- Ask: rotation vs on-demand
+- Apply SnowServicePolicy
+
+================================================================================
+5) BILLING & INVOICE MAPPING
+================================================================================
+
+Each Service must map cleanly to:
+- invoice line item name
+- accounting item (via mapping table later)
+
+InvoiceBuildAgent must:
+- read Service + Pricing metadata
+- never invent line items
+- flag variance if outside defined ranges
+
+================================================================================
+6) SEED DATA (MVP)
+================================================================================
+
+Seed example services:
+- Lawn Maintenance (Recurring)
+- One-Time Lawn Mowing
+- Tree & Brush Trimming
+- Seasonal Cleanup
+- Snow Removal (Rotation)
+- Snow Removal (On-Demand)
+- Custom Project (Manual Quote)
+
+Seed example promotions:
+- 15% off first recurring service
+- Recurring plan saves 10% per visit
+- On-demand snow +20%
+
+================================================================================
+7) ACCEPTANCE CRITERIA
+================================================================================
+- Services configurable per account
+- Lead → quote flow uses service catalog
+- Recurring vs one-time pricing differs
+- Snow rotation vs on-demand behaves differently
+- Promotions apply automatically
+- Quotes explain pricing clearly
+- Billing consumes service metadata
+
+================================================================================
+IMPLEMENTATION ORDER
+================================================================================
+1) Data models + migrations
+2) Service catalog UI
+3) Agent contract updates
+4) Lead → quote integration
+5) Promotion logic
+6) Billing mapping
+
+Implement step 1 ONLY.
+After step 1, stop and report:
+- tables created
+- seed data
+- next steps
+

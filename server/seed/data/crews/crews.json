@@ -1,0 +1,77 @@
+[
+  {
+    "id": "crew_cville_001",
+    "accountId": "acct_demo_001",
+    "name": "Charlottesville Crew",
+    "status": "ACTIVE",
+    "homeBase": {
+      "lat": 38.0293,
+      "lng": -78.4767,
+      "label": "Downtown Charlottesville"
+    },
+    "leaderUserId": "usr_lead_001",
+    "memberUserIds": [
+      "usr_mem_001"
+    ],
+    "vehicle": {
+      "name": "Truck 1",
+      "plate": "VA-LF101"
+    },
+    "assets": [
+      "48in zero-turn mower",
+      "trimmer",
+      "blower"
+    ],
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "crew_albemarle_002",
+    "accountId": "acct_demo_001",
+    "name": "Albemarle Crew",
+    "status": "ACTIVE",
+    "homeBase": {
+      "lat": 38.0608,
+      "lng": -78.5513,
+      "label": "Crozet / Albemarle"
+    },
+    "leaderUserId": "usr_lead_002",
+    "memberUserIds": [
+      "usr_mem_002"
+    ],
+    "vehicle": {
+      "name": "Truck 2",
+      "plate": "VA-LF202"
+    },
+    "assets": [
+      "36in mower",
+      "trimmer",
+      "mulch wheelbarrow"
+    ],
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "crew_greene_003",
+    "accountId": "acct_demo_001",
+    "name": "Greene Crew",
+    "status": "ACTIVE",
+    "homeBase": {
+      "lat": 38.2996,
+      "lng": -78.4747,
+      "label": "Stanardsville / Greene"
+    },
+    "leaderUserId": "usr_lead_003",
+    "memberUserIds": [
+      "usr_mem_003"
+    ],
+    "vehicle": {
+      "name": "Truck 3",
+      "plate": "VA-LF303"
+    },
+    "assets": [
+      "chainsaw",
+      "brush cutter",
+      "truck plow mount"
+    ],
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  }
+]

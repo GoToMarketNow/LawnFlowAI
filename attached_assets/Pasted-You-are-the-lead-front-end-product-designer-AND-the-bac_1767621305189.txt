@@ -1,0 +1,313 @@
+You are the lead front-end product designer AND the back-end integrations engineer for LawnFlow.ai.
+Your task is to produce (and then implement) a world-class UX plan + refactor roadmap that aligns the UI,
+settings, and agent orchestration with the platform’s expanded capabilities.
+
+You must treat this as a “UX Operating System” redesign:
+- Operators should spend most time in Work Queue, Approvals, Today Plan, and Comms
+- Agents should be “invisible but accountable”
+- Settings must support configuration, overrides, mappings, and safe manual edits
+- Orchestration must reliably invoke all relevant agents to complete Lead→Cash workflows
+
+Deliver a single artifact in /docs/ux_redesign_strategy.md plus a tracked implementation plan in /docs/ux_build_plan.md.
+Then implement Phase 1 UI changes behind a feature flag UI_REDESIGN_V2.
+
+================================================================================
+SECTION 1: CURRENT REALITY (WHAT EXISTS NOW)
+================================================================================
+First, inventory the current platform (routes, modules, agents) and document:
+A) User types:
+- OWNER_ADMIN
+- CREW_LEAD
+- CREW_MEMBER
+
+B) Key workflows (Lead→Cash):
+- Lead intake & qualification (SMS/web/email)
+- Quote generation (service catalog + pricing + promos)
+- Quote approval (human-in-loop)
+- Scheduling (day plan) + crew assignment
+- Service delivery + job completion
+- Billing/invoicing + collections + remediation
+- Ongoing comms + retention
+
+C) Agent directory:
+List all agents currently present, grouped by lifecycle stage:
+- Lead/Qualification agents
+- Quote/Policy/Promo agents
+- Schedule/Crew assignment agents
+- Comms agents (customer + crew)
+- Billing agents (invoice, sync, collections, remediation)
+- Optimization agents (pricing, capacity, performance, retention)
+- Compliance/risk (if present)
+
+OUTPUT: A table mapping each workflow step → agent(s) invoked → UI surface.
+
+================================================================================
+SECTION 2: UX NORTH STAR (WORLD-CLASS EXPERIENCE PRINCIPLES)
+================================================================================
+Design principles to enforce everywhere:
+1) Calm operations UI (minimal noise, high clarity)
+2) One primary place to work: Work Queue + Approvals
+3) Fast resolution: approvals in <10 seconds
+4) Agents are invisible but accountable: every action has “why” and “what happened”
+5) Role-specific simplicity:
+   - Owners see outcomes + exceptions + configuration
+   - Crew leads see Today Plan + job details + changes
+   - Crew members see Today Plan + alerts + checklists
+6) Progressive disclosure: hide complexity until needed
+7) Guardrails: settings changes show downstream impacts and require confirmation
+
+================================================================================
+SECTION 3: INFORMATION ARCHITECTURE (NEW LAYOUT + NAV BY ROLE)
+================================================================================
+Define a unified IA with role-based menus.
+
+OWNER_ADMIN primary nav:
+- Home (Command Center)
+- Work Queue
+- Approvals
+- Schedule (Today Plan)
+- Crews (Roster + Live Map)
+- Comms (Inbox + Studio)
+- Billing (Invoices + Issues + Payments)
+- Customers
+- Settings
+
+CREW_LEAD primary nav:
+- Today Plan
+- My Crew (Roster-lite)
+- Comms (Crew Inbox)
+- Notifications
+
+CREW_MEMBER primary nav:
+- Today Plan
+- Notifications
+- My Jobs (optional shortcut)
+
+Secondary (OWNER_ADMIN only, under Settings):
+- Agents
+- Policies & Quote Engine
+- Services & Promotions
+- Integrations (Jobber, Twilio, Google Maps, QuickBooks)
+- Users & Roles
+- Templates (Comms + Briefings)
+- Observability (Activity Log, Errors, Retries)
+- Exports
+
+Define global layout patterns:
+- 3-panel pattern for Work Queue, Approvals, Billing Issues, Comms Inbox
+- “Drawer” pattern for quick actions (edit, approve, message)
+- “Status badges” and “Confidence badges” consistent across app
+
+================================================================================
+SECTION 4: PAGE-LEVEL UX SPEC (WHAT TO BUILD)
+================================================================================
+
+A) Home / Command Center
+- KPI tiles: leads, quotes, jobs today, crew status, unpaid invoices
+- Two feeds:
+  1) Action Required (human tasks)
+  2) Agent Activity (recent autonomous work)
+
+B) Work Queue (single unified inbox)
+- Types: Lead, Quote, Schedule, Crew, Comms, Billing
+- Each item shows:
+  - type icon, priority, confidence, recommended action
+  - SLA/age
+- Center detail shows summary + “Open full view”
+- Right panel shows agent trace + suggested resolution
+
+C) Approvals (dedicated)
+- Quote approvals (variance, promos)
+- Schedule/crew reassignment approvals
+- Billing approvals (variance, credits)
+- Each approval card includes:
+  - What changed
+  - Why flagged
+  - Approve / Edit / Reject (with reason)
+
+D) Schedule (Today Plan)
+- Group by crew
+- Show route order + risk flags + changes
+- Crew role views are simplified
+
+E) Crews
+- Roster default: leader, members, truck, assets, readiness
+- Live Map: last known location, status, last update time
+- “Message crew” action linked to Comms
+
+F) Comms
+- Inbox tab: threads requiring response (customers + crew)
+- Studio tab: sequences, templates, review requests, crew briefings
+- All comms show:
+  - context panel (customer/job)
+  - agent suggestion
+  - escalation state
+
+G) Billing
+- Invoices: draft/sent/paid/overdue
+- Issues: sync errors, disputes, variances
+- Payments: status pulled from QuickBooks
+- All exceptions appear in Work Queue + Approvals
+
+================================================================================
+SECTION 5: SETTINGS AREA (CONFIG THAT POWERS AGENTS)
+================================================================================
+Settings must be organized into “What agents need to run” vs “Admin utilities”.
+
+Settings sections (OWNER_ADMIN):
+1) Business Profile
+- service area (zip coverage + map)
+- hours, service days
+- contact channels
+
+2) Services Catalog
+- offered services + variants (mulch/firewood included)
+- lead time, delivery vs install options
+
+3) Pricing & Policies
+- pricing models, ranges, frequency modifiers
+- quote variance thresholds
+- approval rules
+- seasonal rules (snow, peaks)
+
+4) Promotions
+- rule-based promos, first-time discounts, recurring incentives
+
+5) Comms & Templates
+- SMS/email templates
+- crew briefing templates
+- language settings (EN/ES)
+- escalation routing rules
+
+6) Integrations
+- Jobber (sync settings, webhooks, source-of-truth behavior)
+- Twilio (messaging service, numbers)
+- Google Maps (API key, geocoding usage)
+- QuickBooks (OAuth, mappings, sync health)
+
+7) Billing Configuration
+- invoice terms, tax defaults
+- service → accounting item mapping
+- collections cadence
+- credit thresholds
+
+8) Users & Roles
+- crew assignments, leader designation
+- notification preferences
+
+9) Observability & Retries
+- agent run logs
+- failed sync queue
+- retry controls (manual “re-run agent”)
+
+Each settings page must have:
+- Clear defaults + tooltips
+- “Impact Preview” before saving (what downstream changes)
+- Audit trail entry
+
+================================================================================
+SECTION 6: AGENT ORCHESTRATION (CALL ORDER + TRIGGERS)
+================================================================================
+Define a single orchestrator contract:
+- Input: event + context
+- Output: actions + next steps + escalations
+
+Create a canonical orchestration map with triggers:
+
+Lead Intake:
+1) InboundLeadAgent (parse)
+2) ServiceSelectionAgent (map to services)
+3) QualificationAgent (ask missing info)
+4) FeasibilityAgent (coverage + capacity)
+5) PricingAgent + PromotionAgent
+6) QuoteAgent (assemble)
+7) CommsAgent (send quote or ask clarifier)
+Escalation: low confidence → Work Queue + Approval
+
+Quote Accept:
+1) ConfirmAgent (capture acceptance)
+2) ScheduleProposalAgent
+3) CrewAssignmentAgent
+4) BookingAgent (create job + sync to Jobber if configured)
+5) CrewCommsWorkerAgent (notify crew)
+
+Job Complete:
+1) InvoiceBuildAgent
+2) if variance → Approval
+3) AccountingSyncAgent (QuickBooks)
+4) CustomerCommsAgent (send invoice)
+5) CollectionsAgent (schedule reminders)
+
+Dispute/Negative Signal:
+1) RemediationAgent
+2) if credit > threshold → Approval
+3) AccountingSyncAgent (credit memo)
+4) CustomerCommsAgent (resolution)
+
+Optimization (async):
+- PricingOptimizationAgent (weekly)
+- CapacityForecastingAgent (daily)
+- CrewPerformanceAgent (weekly + post-job)
+- RetentionAgent (post-service + monthly)
+
+Orchestrator must:
+- Log every agent run with correlationId
+- Persist agent outputs
+- Emit “work items” for humans only when required
+- Never double-run agents without idempotency keys
+
+================================================================================
+SECTION 7: IMPLEMENTATION PLAN (PHASED, SAFE)
+================================================================================
+Create feature flag UI_REDESIGN_V2.
+Plan in phases:
+
+Phase 1 (UI Shell & Nav):
+- new nav by role
+- Home/Work/Approvals skeleton pages
+- move Agents under Settings
+
+Phase 2 (Work Queue + Approvals real data):
+- unify queue model
+- approvals model
+- deep links into existing views
+
+Phase 3 (Billing & Comms alignment):
+- billing pages integrated with exceptions
+- comms inbox/studio split
+
+Phase 4 (Settings restructure):
+- reorganize settings into sections above
+- add mapping + impact preview
+
+Phase 5 (Observability & agent traces in UI):
+- agent trace panel
+- retry controls
+
+================================================================================
+SECTION 8: OUTPUT REQUIREMENTS
+================================================================================
+1) Write /docs/ux_redesign_strategy.md containing:
+- IA
+- role-based nav
+- page specs
+- settings map
+- orchestration map
+
+2) Write /docs/ux_build_plan.md containing:
+- phased tasks
+- file/routing changes
+- test checklist by role
+
+3) Implement Phase 1 behind UI_REDESIGN_V2:
+- new nav
+- /home, /work, /approvals skeletons
+- settings regroup stubs (routes only)
+- agent directory moved to /settings/agents
+
+Stop after Phase 1 implementation and output:
+- what changed
+- how to test as each role
+- what remains for Phase 2
+
+Now begin by generating the two docs, then implement Phase 1.

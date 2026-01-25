@@ -1,0 +1,89 @@
+You are a senior full-stack engineer building LawnFlow’s Auto-Assignment Engine as an overlay to Jobber.
+
+GOAL
+Implement:
+1) Auto-assignment decision tree using quote-derived requirements (lot size, services -> equipment/skills/crew size)
+2) Jobber ↔ LawnFlow sync schema (id mapping, schedule snapshots, event log)
+3) Assignment execution: recommend-only vs auto-assign writeback to Jobber (safe defaults)
+
+TECH
+- Next.js (App Router) + TypeScript
+- Prisma + SQLite
+- Jobber API via GraphQL (POST JSON to https://api.getjobber.com/api/graphql with Bearer token)
+- Use server-side routes only for Jobber calls
+
+REFERENCE (Jobber concepts)
+- Jobber API is GraphQL; Jobs include visits; Visits can have assignedUsers; visits can be scheduled/anytime/unscheduled.
+Implement around Job/Visit and assignedUsers fields.
+
+DATA MODELS (Prisma)
+Create tables:
+- integrations_jobber_account (tokens encrypted)
+- jobber_id_map (entity_type, jobber_id, lawnflow_id)
+- jobber_event_log (idempotency)
+- crew, crew_members (shadow model for skills/equipment/capacity)
+- visit_cache, schedule_snapshot (derived scheduling cache)
+- quote_context (lot size, requirements, labor range, confidence)
+
+SYNC LAYER
+Implement a JobberClient with typed GraphQL helpers:
+- queryUsers()
+- queryJobsAndVisits(dateRange, userIds)
+- queryVisitById()
+- mutationAssignUsersToVisit(visitId, userIds)
+- mutationCreateOrUpdateVisit(jobId, schedule info, assigned users)
+
+Implement webhook receiver endpoint (even if mocked for MVP):
+POST /api/integrations/jobber/webhook
+- store event in jobber_event_log
+- fetch affected entity from Jobber
+- upsert visit_cache and schedule_snapshot for impacted dates/users
+
+AUTO-ASSIGNMENT ENGINE
+Implement function:
+autoAssign(quoteContext, requestedWindow) -> { mode, recommendedCrewId, proposedSlot, reasoning, action }
+
+Decision tree:
+- If lot confidence low OR service high-variance (cleanup/mulch/shrubs) without photos OR property > threshold:
+  mode = RECOMMEND_ONLY
+- Else mode can be AUTO if no conflicts.
+
+Crew filtering:
+- Must meet required_skills, required_equipment, crew_size_min
+
+Availability inference:
+- Use schedule_snapshot / visit_cache for each crew’s Jobber users
+- Find candidate blocks that can fit labor_high + buffer
+- Prefer anytime/unscheduled visits for flexible scheduling when time window is broad
+
+Scoring:
+- distance from home base or from nearest scheduled visit (approx)
+- remaining capacity that day
+- same ZIP clustering bonus
+
+Writeback behavior:
+- If AUTO and conflicts none:
+  assign users to visit (or create visit) via Jobber GraphQL mutation
+  record reasoning
+- If RECOMMEND_ONLY:
+  write a recommendation note and show in LawnFlow UI for approval
+
+UI
+Create:
+- /admin/dispatch (queue of quotes needing assignment)
+- Assignment card shows: lot area/confidence, services, required equipment/skills, recommended crew, proposed slot, reasoning
+- Buttons: Approve & Assign (writes to Jobber), Adjust (choose different crew/slot), Request Photos, Schedule Site Visit
+
+TESTS
+- unit tests for decision tree gating
+- schedule conflict detection
+- scoring function determinism
+
+OUTPUT
+Generate code file-by-file with paths including:
+- Prisma schema + migrations
+- JobberClient module
+- AutoAssignmentEngine module
+- API routes (webhook + assign action)
+- Admin UI pages
+- README with env vars and integration setup steps

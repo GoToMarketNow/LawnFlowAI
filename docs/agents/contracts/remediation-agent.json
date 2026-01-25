@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RemediationAgent Contract",
+  "description": "AI-powered dispute resolution with root cause analysis and resolution recommendations",
+  
+  "input": {
+    "type": "object",
+    "required": ["accountId", "billingIssueId"],
+    "properties": {
+      "accountId": {
+        "type": "integer",
+        "description": "Business account ID"
+      },
+      "billingIssueId": {
+        "type": "integer",
+        "description": "ID of the billing issue to analyze"
+      },
+      "invoice": {
+        "type": "object",
+        "description": "Optional invoice object if already fetched"
+      },
+      "job": {
+        "type": "object",
+        "description": "Optional job object if already fetched"
+      },
+      "customerMessages": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Recent customer messages for context"
+      },
+      "crewNotes": {
+        "type": "string",
+        "description": "Crew notes about the job"
+      }
+    }
+  },
+  
+  "output": {
+    "type": "object",
+    "required": ["rootCause", "resolutionOptions", "recommended", "requiresHumanApproval", "confidence", "nextAction"],
+    "properties": {
+      "rootCause": {
+        "type": "string",
+        "enum": ["SCOPE_MISMATCH", "QUALITY_ISSUE", "PRICING_SURPRISE", "PAYMENT_ERROR", "COMMUNICATION_BREAKDOWN", "UNKNOWN"]
+      },
+      "resolutionOptions": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["CREDIT", "REDO_VISIT", "CALL_CUSTOMER", "ADJUST_INVOICE", "WAIVE_FEES"]
+            },
+            "amount": { "type": "number" },
+            "reason": { "type": "string" },
+            "scheduleSuggestion": {
+              "type": "object",
+              "properties": {
+                "preferredDate": { "type": "string" },
+                "estimatedDuration": { "type": "number" }
+              }
+            }
+          }
+        }
+      },
+      "recommended": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string" },
+          "amount": { "type": "number" },
+          "reason": { "type": "string" }
+        }
+      },
+      "requiresHumanApproval": { "type": "boolean" },
+      "approvalReason": { "type": "string" },
+      "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+      "nextAction": {
+        "type": "string",
+        "enum": ["CREATE_CREDIT_MEMO", "SCHEDULE_REVISIT", "ADJUST_INVOICE", "ESCALATE", "CONTACT_CUSTOMER"]
+      }
+    }
+  },
+  
+  "triggers": ["Customer dispute", "Payment failure", "Negative sentiment", "BillingIssue type DISPUTE"],
+  "escalation": "Credits above $50 require human approval",
+  "apiEndpoint": "POST /api/billing/remediate"
+}

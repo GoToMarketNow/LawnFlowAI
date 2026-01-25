@@ -1,0 +1,1745 @@
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useParams } from "wouter";
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { useUserRole } from "@/components/role-gate";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { 
+  Users, 
+  ArrowLeft, 
+  MapPin, 
+  Clock, 
+  Plus,
+  MoreHorizontal,
+  Trash2,
+  Crown,
+  CircleDot,
+  RefreshCw,
+  Wrench,
+  Star,
+  Truck,
+  ClipboardList,
+  Map,
+  TrendingUp,
+  DollarSign,
+  Gauge,
+  Navigation,
+} from "lucide-react";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
+import type { Crew, CrewMember, User, Skill, Equipment, CrewSkill, CrewEquipment, CrewAvailability, TimeOffRequest, ServiceZone, CrewZoneAssignment } from "@shared/schema";
+import { format } from "date-fns";
+import { Calendar, Check, X, CalendarOff, CheckCircle, XCircle, Clock as ClockIcon } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+
+type CrewSkillWithSkill = CrewSkill & { skill: Skill };
+type CrewEquipmentWithEquipment = CrewEquipment & { equipment: Equipment };
+type CrewZoneWithZone = CrewZoneAssignment & { zone: ServiceZone };
+
+type CrewWithMembers = Crew & {
+  members?: CrewMember[];
+  memberCount?: number;
+  leader?: CrewMember | null;
+};
+
+interface AnalyticsData {
+  analytics: Array<{
+    id: number;
+    crewId: number;
+    snapshotDate: string;
+    jobsCompleted: number;
+    jobsAssigned: number;
+    totalServiceMinutes: number;
+    totalDriveMinutes: number;
+    utilizationPercent: number;
+    revenueGenerated: number;
+    zoneCompliancePercent: number;
+  }>;
+  summary: {
+    totalJobsCompleted: number;
+    totalRevenue: number;
+    averageUtilization: number;
+    averageZoneCompliance: number;
+    totalDriveMinutes: number;
+  };
+  period: {
+    startDate: string;
+    endDate: string;
+    days: number;
+  };
+}
+
+function CrewAnalyticsSection({ crewId }: { crewId: number }) {
+  const [days, setDays] = useState(30);
+  
+  const { data, isLoading } = useQuery<AnalyticsData>({
+    queryKey: ["/api/ops/crews", crewId, "analytics", days],
+    queryFn: async () => {
+      const res = await fetch(`/api/ops/crews/${crewId}/analytics?days=${days}`);
+      if (!res.ok) throw new Error("Failed to fetch analytics");
+      return res.json();
+    },
+  });
+
+  const formatCurrency = (cents: number) => {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+  };
+
+  const formatMinutes = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}h ${mins}m`;
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Performance Analytics
+            </CardTitle>
+            <CardDescription>
+              Crew performance metrics and trends
+            </CardDescription>
+          </div>
+          <Select value={days.toString()} onValueChange={(v) => setDays(parseInt(v))}>
+            <SelectTrigger className="w-[130px]" data-testid="select-analytics-period">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">Last 7 days</SelectItem>
+              <SelectItem value="14">Last 14 days</SelectItem>
+              <SelectItem value="30">Last 30 days</SelectItem>
+              <SelectItem value="90">Last 90 days</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-20 rounded-md" />
+            ))}
+          </div>
+        ) : !data || !data.summary ? (
+          <div className="text-center py-6 text-muted-foreground">
+            <TrendingUp className="h-8 w-8 mx-auto opacity-30 mb-2" />
+            <p className="text-sm">No analytics data available yet</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div className="p-3 rounded-md bg-muted/50" data-testid="analytics-jobs">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <ClipboardList className="h-3.5 w-3.5" />
+                  <span className="text-xs">Jobs Completed</span>
+                </div>
+                <p className="text-2xl font-semibold">{data.summary.totalJobsCompleted}</p>
+              </div>
+              <div className="p-3 rounded-md bg-muted/50" data-testid="analytics-revenue">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <DollarSign className="h-3.5 w-3.5" />
+                  <span className="text-xs">Revenue</span>
+                </div>
+                <p className="text-2xl font-semibold">{formatCurrency(data.summary.totalRevenue)}</p>
+              </div>
+              <div className="p-3 rounded-md bg-muted/50" data-testid="analytics-utilization">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <Gauge className="h-3.5 w-3.5" />
+                  <span className="text-xs">Avg Utilization</span>
+                </div>
+                <p className="text-2xl font-semibold">{data.summary.averageUtilization}%</p>
+              </div>
+              <div className="p-3 rounded-md bg-muted/50" data-testid="analytics-drive-time">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <Navigation className="h-3.5 w-3.5" />
+                  <span className="text-xs">Drive Time</span>
+                </div>
+                <p className="text-2xl font-semibold">{formatMinutes(data.summary.totalDriveMinutes)}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 p-3 rounded-md border">
+              <div className="flex-1">
+                <span className="text-xs text-muted-foreground">Zone Compliance</span>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-primary rounded-full transition-all" 
+                      style={{ width: `${data.summary.averageZoneCompliance}%` }}
+                    />
+                  </div>
+                  <span className="text-sm font-medium">{data.summary.averageZoneCompliance}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function CrewDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const { toast } = useToast();
+  const userRole = useUserRole();
+  const canEdit = userRole === "OWNER" || userRole === "ADMIN";
+  const [showAddMemberDialog, setShowAddMemberDialog] = useState(false);
+  const [showRemoveMemberDialog, setShowRemoveMemberDialog] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<CrewMember | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [memberRole, setMemberRole] = useState<"WORKER" | "DRIVER">("WORKER");
+  
+  const [showAddSkillDialog, setShowAddSkillDialog] = useState(false);
+  const [selectedSkillId, setSelectedSkillId] = useState("");
+  const [proficiencyLevel, setProficiencyLevel] = useState("3");
+  
+  const [showAddEquipmentDialog, setShowAddEquipmentDialog] = useState(false);
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState("");
+  
+  const [showAddZoneDialog, setShowAddZoneDialog] = useState(false);
+  const [selectedZoneId, setSelectedZoneId] = useState("");
+  const [zoneIsPrimary, setZoneIsPrimary] = useState(true);
+  
+  const [editingCapacity, setEditingCapacity] = useState(false);
+  const [capacityHours, setCapacityHours] = useState("");
+  const [maxJobs, setMaxJobs] = useState("");
+  
+  const [editingAvailability, setEditingAvailability] = useState(false);
+  const [availabilityDraft, setAvailabilityDraft] = useState<{
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    isAvailable: boolean;
+  }[]>([]);
+  
+  const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const DEFAULT_START = "08:00";
+  const DEFAULT_END = "17:00";
+  
+  const [showTimeOffDialog, setShowTimeOffDialog] = useState(false);
+  const [timeOffStartDate, setTimeOffStartDate] = useState("");
+  const [timeOffEndDate, setTimeOffEndDate] = useState("");
+  const [timeOffNotes, setTimeOffNotes] = useState("");
+  
+  const canApproveTimeOff = userRole === "OWNER" || userRole === "ADMIN";
+
+  const { data: crew, isLoading, refetch } = useQuery<CrewWithMembers>({
+    queryKey: ["/api/ops/crews", id],
+  });
+
+  const { data: availableUsers } = useQuery<User[]>({
+    queryKey: ["/api/users"],
+  });
+
+  const { data: allSkills } = useQuery<Skill[]>({
+    queryKey: ["/api/ops/skills"],
+  });
+
+  const { data: allEquipment } = useQuery<Equipment[]>({
+    queryKey: ["/api/ops/equipment"],
+  });
+
+  const { data: crewSkills } = useQuery<CrewSkillWithSkill[]>({
+    queryKey: ["/api/ops/crews", id, "skills"],
+    enabled: !!id,
+  });
+
+  const { data: crewEquipmentList } = useQuery<CrewEquipmentWithEquipment[]>({
+    queryKey: ["/api/ops/crews", id, "equipment"],
+    enabled: !!id,
+  });
+
+  const { data: allZones } = useQuery<ServiceZone[]>({
+    queryKey: ["/api/ops/zones"],
+  });
+
+  const { data: crewZones } = useQuery<CrewZoneWithZone[]>({
+    queryKey: ["/api/ops/crews", id, "zones"],
+    enabled: !!id,
+  });
+
+  const { data: crewAvailability } = useQuery<CrewAvailability[]>({
+    queryKey: ["/api/ops/crews", id, "availability"],
+    enabled: !!id,
+  });
+
+  const { data: timeOffRequests } = useQuery<TimeOffRequest[]>({
+    queryKey: ["/api/ops/crews", id, "time-off"],
+    enabled: !!id,
+  });
+
+  const addMemberMutation = useMutation({
+    mutationFn: async (data: { userId: number; role: string }) => {
+      return apiRequest("POST", `/api/ops/crews/${id}/members`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id] });
+      setShowAddMemberDialog(false);
+      setSelectedUserId("");
+      setMemberRole("WORKER");
+      toast({ title: "Member added successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to add member", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: async (memberId: number) => {
+      return apiRequest("DELETE", `/api/ops/crews/${id}/members/${memberId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id] });
+      setShowRemoveMemberDialog(false);
+      setSelectedMember(null);
+      toast({ title: "Member removed successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to remove member", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const setLeaderMutation = useMutation({
+    mutationFn: async (memberId: number) => {
+      return apiRequest("POST", `/api/ops/crews/${id}/leader`, { memberId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id] });
+      toast({ title: "Crew leader updated" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to set leader", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const addSkillMutation = useMutation({
+    mutationFn: async (data: { skillId: number; proficiencyLevel: number }) => {
+      return apiRequest("POST", `/api/ops/crews/${id}/skills`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id, "skills"] });
+      setShowAddSkillDialog(false);
+      setSelectedSkillId("");
+      setProficiencyLevel("3");
+      toast({ title: "Skill added to crew" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to add skill", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const removeSkillMutation = useMutation({
+    mutationFn: async (skillId: number) => {
+      return apiRequest("DELETE", `/api/ops/crews/${id}/skills/${skillId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id, "skills"] });
+      toast({ title: "Skill removed from crew" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to remove skill", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const addEquipmentMutation = useMutation({
+    mutationFn: async (equipmentId: number) => {
+      return apiRequest("POST", `/api/ops/crews/${id}/equipment`, { equipmentId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id, "equipment"] });
+      setShowAddEquipmentDialog(false);
+      setSelectedEquipmentId("");
+      toast({ title: "Equipment assigned to crew" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to assign equipment", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const removeEquipmentMutation = useMutation({
+    mutationFn: async (equipmentId: number) => {
+      return apiRequest("DELETE", `/api/ops/crews/${id}/equipment/${equipmentId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id, "equipment"] });
+      toast({ title: "Equipment removed from crew" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to remove equipment", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const addZoneMutation = useMutation({
+    mutationFn: async (data: { zoneId: number; isPrimary: boolean }) => {
+      return apiRequest("POST", `/api/ops/crews/${id}/zones`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id, "zones"] });
+      setShowAddZoneDialog(false);
+      setSelectedZoneId("");
+      setZoneIsPrimary(true);
+      toast({ title: "Zone assigned to crew" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to assign zone", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const removeZoneMutation = useMutation({
+    mutationFn: async (zoneId: number) => {
+      return apiRequest("DELETE", `/api/ops/crews/${id}/zones/${zoneId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id, "zones"] });
+      toast({ title: "Zone removed from crew" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to remove zone", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateCapacityMutation = useMutation({
+    mutationFn: async (data: { dailyCapacityMinutes: number; maxJobsPerDay: number }) => {
+      return apiRequest("PATCH", `/api/ops/crews/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id] });
+      setEditingCapacity(false);
+      toast({ title: "Capacity updated" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to update capacity", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateAvailabilityMutation = useMutation({
+    mutationFn: async (availability: typeof availabilityDraft) => {
+      return apiRequest("PUT", `/api/ops/crews/${id}/availability`, { availability });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id, "availability"] });
+      setEditingAvailability(false);
+      toast({ title: "Availability schedule updated" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to update availability", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const initializeAvailabilityDraft = () => {
+    if (crewAvailability && crewAvailability.length > 0) {
+      setAvailabilityDraft(
+        crewAvailability.map(a => ({
+          dayOfWeek: a.dayOfWeek,
+          startTime: a.startTime,
+          endTime: a.endTime,
+          isAvailable: a.isAvailable,
+        }))
+      );
+    } else {
+      // Default schedule: Mon-Fri 8am-5pm
+      setAvailabilityDraft(
+        DAYS_OF_WEEK.map((_, i) => ({
+          dayOfWeek: i,
+          startTime: DEFAULT_START,
+          endTime: DEFAULT_END,
+          isAvailable: i >= 1 && i <= 5, // Mon-Fri on, Sat-Sun off
+        }))
+      );
+    }
+  };
+
+  const getAvailabilityForDay = (dayOfWeek: number) => {
+    return crewAvailability?.find(a => a.dayOfWeek === dayOfWeek);
+  };
+
+  const createTimeOffMutation = useMutation({
+    mutationFn: async (data: { startDate: string; endDate: string; notes?: string }) => {
+      return apiRequest("POST", `/api/ops/crews/${id}/time-off`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id, "time-off"] });
+      setShowTimeOffDialog(false);
+      setTimeOffStartDate("");
+      setTimeOffEndDate("");
+      setTimeOffNotes("");
+      toast({ title: "Time-off request created" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to create request", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const approveTimeOffMutation = useMutation({
+    mutationFn: async (requestId: number) => {
+      return apiRequest("PATCH", `/api/ops/time-off/${requestId}/approve`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id, "time-off"] });
+      toast({ title: "Time-off approved" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to approve", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const denyTimeOffMutation = useMutation({
+    mutationFn: async (requestId: number) => {
+      return apiRequest("PATCH", `/api/ops/time-off/${requestId}/deny`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id, "time-off"] });
+      toast({ title: "Time-off denied" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to deny", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteTimeOffMutation = useMutation({
+    mutationFn: async (requestId: number) => {
+      return apiRequest("DELETE", `/api/ops/time-off/${requestId}`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ops/crews", id, "time-off"] });
+      toast({ title: "Time-off request deleted" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to delete", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const assignedSkillIds = crewSkills?.map(cs => cs.skillId) ?? [];
+  const availableSkillsToAdd = allSkills?.filter(s => !assignedSkillIds.includes(s.id)) ?? [];
+  
+  const assignedEquipmentIds = crewEquipmentList?.map(ce => ce.equipmentId) ?? [];
+  const availableEquipmentToAdd = allEquipment?.filter(e => !assignedEquipmentIds.includes(e.id)) ?? [];
+
+  if (isLoading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-9 w-24" />
+          <Skeleton className="h-8 w-48" />
+        </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          <Skeleton className="h-48" />
+          <Skeleton className="h-48" />
+        </div>
+        <Skeleton className="h-96" />
+      </div>
+    );
+  }
+
+  if (!crew) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <Users className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
+          <h3 className="mt-4 text-lg font-medium">Crew not found</h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            The crew you're looking for doesn't exist or has been deleted.
+          </p>
+          <Link href="/operations/crews">
+            <Button className="mt-4" data-testid="button-back-to-crews">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Crews
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const members = crew.members ?? [];
+  const activeMembers = members.filter(m => m.isActive);
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-4">
+          <Link href="/operations/crews">
+            <Button variant="ghost" size="icon" data-testid="button-back">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-semibold" data-testid="text-crew-name">{crew.name}</h1>
+              <Badge 
+                variant={crew.status === "ACTIVE" ? "default" : "secondary"}
+                data-testid="badge-crew-status"
+              >
+                {crew.status ?? "ACTIVE"}
+              </Badge>
+            </div>
+            <p className="text-muted-foreground text-sm">
+              Crew ID: {crew.id}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={() => refetch()}
+            data-testid="button-refresh"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+          {canEdit && (
+            <Button 
+              onClick={() => setShowAddMemberDialog(true)}
+              data-testid="button-add-member"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Member
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Crew Details</CardTitle>
+            <CardDescription>Basic information and configuration</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3 text-sm">
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <div className="font-medium">Home Base</div>
+                <div className="text-muted-foreground">
+                  {crew.homeBaseAddress || "Not configured"}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 text-sm">
+              <CircleDot className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <div className="font-medium">Service Radius</div>
+                <div className="text-muted-foreground">
+                  {crew.serviceRadiusMiles ?? 20} miles
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 text-sm">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <div className="font-medium">Daily Capacity</div>
+                <div className="text-muted-foreground">
+                  {crew.dailyCapacityMinutes ? `${Math.floor(crew.dailyCapacityMinutes / 60)} hours` : "7 hours"}
+                </div>
+              </div>
+            </div>
+            {crew.homeBaseLat && crew.homeBaseLng && (
+              <div className="flex items-center gap-3 text-sm">
+                <MapPin className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <div className="font-medium">Coordinates</div>
+                  <div className="text-muted-foreground font-mono text-xs">
+                    {crew.homeBaseLat.toFixed(4)}, {crew.homeBaseLng.toFixed(4)}
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Crew Leader</CardTitle>
+            <CardDescription>The designated lead for this crew</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {crew.leader ? (
+              <div className="flex items-center gap-3 p-3 rounded-md bg-primary/5 border border-primary/10">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Crown className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-medium">{crew.leader.displayName}</div>
+                  <div className="text-sm text-muted-foreground">
+                    Crew Leader since {crew.leader.startAt ? format(new Date(crew.leader.startAt), "MMM d, yyyy") : "N/A"}
+                  </div>
+                </div>
+                <Badge variant="outline">{crew.leader.role}</Badge>
+              </div>
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">
+                <Crown className="h-8 w-8 mx-auto opacity-30 mb-2" />
+                <p className="text-sm">No crew leader assigned</p>
+                <p className="text-xs">Assign a leader from the members list below</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <CardTitle>Crew Members</CardTitle>
+              <CardDescription>
+                {activeMembers.length} active member{activeMembers.length !== 1 ? "s" : ""}
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {members.length === 0 ? (
+            <div className="text-center py-12">
+              <Users className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
+              <h3 className="mt-4 text-lg font-medium">No members yet</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {canEdit ? "Add team members to this crew to get started" : "No members assigned to this crew yet"}
+              </p>
+              {canEdit && (
+                <Button 
+                  className="mt-4" 
+                  onClick={() => setShowAddMemberDialog(true)}
+                  data-testid="button-add-first-member"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Member
+                </Button>
+              )}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Start Date</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {members.map((member) => (
+                  <TableRow 
+                    key={member.id}
+                    data-testid={`row-member-${member.id}`}
+                  >
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                          {crew.leader?.id === member.id ? (
+                            <Crown className="h-4 w-4 text-primary" />
+                          ) : (
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            {member.displayName}
+                            {crew.leader?.id === member.id && (
+                              <Badge variant="outline" className="text-xs">Leader</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" data-testid={`badge-role-${member.id}`}>
+                        {member.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant={member.isActive ? "default" : "secondary"}
+                        data-testid={`badge-status-${member.id}`}
+                      >
+                        {member.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {member.startAt ? format(new Date(member.startAt), "MMM d, yyyy") : "N/A"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {canEdit && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" data-testid={`button-menu-${member.id}`}>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {crew.leader?.id !== member.id && (
+                              <DropdownMenuItem 
+                                onClick={() => setLeaderMutation.mutate(member.id)}
+                                data-testid={`menu-set-leader-${member.id}`}
+                              >
+                                <Crown className="h-4 w-4 mr-2" />
+                                Set as Leader
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem 
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => {
+                                setSelectedMember(member);
+                                setShowRemoveMemberDialog(true);
+                              }}
+                              data-testid={`menu-remove-${member.id}`}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Remove from Crew
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Star className="h-4 w-4" />
+                  Skills
+                </CardTitle>
+                <CardDescription>
+                  {crewSkills?.length ?? 0} skill{(crewSkills?.length ?? 0) !== 1 ? "s" : ""} assigned
+                </CardDescription>
+              </div>
+              {canEdit && (
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => setShowAddSkillDialog(true)}
+                  disabled={availableSkillsToAdd.length === 0}
+                  data-testid="button-add-skill"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Skill
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {!crewSkills || crewSkills.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground">
+                <Star className="h-8 w-8 mx-auto opacity-30 mb-2" />
+                <p className="text-sm">No skills assigned</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {crewSkills.map((cs) => (
+                  <div 
+                    key={cs.id} 
+                    className="flex items-center justify-between p-2 rounded-md bg-muted/50"
+                    data-testid={`skill-item-${cs.skillId}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {cs.skill.category}
+                      </Badge>
+                      <span className="text-sm font-medium">{cs.skill.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3, 4, 5].map((level) => (
+                          <Star 
+                            key={level}
+                            className={`h-3 w-3 ${level <= cs.proficiencyLevel ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground/30"}`}
+                          />
+                        ))}
+                      </div>
+                      {canEdit && (
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          className="h-7 w-7"
+                          onClick={() => removeSkillMutation.mutate(cs.skillId)}
+                          data-testid={`button-remove-skill-${cs.skillId}`}
+                        >
+                          <Trash2 className="h-3 w-3 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Truck className="h-4 w-4" />
+                  Equipment
+                </CardTitle>
+                <CardDescription>
+                  {crewEquipmentList?.length ?? 0} item{(crewEquipmentList?.length ?? 0) !== 1 ? "s" : ""} assigned
+                </CardDescription>
+              </div>
+              {canEdit && (
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => setShowAddEquipmentDialog(true)}
+                  disabled={availableEquipmentToAdd.length === 0}
+                  data-testid="button-add-equipment"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Equipment
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {!crewEquipmentList || crewEquipmentList.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground">
+                <Truck className="h-8 w-8 mx-auto opacity-30 mb-2" />
+                <p className="text-sm">No equipment assigned</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {crewEquipmentList.map((ce) => (
+                  <div 
+                    key={ce.id} 
+                    className="flex items-center justify-between p-2 rounded-md bg-muted/50"
+                    data-testid={`equipment-item-${ce.equipmentId}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Wrench className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">{ce.equipment.name}</span>
+                      <Badge variant="outline" className="text-xs">
+                        {ce.equipment.type}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge 
+                        variant={ce.equipment.status === "available" ? "default" : "secondary"}
+                        className="text-xs"
+                      >
+                        {ce.equipment.status}
+                      </Badge>
+                      {canEdit && (
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          className="h-7 w-7"
+                          onClick={() => removeEquipmentMutation.mutate(ce.equipmentId)}
+                          data-testid={`button-remove-equipment-${ce.equipmentId}`}
+                        >
+                          <Trash2 className="h-3 w-3 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Map className="h-4 w-4" />
+                Service Zones
+              </CardTitle>
+              <CardDescription>
+                {crewZones?.length ?? 0} zone{(crewZones?.length ?? 0) !== 1 ? "s" : ""} assigned
+              </CardDescription>
+            </div>
+            {canEdit && (
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => setShowAddZoneDialog(true)}
+                disabled={!allZones || allZones.filter(z => !crewZones?.some(cz => cz.zoneId === z.id)).length === 0}
+                data-testid="button-add-zone"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Add Zone
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!crewZones || crewZones.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground">
+              <Map className="h-8 w-8 mx-auto opacity-30 mb-2" />
+              <p className="text-sm">No zones assigned</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {crewZones.map((cz) => (
+                <div 
+                  key={cz.id} 
+                  className="flex items-center justify-between p-2 rounded-md bg-muted/50"
+                  data-testid={`zone-item-${cz.zoneId}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-4 h-4 rounded-sm" 
+                      style={{ backgroundColor: cz.zone.color || "#22c55e" }}
+                    />
+                    <span className="text-sm font-medium">{cz.zone.name}</span>
+                    {cz.isPrimary && (
+                      <Badge variant="secondary" className="text-xs">Primary</Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {cz.zone.radiusMiles && (
+                      <Badge variant="outline" className="text-xs">
+                        {cz.zone.radiusMiles} mi
+                      </Badge>
+                    )}
+                    {canEdit && (
+                      <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        className="h-7 w-7"
+                        onClick={() => removeZoneMutation.mutate(cz.zoneId)}
+                        data-testid={`button-remove-zone-${cz.zoneId}`}
+                      >
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <CrewAnalyticsSection crewId={parseInt(id!)} />
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <ClipboardList className="h-4 w-4" />
+                Capacity Settings
+              </CardTitle>
+              <CardDescription>
+                Configure daily work capacity for scheduling
+              </CardDescription>
+            </div>
+            {canEdit && !editingCapacity && (
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => {
+                  setCapacityHours(String(Math.floor((crew.dailyCapacityMinutes ?? 420) / 60)));
+                  setMaxJobs(String(crew.maxJobsPerDay ?? 8));
+                  setEditingCapacity(true);
+                }}
+                data-testid="button-edit-capacity"
+              >
+                Edit Capacity
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {editingCapacity ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="capacity-hours">Daily Hours</Label>
+                  <Input 
+                    id="capacity-hours"
+                    type="number"
+                    min="1"
+                    max="16"
+                    value={capacityHours}
+                    onChange={(e) => setCapacityHours(e.target.value)}
+                    data-testid="input-capacity-hours"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="max-jobs">Max Jobs/Day</Label>
+                  <Input 
+                    id="max-jobs"
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={maxJobs}
+                    onChange={(e) => setMaxJobs(e.target.value)}
+                    data-testid="input-max-jobs"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  size="sm"
+                  onClick={() => updateCapacityMutation.mutate({
+                    dailyCapacityMinutes: parseInt(capacityHours) * 60,
+                    maxJobsPerDay: parseInt(maxJobs),
+                  })}
+                  disabled={updateCapacityMutation.isPending || !capacityHours || !maxJobs || isNaN(parseInt(capacityHours)) || isNaN(parseInt(maxJobs)) || parseInt(capacityHours) < 1 || parseInt(maxJobs) < 1}
+                  data-testid="button-save-capacity"
+                >
+                  {updateCapacityMutation.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+                <Button 
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setEditingCapacity(false)}
+                  data-testid="button-cancel-capacity"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-6">
+              <div className="flex items-center gap-3">
+                <Clock className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <div className="text-sm font-medium">Daily Capacity</div>
+                  <div className="text-lg font-semibold">
+                    {Math.floor((crew.dailyCapacityMinutes ?? 420) / 60)} hours
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <ClipboardList className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <div className="text-sm font-medium">Max Jobs/Day</div>
+                  <div className="text-lg font-semibold">
+                    {crew.maxJobsPerDay ?? 8} jobs
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Weekly Availability
+              </CardTitle>
+              <CardDescription>
+                Configure working days and hours for this crew
+              </CardDescription>
+            </div>
+            {canEdit && !editingAvailability && (
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => {
+                  initializeAvailabilityDraft();
+                  setEditingAvailability(true);
+                }}
+                data-testid="button-edit-availability"
+              >
+                Edit Schedule
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {editingAvailability ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                {availabilityDraft.map((slot, idx) => (
+                  <div 
+                    key={slot.dayOfWeek} 
+                    className="flex items-center gap-4 py-2 border-b last:border-b-0"
+                  >
+                    <div className="w-24 font-medium text-sm">
+                      {DAYS_OF_WEEK[slot.dayOfWeek]}
+                    </div>
+                    <Switch
+                      checked={slot.isAvailable}
+                      onCheckedChange={(checked) => {
+                        const updated = [...availabilityDraft];
+                        updated[idx] = { ...updated[idx], isAvailable: checked };
+                        setAvailabilityDraft(updated);
+                      }}
+                      data-testid={`switch-available-${slot.dayOfWeek}`}
+                    />
+                    {slot.isAvailable && (
+                      <>
+                        <Input
+                          type="time"
+                          value={slot.startTime}
+                          onChange={(e) => {
+                            const updated = [...availabilityDraft];
+                            updated[idx] = { ...updated[idx], startTime: e.target.value };
+                            setAvailabilityDraft(updated);
+                          }}
+                          className="w-28"
+                          data-testid={`input-start-${slot.dayOfWeek}`}
+                        />
+                        <span className="text-muted-foreground">to</span>
+                        <Input
+                          type="time"
+                          value={slot.endTime}
+                          onChange={(e) => {
+                            const updated = [...availabilityDraft];
+                            updated[idx] = { ...updated[idx], endTime: e.target.value };
+                            setAvailabilityDraft(updated);
+                          }}
+                          className="w-28"
+                          data-testid={`input-end-${slot.dayOfWeek}`}
+                        />
+                      </>
+                    )}
+                    {!slot.isAvailable && (
+                      <span className="text-muted-foreground text-sm">Not available</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  size="sm"
+                  onClick={() => updateAvailabilityMutation.mutate(availabilityDraft)}
+                  disabled={updateAvailabilityMutation.isPending}
+                  data-testid="button-save-availability"
+                >
+                  {updateAvailabilityMutation.isPending ? "Saving..." : "Save Schedule"}
+                </Button>
+                <Button 
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setEditingAvailability(false)}
+                  data-testid="button-cancel-availability"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {DAYS_OF_WEEK.map((day, i) => {
+                const avail = getAvailabilityForDay(i);
+                const isAvailable = avail?.isAvailable ?? (i >= 1 && i <= 5);
+                const start = avail?.startTime ?? DEFAULT_START;
+                const end = avail?.endTime ?? DEFAULT_END;
+                
+                return (
+                  <div 
+                    key={i} 
+                    className="flex items-center gap-4 py-1"
+                    data-testid={`availability-day-${i}`}
+                  >
+                    <div className="w-24 font-medium text-sm">
+                      {day}
+                    </div>
+                    {isAvailable ? (
+                      <div className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-green-600" />
+                        <span className="text-sm">{start} - {end}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <X className="h-4 w-4" />
+                        <span className="text-sm">Off</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <CalendarOff className="h-4 w-4" />
+                Time-Off Requests
+              </CardTitle>
+              <CardDescription>
+                Manage vacation and time-off for this crew
+              </CardDescription>
+            </div>
+            {canEdit && (
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => setShowTimeOffDialog(true)}
+                data-testid="button-request-time-off"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Request Time Off
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!timeOffRequests || timeOffRequests.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No time-off requests</p>
+          ) : (
+            <div className="space-y-3">
+              {timeOffRequests.map((request) => (
+                <div 
+                  key={request.id} 
+                  className="flex items-center justify-between gap-4 p-3 border rounded-md"
+                  data-testid={`time-off-request-${request.id}`}
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">
+                        {format(new Date(request.startDate), "MMM d")} - {format(new Date(request.endDate), "MMM d, yyyy")}
+                      </span>
+                      <Badge 
+                        variant={
+                          request.status === "approved" ? "default" :
+                          request.status === "denied" ? "destructive" :
+                          "secondary"
+                        }
+                        className="text-xs"
+                      >
+                        {request.status === "approved" && <CheckCircle className="h-3 w-3 mr-1" />}
+                        {request.status === "denied" && <XCircle className="h-3 w-3 mr-1" />}
+                        {request.status === "pending" && <ClockIcon className="h-3 w-3 mr-1" />}
+                        {request.status}
+                      </Badge>
+                    </div>
+                    {request.notes && (
+                      <p className="text-xs text-muted-foreground mt-1">{request.notes}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {request.status === "pending" && canApproveTimeOff && (
+                      <>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => approveTimeOffMutation.mutate(request.id)}
+                          disabled={approveTimeOffMutation.isPending}
+                          data-testid={`button-approve-${request.id}`}
+                        >
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => denyTimeOffMutation.mutate(request.id)}
+                          disabled={denyTimeOffMutation.isPending}
+                          data-testid={`button-deny-${request.id}`}
+                        >
+                          <XCircle className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </>
+                    )}
+                    {canEdit && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => deleteTimeOffMutation.mutate(request.id)}
+                        disabled={deleteTimeOffMutation.isPending}
+                        data-testid={`button-delete-time-off-${request.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={showTimeOffDialog} onOpenChange={setShowTimeOffDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request Time Off</DialogTitle>
+            <DialogDescription>
+              Schedule time off for this crew
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="start-date">Start Date</Label>
+                <Input
+                  id="start-date"
+                  type="date"
+                  value={timeOffStartDate}
+                  onChange={(e) => setTimeOffStartDate(e.target.value)}
+                  data-testid="input-time-off-start"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="end-date">End Date</Label>
+                <Input
+                  id="end-date"
+                  type="date"
+                  value={timeOffEndDate}
+                  onChange={(e) => setTimeOffEndDate(e.target.value)}
+                  data-testid="input-time-off-end"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes (optional)</Label>
+              <Textarea
+                id="notes"
+                value={timeOffNotes}
+                onChange={(e) => setTimeOffNotes(e.target.value)}
+                placeholder="Reason for time off..."
+                data-testid="input-time-off-notes"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowTimeOffDialog(false)}
+              data-testid="button-cancel-time-off"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => createTimeOffMutation.mutate({
+                startDate: timeOffStartDate,
+                endDate: timeOffEndDate,
+                notes: timeOffNotes || undefined,
+              })}
+              disabled={!timeOffStartDate || !timeOffEndDate || createTimeOffMutation.isPending}
+              data-testid="button-submit-time-off"
+            >
+              {createTimeOffMutation.isPending ? "Submitting..." : "Submit Request"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAddSkillDialog} onOpenChange={setShowAddSkillDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Skill to Crew</DialogTitle>
+            <DialogDescription>
+              Assign a skill with proficiency level
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Select Skill</Label>
+              <Select value={selectedSkillId} onValueChange={setSelectedSkillId}>
+                <SelectTrigger data-testid="select-skill">
+                  <SelectValue placeholder="Choose a skill..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableSkillsToAdd.map((skill) => (
+                    <SelectItem 
+                      key={skill.id} 
+                      value={skill.id.toString()}
+                      data-testid={`option-skill-${skill.id}`}
+                    >
+                      {skill.name} ({skill.category})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Proficiency Level (1-5)</Label>
+              <Select value={proficiencyLevel} onValueChange={setProficiencyLevel}>
+                <SelectTrigger data-testid="select-proficiency">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 - Beginner</SelectItem>
+                  <SelectItem value="2">2 - Basic</SelectItem>
+                  <SelectItem value="3">3 - Intermediate</SelectItem>
+                  <SelectItem value="4">4 - Advanced</SelectItem>
+                  <SelectItem value="5">5 - Expert</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowAddSkillDialog(false)}
+              data-testid="button-cancel-add-skill"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => addSkillMutation.mutate({ 
+                skillId: parseInt(selectedSkillId), 
+                proficiencyLevel: parseInt(proficiencyLevel),
+              })}
+              disabled={!selectedSkillId || addSkillMutation.isPending}
+              data-testid="button-confirm-add-skill"
+            >
+              {addSkillMutation.isPending ? "Adding..." : "Add Skill"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAddEquipmentDialog} onOpenChange={setShowAddEquipmentDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Equipment to Crew</DialogTitle>
+            <DialogDescription>
+              Assign available equipment to this crew
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Select Equipment</Label>
+              <Select value={selectedEquipmentId} onValueChange={setSelectedEquipmentId}>
+                <SelectTrigger data-testid="select-equipment">
+                  <SelectValue placeholder="Choose equipment..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableEquipmentToAdd.map((equip) => (
+                    <SelectItem 
+                      key={equip.id} 
+                      value={equip.id.toString()}
+                      data-testid={`option-equipment-${equip.id}`}
+                    >
+                      {equip.name} ({equip.type})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowAddEquipmentDialog(false)}
+              data-testid="button-cancel-add-equipment"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => addEquipmentMutation.mutate(parseInt(selectedEquipmentId))}
+              disabled={!selectedEquipmentId || addEquipmentMutation.isPending}
+              data-testid="button-confirm-add-equipment"
+            >
+              {addEquipmentMutation.isPending ? "Assigning..." : "Assign Equipment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAddZoneDialog} onOpenChange={setShowAddZoneDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Zone to Crew</DialogTitle>
+            <DialogDescription>
+              Assign a service zone to this crew
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Select Zone</Label>
+              <Select value={selectedZoneId} onValueChange={setSelectedZoneId}>
+                <SelectTrigger data-testid="select-zone">
+                  <SelectValue placeholder="Choose zone..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {allZones?.filter(z => !crewZones?.some(cz => cz.zoneId === z.id)).map((zone) => (
+                    <SelectItem 
+                      key={zone.id} 
+                      value={zone.id.toString()}
+                      data-testid={`option-zone-${zone.id}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-sm" 
+                          style={{ backgroundColor: zone.color || "#22c55e" }}
+                        />
+                        {zone.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="zone-primary"
+                checked={zoneIsPrimary}
+                onChange={(e) => setZoneIsPrimary(e.target.checked)}
+                className="h-4 w-4 rounded border-input"
+                data-testid="checkbox-zone-primary"
+              />
+              <Label htmlFor="zone-primary" className="text-sm">Primary zone (crew's main service area)</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowAddZoneDialog(false)}
+              data-testid="button-cancel-add-zone"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => addZoneMutation.mutate({ zoneId: parseInt(selectedZoneId), isPrimary: zoneIsPrimary })}
+              disabled={!selectedZoneId || addZoneMutation.isPending}
+              data-testid="button-confirm-add-zone"
+            >
+              {addZoneMutation.isPending ? "Assigning..." : "Assign Zone"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAddMemberDialog} onOpenChange={setShowAddMemberDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Crew Member</DialogTitle>
+            <DialogDescription>
+              Add an existing user to this crew
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Select User</Label>
+              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                <SelectTrigger data-testid="select-user">
+                  <SelectValue placeholder="Choose a user..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableUsers?.map((user) => (
+                    <SelectItem 
+                      key={user.id} 
+                      value={user.id.toString()}
+                      data-testid={`option-user-${user.id}`}
+                    >
+                      {user.displayName || user.phoneE164 || user.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <Select value={memberRole} onValueChange={(v) => setMemberRole(v as "WORKER" | "DRIVER")}>
+                <SelectTrigger data-testid="select-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="WORKER">Worker</SelectItem>
+                  <SelectItem value="DRIVER">Driver</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowAddMemberDialog(false)}
+              data-testid="button-cancel-add"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => addMemberMutation.mutate({ 
+                userId: parseInt(selectedUserId), 
+                role: memberRole 
+              })}
+              disabled={!selectedUserId || addMemberMutation.isPending}
+              data-testid="button-confirm-add"
+            >
+              {addMemberMutation.isPending ? "Adding..." : "Add Member"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showRemoveMemberDialog} onOpenChange={setShowRemoveMemberDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Crew Member</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove "{selectedMember?.displayName}" from this crew?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowRemoveMemberDialog(false)}
+              data-testid="button-cancel-remove"
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={() => selectedMember && removeMemberMutation.mutate(selectedMember.id)}
+              disabled={removeMemberMutation.isPending}
+              data-testid="button-confirm-remove"
+            >
+              {removeMemberMutation.isPending ? "Removing..." : "Remove Member"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

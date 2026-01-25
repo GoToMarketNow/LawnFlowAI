@@ -1,0 +1,43 @@
+graph TB
+
+  subgraph leadToCash [Lead-to-Cash Workflow]
+    ltc_leadIntake[leadIntake]
+    ltc_quoteBuild[quoteBuild]
+    ltc_quoteConfirm[quoteConfirm]
+    ltc_schedulePropose[schedulePropose]
+    ltc_simulationRun[simulationRun]
+    ltc_feasibilityCheck[feasibilityCheck]
+    ltc_marginValidate[marginValidate]
+    ltc_crewLock[crewLock]
+    ltc_dispatchReady[dispatchReady]
+    ltc_jobBook[jobBook]
+  end
+
+  subgraph generalAgents [General-Purpose Agents]
+    orchestrator(Orchestrator)
+    inbound_intake(InboundIntake)
+    pricing_profit(PricingProfit)
+    scheduling_dispatch(SchedulingDispatch)
+    job_creation(JobCreation)
+    crew_notification(CrewNotification)
+    job_monitoring(JobMonitoring)
+    quality_assurance(QualityAssurance)
+    completion_finalization(CompletionFinalization)
+    customer_notification(CustomerNotification)
+  end
+
+  subgraph otherOrchestrators [Other Workflows]
+    payment_agent[paymentAgent]
+    postjob_qa[postJobQAAgent]
+    review_management[reviewManagementAgent]
+  end
+
+  ltc_leadIntake ==>|next_stage| ltc_quoteBuild
+  ltc_quoteBuild ==>|next_stage| ltc_quoteConfirm
+  ltc_quoteConfirm ==>|next_stage| ltc_schedulePropose
+  ltc_schedulePropose ==>|next_stage| ltc_simulationRun
+  ltc_simulationRun ==>|next_stage| ltc_feasibilityCheck
+  ltc_feasibilityCheck ==>|next_stage| ltc_marginValidate
+  ltc_marginValidate ==>|next_stage| ltc_crewLock
+  ltc_crewLock ==>|next_stage| ltc_dispatchReady
+  ltc_dispatchReady ==>|next_stage| ltc_jobBook

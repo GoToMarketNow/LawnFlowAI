@@ -1,0 +1,196 @@
+// prisma/seed.ts (ADD THIS SECTION after ScheduleItems are created)
+// Adds 8 new JobRequests clustered across Charlottesville City, Albemarle County, Greene County.
+// Includes service variance + lot size variance + confidence variance so simulations differentiate.
+
+type Service = "mowing" | "edging" | "blowing" | "cleanup" | "shrub_trim" | "mulch";
+
+const SERVICE_SETS: Array<{
+  services: Service[];
+  frequency: "one_time" | "weekly" | "biweekly" | "monthly" | "unknown";
+  lotSqft: number | null;
+  lotConfidence: "high" | "medium" | "low";
+}> = [
+  // Standard recurring (easy auto-eligible)
+  { services: ["mowing", "edging", "blowing"], frequency: "weekly", lotSqft: 6500, lotConfidence: "high" },
+  { services: ["mowing", "edging"], frequency: "weekly", lotSqft: 16000, lotConfidence: "high" },
+  { services: ["mowing"], frequency: "biweekly", lotSqft: 22000, lotConfidence: "medium" },
+  { services: ["mowing", "blowing"], frequency: "weekly", lotSqft: 9000, lotConfidence: "high" },
+
+  // Higher variance / likely needs review
+  { services: ["cleanup"], frequency: "one_time", lotSqft: 20000, lotConfidence: "low" },
+  { services: ["shrub_trim"], frequency: "one_time", lotSqft: 14000, lotConfidence: "low" },
+  { services: ["mulch"], frequency: "one_time", lotSqft: 25000, lotConfidence: "medium" },
+
+  // Bigger property monthly (should push review gates depending on your feasibility rules)
+  { services: ["mowing", "cleanup"], frequency: "monthly", lotSqft: 52000, lotConfidence: "medium" },
+];
+
+function deriveRequirements(services: Service[], lotSqft: number | null) {
+  const requiredSkills = new Set<string>();
+  const requiredEquipment = new Set<string>();
+  let crewSizeMin = 1;
+
+  const has = (s: Service) => services.includes(s);
+
+  if (has("mowing")) {
+    requiredSkills.add("mow");
+    requiredEquipment.add("mower");
+    if (lotSqft && lotSqft > 30000) requiredEquipment.add("rider_mower");
+  }
+  if (has("edging")) {
+    requiredSkills.add("trim");
+    requiredEquipment.add("edger_or_trimmer");
+  }
+  if (has("blowing")) {
+    requiredSkills.add("cleanup");
+    requiredEquipment.add("blower");
+  }
+  if (has("cleanup")) {
+    requiredSkills.add("cleanup");
+    requiredEquipment.add("blower");
+    requiredEquipment.add("trailer");
+    crewSizeMin = Math.max(crewSizeMin, 2);
+  }
+  if (has("shrub_trim")) {
+    requiredSkills.add("shrub_trim");
+    requiredEquipment.add("hedge_trimmer");
+    crewSizeMin = Math.max(crewSizeMin, 2);
+  }
+  if (has("mulch")) {
+    requiredSkills.add("mulch");
+    requiredEquipment.add("trailer");
+    crewSizeMin = Math.max(crewSizeMin, 2);
+  }
+
+  const band =
+    lotSqft == null
+      ? "unknown"
+      : lotSqft <= 10000
+      ? "small"
+      : lotSqft <= 20000
+      ? "medium"
+      : lotSqft <= 43560
+      ? "large"
+      : "xlarge";
+
+  const base = {
+    small: { low: 35, high: 55 },
+    medium: { low: 50, high: 80 },
+    large: { low: 70, high: 110 },
+    xlarge: { low: 95, high: 160 },
+    unknown: { low: 60, high: 130 },
+  }[band];
+
+  let extraLow = 0;
+  let extraHigh = 0;
+  if (has("cleanup")) {
+    extraLow += 40;
+    extraHigh += 90;
+  }
+  if (has("shrub_trim")) {
+    extraLow += 25;
+    extraHigh += 70;
+  }
+  if (has("mulch")) {
+    extraLow += 60;
+    extraHigh += 140;
+  }
+
+  return {
+    requiredSkills: [...requiredSkills],
+    requiredEquipment: [...requiredEquipment],
+    crewSizeMin,
+    laborLowMinutes: base.low + extraLow,
+    laborHighMinutes: base.high + extraHigh,
+  };
+}
+
+// Pick 8 lead locations around the same clusters used for schedule (CLUSTERS)
+// This ensures "route fit" and distance scoring work nicely in demos.
+const LEAD_CLUSTER_MIX: Array<{ v: keyof typeof CLUSTERS; w: number }> = [
+  { v: "cville_north", w: 0.22 },
+  { v: "cville_uva", w: 0.18 },
+  { v: "cville_east", w: 0.10 },
+  { v: "hollymead", w: 0.12 },
+  { v: "crozet", w: 0.16 },
+  { v: "scottsville", w: 0.08 },
+  { v: "stanardsville", w: 0.08 },
+  { v: "ruckersville", w: 0.06 },
+];
+
+const fakeNames = [
+  "Jamie Parker",
+  "Casey Nguyen",
+  "Taylor Reed",
+  "Morgan Hill",
+  "Jordan Patel",
+  "Riley Chen",
+  "Avery Brooks",
+  "Sam Wilson",
+];
+
+const phoneBase = 4345550200; // demo-safe
+
+function clusterToZip(clusterKey: keyof typeof CLUSTERS): string {
+  if (clusterKey === "cville_north") return "22901";
+  if (clusterKey === "cville_uva") return "22903";
+  if (clusterKey === "cville_east") return "22911";
+  if (clusterKey === "crozet") return "22932";
+  if (clusterKey === "scottsville") return "24590";
+  if (clusterKey === "hollymead") return "22911";
+  if (clusterKey === "stanardsville") return "22973";
+  if (clusterKey === "ruckersville") return "22968";
+  return "22901";
+}
+
+const streets = ["Oak", "Maple", "Pine", "Cedar", "Ridge", "Park", "Grove", "Hill"];
+const suffixes = ["St", "Ave", "Rd", "Ln", "Dr", "Ct"];
+
+for (let i = 0; i < 8; i++) {
+  const profile = SERVICE_SETS[i];
+  const clusterKey = pickWeighted(rng, LEAD_CLUSTER_MIX);
+  const pt = jitterPoint(rng, CLUSTERS[clusterKey].center, CLUSTERS[clusterKey].jitter);
+  const zip = clusterToZip(clusterKey);
+
+  const req = deriveRequirements(profile.services, profile.lotSqft);
+
+  const addressNum = 120 + Math.floor(rng() * 850);
+  const street = pick(rng, streets);
+  const suffix = pick(rng, suffixes);
+
+  // use locality string based on region-ish cluster
+  const locality =
+    clusterKey === "crozet"
+      ? "Crozet, VA"
+      : clusterKey === "scottsville"
+      ? "Scottsville, VA"
+      : clusterKey === "stanardsville"
+      ? "Stanardsville, VA"
+      : clusterKey === "ruckersville"
+      ? "Ruckersville, VA"
+      : "Charlottesville, VA";
+
+  await prisma.jobRequest.create({
+    data: {
+      accountId: account.id,
+      customerName: fakeNames[i],
+      customerPhone: `+1${phoneBase + i}`,
+      address: `${addressNum} ${street} ${suffix}, ${locality} ${zip}`,
+      lat: pt.lat,
+      lng: pt.lng,
+      zip,
+      servicesJson: JSON.stringify(profile.services),
+      frequency: profile.frequency,
+      lotAreaSqft: profile.lotSqft,
+      lotConfidence: profile.lotConfidence,
+      requiredSkillsJson: JSON.stringify(req.requiredSkills),
+      requiredEquipmentJson: JSON.stringify(req.requiredEquipment),
+      crewSizeMin: req.crewSizeMin,
+      laborLowMinutes: req.laborLowMinutes,
+      laborHighMinutes: req.laborHighMinutes,
+      status: "new",
+    },
+  });
+}
+
+console.log("✅ Added 8 clustered JobRequests for simulations.");

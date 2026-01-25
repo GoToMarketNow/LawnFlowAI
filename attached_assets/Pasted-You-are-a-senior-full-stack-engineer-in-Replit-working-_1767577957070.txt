@@ -1,0 +1,279 @@
+You are a senior full-stack engineer in Replit working on LawnFlow.ai (Next.js + Postgres + Prisma).
+Your task is to REFACTOR the front end to match the new operating model:
+Work Queue + Approvals + Command Center + Day Plan + Crews + Comms, with Agents moved to Admin/Settings.
+
+This is a FRONT-END RESTRUCTURE with minimal backend changes.
+Do not break existing workflows. Prefer reusing existing pages/components and routing.
+Implement in the exact phases below. Each phase must compile and be shippable.
+
+================================================================================
+GLOBAL DESIGN/UX RULES
+================================================================================
+- Keep the UI calm and minimal: whitespace, strong hierarchy, no clutter.
+- Use a consistent 3-panel pattern whenever possible:
+  Left = list/queue, Center = detail, Right = agent summary/actions/audit.
+- All pages must include: header, filters, empty state, loading state, error state.
+- RBAC:
+  OWNER_ADMIN: full access
+  CREW_LEAD: only crew + today plan + relevant comms + limited job actions
+  CREW_MEMBER: today plan + job details + notifications only
+- Navigation must be consistent across all pages (sidebar + topbar).
+- Agents are not primary navigation for operators; move under Settings/Admin.
+
+================================================================================
+PHASE 0 (PREP): INVENTORY & SAFETY
+================================================================================
+1) Scan the current app for existing routes that map to these modules:
+   - Leads
+   - Quotes
+   - Scheduling
+   - Crews
+   - Comms / SMS
+   - Agents directory
+   - Dashboard (current home)
+2) Create a mapping doc in /docs/ui-refactor.md:
+   - existing route -> new route
+   - components to reuse
+3) Add feature flag UI_REFACTOR_V1 (env var) so you can toggle new nav and pages.
+   - If flag off: old UI remains.
+   - If flag on: new UI + redirects.
+
+Deliverable: /docs/ui-refactor.md + feature flag gating.
+
+================================================================================
+PHASE 1: NEW NAVIGATION + INFORMATION ARCHITECTURE
+================================================================================
+GOAL: Update sidebar/topnav to new structure (without deleting old routes).
+
+Primary Nav (OWNER_ADMIN):
+- Home (Command Center)        /home
+- Work Queue                   /work
+- Approvals                    /approvals
+- Schedule (Day Plan)          /schedule
+- Crews                        /operations/crews
+- Comms                        /comms
+- Customers                    /customers
+- Settings                     /settings
+
+Primary Nav (CREW_LEAD):
+- Today (Day Plan)             /schedule
+- Crews                        /operations/crews/[myCrew]
+- Comms                        /comms
+- Notifications                /notifications
+
+Primary Nav (CREW_MEMBER):
+- Today (Day Plan)             /schedule
+- Notifications                /notifications
+
+Move Admin Tools under Settings (OWNER_ADMIN only):
+- Agents                        /settings/agents
+- Policies / Pricing Engine     /settings/policies
+- Integrations                  /settings/integrations
+- Audit / Observability         /settings/observability
+- Exports                       /settings/exports
+
+Implementation:
+- Create a central nav config that reads role + flag and renders appropriate items.
+- Add route redirects:
+  - / -> /home (when UI_REFACTOR_V1 on)
+  - keep old routes working
+
+DONE WHEN:
+- Users see the correct nav for their role
+- Old pages still accessible via direct link
+
+================================================================================
+PHASE 2: HOME → OPS COMMAND CENTER
+================================================================================
+GOAL: Replace current dashboard with an Ops Command Center.
+
+Create /home with:
+Top KPI Tiles:
+- Leads Today (new / pending / escalated)
+- Quotes Out (awaiting approval / sent / accepted)
+- Jobs Today (scheduled / at-risk / unassigned)
+- Crew Status (available / on-site / delayed)
+
+Below: Two queues
+A) Action Required
+- items that need human action (approvals, escalations, missing info)
+B) Agent Activity Feed
+- recent agent actions with “what happened + why” + link
+
+Rules:
+- Use lightweight aggregation queries (server) but keep logic minimal.
+- If you don’t have the metrics yet, show placeholders based on existing tables.
+- Clicking tiles routes into filters on /work or /approvals.
+
+DONE WHEN:
+- Home feels like a calm command center
+- Tiles and queues link into actual work screens
+
+================================================================================
+PHASE 3: WORK QUEUE (UNIFIED INBOX)
+================================================================================
+GOAL: Build /work as the single unified queue for leads, quotes, schedule issues, crew issues, comms exceptions.
+
+UI:
+- Left panel: queue list with filters
+- Center: selected item detail
+- Right: agent summary/actions/audit trail
+
+Queue Item schema (front-end model):
+- id
+- type: LEAD | QUOTE | SCHEDULE | CREW | COMMS
+- title
+- status
+- priority (LOW/MED/HIGH)
+- confidence (0–100 or LOW/MED/HIGH)
+- recommendedAction (string)
+- dueAt (optional)
+- deepLink (route)
+- contextJson (optional)
+
+Implementation approach:
+1) Create a server function getWorkQueue(accountId, filters) that merges:
+   - leads needing qualification
+   - quotes needing approval
+   - schedule conflicts/unassigned jobs
+   - crew readiness issues (missing leader/truck, etc.)
+   - comms threads flagged “needs response”
+2) Do NOT over-normalize; create a unified view model.
+3) For “detail panel”, deep link into existing lead/quote/job pages for now:
+   - render a summarized preview + a “Open full view” button.
+4) Right panel shows:
+   - agent(s) involved (if known)
+   - last action timestamp
+   - “Resolve” actions (route to approval or open item)
+
+Filters:
+- Stage/type
+- Priority
+- Confidence
+- Due today/overdue
+- Assigned to: agent/human (optional)
+
+DONE WHEN:
+- /work provides a single operational inbox
+- Items are actionable and route to resolution
+
+================================================================================
+PHASE 4: APPROVALS (DEDICATED, FAST)
+================================================================================
+GOAL: Build /approvals as a high-speed approval interface.
+
+UI:
+- Left: approvals list (cards)
+- Center: approval detail
+- Right: “What changed + why” + suggested resolution
+
+Approval Types:
+- Quote Range Approval
+- Schedule Change Approval
+- Crew Reassignment Approval
+- Customer Escalation Approval
+
+Data:
+- Pull from existing “needs approval” states.
+- If you don’t have approval tables, create a lightweight ApprovalsView that reads:
+  - quote draft with status=PENDING_APPROVAL
+  - schedule change requests
+  - any “human-in-loop” flags from agents
+
+Actions:
+- Approve (default)
+- Edit then approve (open modal with minimal editable fields)
+- Reject (requires reason)
+
+UX rule:
+- Most approvals must be completable in <10 seconds.
+- Show minimum info required; hide everything else behind “Details”.
+
+DONE WHEN:
+- Approvals are clearly separated from general work
+- Can approve/edit/reject and see state change
+
+================================================================================
+PHASE 5: SCHEDULE → DAY PLAN (CALM, OPS-FIRST)
+================================================================================
+GOAL: Refactor Schedule into a Day Plan, grouped by crew and optimized for “today”.
+
+Create /schedule with default “Today Plan” view:
+- Group by crew
+- Each crew section shows ordered jobs with:
+  - time window
+  - address
+  - scope short summary
+  - status badge
+  - risk flags (new customer, incomplete info)
+
+Add secondary toggle:
+- Today Plan (default)
+- Calendar (optional / existing)
+
+Crew Lead + Member view:
+- only their crew
+- job detail link
+- check-in/out actions (if supported)
+- “what changed” highlights
+
+DONE WHEN:
+- Schedule is usable without a calendar mental model
+- Crew roles can quickly understand their day
+
+================================================================================
+PHASE 6: CREWS + COMMS POLISH + MOVE AGENTS TO SETTINGS
+================================================================================
+GOAL: Ensure remaining modules fit the new IA.
+
+1) Crews:
+- Ensure /operations/crews is “Roster” default
+- Add tab: Live Map (/operations/crews/map)
+- Add readiness status in list
+- Add quick actions: message/call leader, swap truck, add asset
+
+2) Comms:
+- Ensure /comms has two tabs:
+  - Inbox (threads needing attention)
+  - Studio (templates/sequences + Crew tab)
+- Crew comms should be visible for owner/admin
+
+3) Agents:
+- Move agent directory to /settings/agents
+- On Home and /work, only show Agent Activity Feed summaries and links.
+
+DONE WHEN:
+- Navigation feels consistent
+- Agents are “invisible but accountable”
+- Operators spend time in Work/Approvals/Schedule, not Settings
+
+================================================================================
+PHASE 7: CLEANUP + QA
+================================================================================
+- Add redirects from old routes to new routes (behind flag)
+- Add basic page-level tests:
+  - RBAC nav items
+  - /work loads
+  - /approvals loads
+  - /schedule loads by role
+- Add analytics hooks (simple):
+  - page view events
+  - approval turnaround time
+  - queue resolution time
+
+================================================================================
+DELIVERABLES
+================================================================================
+- /docs/ui-refactor.md
+- feature flag UI_REFACTOR_V1
+- New pages: /home, /work, /approvals, /schedule
+- Updated nav + settings structure
+- Minimal aggregation services for queue + approvals
+- Role-based views working
+
+NOW DO THIS:
+Implement PHASE 1 only (new navigation + routing without removing anything).
+After PHASE 1 works, stop and output:
+- what changed
+- how to test by role
+Then proceed to PHASE 2, and so on.

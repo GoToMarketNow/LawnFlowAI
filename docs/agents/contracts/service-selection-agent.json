@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "agentId": "service-selection-agent",
+  "version": "1.0.0",
+  "name": "ServiceSelectionAgent",
+  "description": "AI agent that matches customer requests to appropriate services from the catalog, considering service availability, requirements, and customer context.",
+  "triggers": [
+    "LEAD_INTAKE_COMPLETE",
+    "CUSTOMER_REQUEST",
+    "UPSELL_EVALUATION"
+  ],
+  "input": {
+    "type": "object",
+    "required": ["accountId", "customerIntent"],
+    "properties": {
+      "accountId": {
+        "type": "integer",
+        "description": "Business account ID"
+      },
+      "customerId": {
+        "type": "integer",
+        "description": "Optional customer ID for context enrichment"
+      },
+      "customerIntent": {
+        "type": "string",
+        "description": "Natural language description of what customer wants"
+      },
+      "propertyContext": {
+        "type": "object",
+        "properties": {
+          "lotSizeSqFt": { "type": "integer" },
+          "hasSnowRemoval": { "type": "boolean" },
+          "hasRecurringService": { "type": "boolean" },
+          "lastServiceDate": { "type": "string", "format": "date" }
+        }
+      },
+      "requestedDate": {
+        "type": "string",
+        "format": "date",
+        "description": "Requested service date for lead-time validation"
+      }
+    }
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "recommendedServices": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "serviceId": { "type": "integer" },
+            "serviceName": { "type": "string" },
+            "category": { "type": "string" },
+            "confidenceScore": { "type": "number", "minimum": 0, "maximum": 1 },
+            "matchReason": { "type": "string" },
+            "requiresManualQuote": { "type": "boolean" },
+            "meetLeadTime": { "type": "boolean" },
+            "suggestedFrequency": { "type": "string" }
+          }
+        }
+      },
+      "bundleOpportunity": {
+        "type": "object",
+        "properties": {
+          "available": { "type": "boolean" },
+          "bundleServices": { "type": "array", "items": { "type": "integer" } },
+          "estimatedSavingsPercent": { "type": "number" }
+        }
+      },
+      "escalationRequired": { "type": "boolean" },
+      "escalationReason": { "type": "string" }
+    }
+  },
+  "escalation": {
+    "conditions": [
+      "No matching services found",
+      "Customer intent unclear",
+      "Multiple high-confidence matches requiring human selection"
+    ],
+    "target": "OWNER_ADMIN"
+  },
+  "policies": [
+    "MUST check service isActive before recommending",
+    "MUST validate lead time requirements for specialized services",
+    "SHOULD prefer recurring services over one-time for eligible customers",
+    "SHOULD identify bundle opportunities for discounts"
+  ]
+}

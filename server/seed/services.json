@@ -1,0 +1,69 @@
+[
+  {
+    "serviceCode": "LAWN_RECUR",
+    "name": "Lawn Maintenance (Recurring)",
+    "category": "LAWN",
+    "serviceType": "RECURRING"
+  },
+  {
+    "serviceCode": "LAWN_ONE",
+    "name": "One-Time Lawn Mowing",
+    "category": "LAWN",
+    "serviceType": "ONE_TIME"
+  },
+  {
+    "serviceCode": "CLEAN_SEASON",
+    "name": "Seasonal Cleanup (Spring/Fall)",
+    "category": "CLEANUP",
+    "serviceType": "SEASONAL"
+  },
+  {
+    "serviceCode": "TREE_BRUSH",
+    "name": "Tree & Brush Work",
+    "category": "TREE",
+    "serviceType": "ONE_TIME"
+  },
+  {
+    "serviceCode": "MULCH_DELIV",
+    "name": "Mulch Delivery",
+    "category": "CLEANUP",
+    "serviceType": "ONE_TIME",
+    "requiresLeadTime": true,
+    "defaultLeadTimeDays": 2
+  },
+  {
+    "serviceCode": "MULCH_INSTALL",
+    "name": "Mulch Installation / Spreading",
+    "category": "CLEANUP",
+    "serviceType": "ONE_TIME",
+    "requiresLeadTime": true,
+    "defaultLeadTimeDays": 2
+  },
+  {
+    "serviceCode": "FIREWOOD",
+    "name": "Firewood Delivery",
+    "category": "CUSTOM",
+    "serviceType": "SEASONAL",
+    "requiresLeadTime": true,
+    "defaultLeadTimeDays": 1
+  },
+  {
+    "serviceCode": "SNOW_ROT",
+    "name": "Snow Removal (Rotation)",
+    "category": "SNOW",
+    "serviceType": "EVENT_BASED"
+  },
+  {
+    "serviceCode": "SNOW_OD",
+    "name": "Snow Removal (On-Demand)",
+    "category": "SNOW",
+    "serviceType": "EVENT_BASED"
+  },
+  {
+    "serviceCode": "CUSTOM",
+    "name": "Custom Project (Manual Quote)",
+    "category": "CUSTOM",
+    "serviceType": "ONE_TIME",
+    "requiresManualQuote": true
+  }
+]

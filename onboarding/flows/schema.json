@@ -1,0 +1,129 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LawnFlow Onboarding Flow Schema",
+  "type": "object",
+  "required": ["flow", "nodes"],
+  "properties": {
+    "flow": {
+      "type": "object",
+      "required": ["id", "name", "version", "maxQuestions", "startNodeId"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "maxQuestions": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "startNodeId": { "type": "string" },
+        "personas": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "enums": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": ["message", "question", "review", "activation"]
+          },
+          "text": { "type": "string" },
+          "title": { "type": "string" },
+          "question": { "type": "string" },
+          "inputType": {
+            "type": "string",
+            "enum": ["single_select", "multi_select", "text", "number"]
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["key", "label"],
+              "properties": {
+                "key": { "type": "string" },
+                "label": { "type": "string" }
+              }
+            }
+          },
+          "required": { "type": "boolean" },
+          "validation": {
+            "type": "object",
+            "properties": {
+              "pattern": { "type": "string" },
+              "error": { "type": "string" },
+              "min": { "type": "number" },
+              "max": { "type": "number" }
+            }
+          },
+          "followUps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["when", "ask"],
+              "properties": {
+                "when": {
+                  "type": "object",
+                  "properties": {
+                    "includes": { "type": "array", "items": { "type": "string" } },
+                    "equals": { "type": "string" }
+                  }
+                },
+                "ask": { "type": "string" }
+              }
+            }
+          },
+          "transitions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["when", "next"],
+              "properties": {
+                "when": {
+                  "type": "object",
+                  "properties": {
+                    "equals": { "type": "string" },
+                    "includes": { "type": "array", "items": { "type": "string" } }
+                  }
+                },
+                "next": { "type": "string" }
+              }
+            }
+          },
+          "defaultNext": { "type": ["string", "null"] },
+          "next": { "type": ["string", "null"] },
+          "flags": {
+            "type": "object",
+            "properties": {
+              "assumptionMade": { "type": "boolean" },
+              "revisitLater": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "configMappings": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["fromNode", "map"],
+        "properties": {
+          "fromNode": { "type": "string" },
+          "map": {
+            "type": "object",
+            "additionalProperties": { "type": "object" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,776 @@
+import { z } from "zod";
+import { storage } from "../storage";
+import { comms, fsm, approvals, audit, metrics } from "../tools";
+import { runIntakeAgent, generateMissedCallResponse } from "../agents/intake";
+import { generateQuote } from "../agents/quote";
+import { runQuotingAgent, type LeadCaptureSummary, type PricingRules, type PolicyThresholds, type QuotingContext } from "../agents/quoting";
+import { proposeSchedule, formatScheduleConfirmation } from "../agents/schedule";
+import { policyService, type PolicyContext, type PolicyCheckResult } from "../policy";
+import type { SupervisorPlan, Step, StateContext } from "./supervisor";
+import type { Conversation } from "@shared/schema";
+import type { ServiceType } from "../services/quote-calculator";
+
+async function generateReviewRequest(
+  businessName: string,
+  customerName?: string,
+  serviceType?: string
+): Promise<string> {
+  const greeting = customerName ? `Hi ${customerName}! ` : "";
+  return `${greeting}Thanks for choosing ${businessName}! We hope you loved your ${serviceType || "service"}. If you have a moment, we'd really appreciate a review. Thank you!`;
+}
+
+async function checkPolicyForAction(
+  context: PolicyContext
+): Promise<{ allowed: boolean; requiresApproval: boolean; stopReason?: string; approvalType?: string }> {
+  const result = await policyService.check(context);
+  
+  return {
+    allowed: result.allowed,
+    requiresApproval: result.requiresApproval || false,
+    stopReason: result.reason,
+    approvalType: result.approvalType,
+  };
+}
+
+export interface StepResult {
+  stepId: string;
+  success: boolean;
+  output?: Record<string, unknown>;
+  error?: string;
+  stopped?: boolean;
+  stopReason?: string;
+  approvalId?: string;
+}
+
+export interface ExecutionResult {
+  planId: string;
+  eventId: string;
+  success: boolean;
+  tier: string;
+  classification: {
+    category: string;
+    priority: string;
+  };
+  completedSteps: StepResult[];
+  stoppedAtStep?: string;
+  stopReason?: string;
+  conversationId?: number;
+  leadId?: string;
+  jobId?: number;
+}
+
+const agentNameMap: Record<string, string> = {
+  InboundEngagement: "intake",
+  Quoting: "quote",
+  Scheduling: "schedule",
+  Billing: "billing",
+  Reviews: "reviews",
+};
+
+export async function execute(
+  plan: SupervisorPlan,
+  state: StateContext,
+  conversation: Conversation | null
+): Promise<ExecutionResult> {
+  const steps = plan.plan.steps;
+  console.log(`[Runner] Executing plan ${plan.plan_id} with ${steps.length} steps, priority: ${plan.classification.priority}`);
+
+  const completedSteps: StepResult[] = [];
+  let currentConversation = conversation;
+  let leadId = state.leadId;
+  let jobId = state.jobId;
+
+  if (state.businessId) {
+    await policyService.loadPolicy(state.businessId);
+    console.log(`[Runner] Loaded policy for business ${state.businessId}: ${policyService.getPolicySummary().tier}`);
+  }
+
+  await audit.logEvent({
+    action: "runner.execute.start",
+    actor: "system",
+    payload: { 
+      planId: plan.plan_id,
+      eventId: plan.event_id, 
+      stepCount: steps.length, 
+      classification: plan.classification,
+      policyTier: plan.policy.tier,
+    },
+  });
+
+  for (const step of steps) {
+    console.log(`[Runner] Executing step ${step.step_id}: ${step.goal}`);
+
+    try {
+      const stepResult = await executeStep(step, state, currentConversation);
+      completedSteps.push(stepResult);
+
+      if (stepResult.output?.conversationId) {
+        const convId = Number(stepResult.output.conversationId);
+        currentConversation = await storage.getConversation(convId) || currentConversation;
+      }
+      if (stepResult.output?.leadId) {
+        leadId = String(stepResult.output.leadId);
+      }
+      if (stepResult.output?.jobId) {
+        jobId = Number(stepResult.output.jobId);
+      }
+
+      if (stepResult.stopped) {
+        console.log(`[Runner] Stopped at step ${step.step_id}: ${stepResult.stopReason}`);
+        
+        await audit.logEvent({
+          action: "runner.execute.stopped",
+          actor: "system",
+          payload: { 
+            eventId: plan.event_id, 
+            stepId: step.step_id,
+            reason: stepResult.stopReason,
+            approvalId: stepResult.approvalId,
+          },
+        });
+
+        return {
+          planId: plan.plan_id,
+          eventId: plan.event_id,
+          success: true,
+          tier: plan.policy.tier,
+          classification: {
+            category: plan.classification.category,
+            priority: plan.classification.priority,
+          },
+          completedSteps,
+          stoppedAtStep: step.step_id,
+          stopReason: stepResult.stopReason,
+          conversationId: currentConversation?.id,
+          leadId,
+          jobId,
+        };
+      }
+
+      if (!stepResult.success) {
+        console.error(`[Runner] Step ${step.step_id} failed: ${stepResult.error}`);
+        
+        await audit.logEvent({
+          action: "runner.execute.step_failed",
+          actor: "system",
+          payload: { eventId: plan.event_id, stepId: step.step_id, error: stepResult.error },
+        });
+
+        return {
+          planId: plan.plan_id,
+          eventId: plan.event_id,
+          success: false,
+          tier: plan.policy.tier,
+          classification: {
+            category: plan.classification.category,
+            priority: plan.classification.priority,
+          },
+          completedSteps,
+          stoppedAtStep: step.step_id,
+          stopReason: stepResult.error,
+          conversationId: currentConversation?.id,
+          leadId,
+          jobId,
+        };
+      }
+
+      const agentName = agentNameMap[step.agent] || step.agent;
+      await metrics.record({
+        name: "step_completed",
+        value: 1,
+        tags: { agent: agentName, goal: step.goal },
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error(`[Runner] Error executing step ${step.step_id}:`, error);
+      
+      completedSteps.push({
+        stepId: step.step_id,
+        success: false,
+        error: errorMessage,
+      });
+
+      await audit.logEvent({
+        action: "runner.execute.error",
+        actor: "system",
+        payload: { eventId: plan.event_id, stepId: step.step_id, error: errorMessage },
+      });
+
+      return {
+        planId: plan.plan_id,
+        eventId: plan.event_id,
+        success: false,
+        tier: plan.policy.tier,
+        classification: {
+          category: plan.classification.category,
+          priority: plan.classification.priority,
+        },
+        completedSteps,
+        stoppedAtStep: step.step_id,
+        stopReason: errorMessage,
+        conversationId: currentConversation?.id,
+        leadId,
+        jobId,
+      };
+    }
+  }
+
+  await audit.logEvent({
+    action: "runner.execute.complete",
+    actor: "system",
+    payload: { eventId: plan.event_id, stepsCompleted: completedSteps.length },
+  });
+
+  return {
+    planId: plan.plan_id,
+    eventId: plan.event_id,
+    success: true,
+    tier: plan.policy.tier,
+    classification: {
+      category: plan.classification.category,
+      priority: plan.classification.priority,
+    },
+    completedSteps,
+    conversationId: currentConversation?.id,
+    leadId,
+    jobId,
+  };
+}
+
+async function executeStep(
+  step: Step,
+  state: StateContext,
+  conversation: Conversation | null
+): Promise<StepResult> {
+  const output: Record<string, unknown> = {};
+  const agentType = agentNameMap[step.agent] || step.agent.toLowerCase();
+
+  switch (agentType) {
+    case "intake":
+      return await executeIntakeStep(step, state, conversation, output);
+    case "quote":
+      return await executeQuoteStep(step, state, conversation, output);
+    case "schedule":
+      return await executeScheduleStep(step, state, conversation, output);
+    case "reviews":
+      return await executeReviewsStep(step, state, conversation, output);
+    case "billing":
+      return { stepId: step.step_id, success: true, output: { message: "Billing not yet implemented" } };
+    default:
+      return { stepId: step.step_id, success: false, error: `Unknown agent: ${step.agent}` };
+  }
+}
+
+async function executeIntakeStep(
+  step: Step,
+  state: StateContext,
+  conversation: Conversation | null,
+  output: Record<string, unknown>
+): Promise<StepResult> {
+  const phone = String(step.inputs.phone || "");
+  const message = step.inputs.message as string | undefined;
+
+  let conv: Conversation | null = conversation;
+  if (!conv && phone) {
+    conv = await storage.getConversationByPhone(phone) || null;
+    if (!conv) {
+      conv = await storage.createConversation({
+        customerPhone: phone,
+        customerName: step.inputs.customerName as string || null,
+        source: step.inputs.source as string || "inbound_sms",
+        status: "active",
+        agentType: "intake",
+      });
+
+      await audit.logEvent({
+        action: "conversation.created",
+        actor: "system",
+        payload: { conversationId: conv.id, source: conv.source },
+      });
+    }
+    output.conversationId = conv.id;
+  }
+
+  if (step.goal.toLowerCase().includes("missed call")) {
+    const responseMessage = await generateMissedCallResponse(state.businessName, phone);
+    
+    const policyCheck = await checkPolicyForAction({ action: "send_message", data: { phone } });
+    
+    if (!policyCheck.allowed) {
+      if (policyCheck.requiresApproval && conv) {
+        const approvalResult = await approvals.requestApproval({
+          type: policyCheck.approvalType || "send_message",
+          summary: policyCheck.stopReason || "Policy requires approval for message",
+          payload: { phone, message: "Missed call response", policyReason: policyCheck.stopReason },
+        }, conv.id);
+        
+        return {
+          stepId: step.step_id,
+          success: true,
+          output,
+          stopped: true,
+          stopReason: policyCheck.stopReason || "Policy requires approval",
+          approvalId: approvalResult.approvalId,
+        };
+      }
+      
+      return {
+        stepId: step.step_id,
+        success: true,
+        output,
+        stopped: true,
+        stopReason: policyCheck.stopReason || "Policy blocked message sending",
+      };
+    }
+    
+    if (conv) {
+      await storage.createMessage({
+        conversationId: conv.id,
+        role: "system",
+        content: `Missed call received from ${phone}`,
+      });
+      await storage.createMessage({
+        conversationId: conv.id,
+        role: "ai",
+        content: responseMessage,
+      });
+    }
+
+    await comms.sendSms({ to: phone, text: responseMessage });
+
+    const leadResult = await fsm.createLead({
+      name: step.inputs.customerName as string || null,
+      phone,
+      address: null,
+      service_requested: "General inquiry",
+      notes: "From missed call",
+    });
+    output.leadId = leadResult.leadId;
+
+    if (conv) {
+      await storage.createLead({
+        externalId: leadResult.leadId,
+        conversationId: conv.id,
+        phone,
+        serviceRequested: "General inquiry",
+        notes: "From missed call",
+        status: "new",
+      });
+    }
+
+    return { stepId: step.step_id, success: true, output };
+  }
+
+  if (message && conv) {
+    await storage.createMessage({
+      conversationId: conv.id,
+      role: "customer",
+      content: message,
+    });
+
+    const intakeResult = await runIntakeAgent(message, phone, {
+      businessName: state.businessName,
+      services: state.services,
+      serviceArea: state.serviceArea,
+    });
+
+    output.intakeResult = intakeResult;
+
+    if (intakeResult.customerName || intakeResult.serviceType) {
+      await storage.updateConversation(conv.id, {
+        customerName: intakeResult.customerName || conv.customerName,
+        status: intakeResult.isQualified ? "qualified" : "active",
+      });
+    }
+
+    if (!intakeResult.isQualified) {
+      const msgPolicyCheck = await checkPolicyForAction({ action: "send_message", data: { phone } });
+      
+      if (!msgPolicyCheck.allowed) {
+        if (msgPolicyCheck.requiresApproval) {
+          const approvalResult = await approvals.requestApproval({
+            type: msgPolicyCheck.approvalType || "send_message",
+            summary: msgPolicyCheck.stopReason || "Policy requires approval for message",
+            payload: { phone, message: intakeResult.suggestedResponse, policyReason: msgPolicyCheck.stopReason },
+          }, conv.id);
+          
+          return {
+            stepId: step.step_id,
+            success: true,
+            output,
+            stopped: true,
+            stopReason: msgPolicyCheck.stopReason || "Policy requires approval",
+            approvalId: approvalResult.approvalId,
+          };
+        }
+        
+        return {
+          stepId: step.step_id,
+          success: true,
+          output,
+          stopped: true,
+          stopReason: msgPolicyCheck.stopReason || "Policy blocked message sending",
+        };
+      }
+      
+      await storage.createMessage({
+        conversationId: conv.id,
+        role: "ai",
+        content: intakeResult.suggestedResponse,
+      });
+      await comms.sendSms({ to: phone, text: intakeResult.suggestedResponse });
+    }
+
+    output.isQualified = intakeResult.isQualified;
+  }
+
+  return { stepId: step.step_id, success: true, output };
+}
+
+async function executeQuoteStep(
+  step: Step,
+  state: StateContext,
+  conversation: Conversation | null,
+  output: Record<string, unknown>
+): Promise<StepResult> {
+  if (!conversation) {
+    return { stepId: step.step_id, success: false, error: "No conversation context" };
+  }
+
+  const messages = await storage.getMessagesByConversation(conversation.id);
+  const lastCustomerMessage = messages.filter(m => m.role === "customer").pop();
+  const serviceType = (step.inputs.serviceType as string || "mowing") as ServiceType;
+  const address = step.inputs.address as string | null || null;
+
+  const lead: LeadCaptureSummary = {
+    name: conversation.customerName || null,
+    address,
+    service_requested: serviceType,
+    urgency: "unknown",
+    property_size_hint: "unknown",
+    notes: lastCustomerMessage?.content || "",
+  };
+
+  const pricing: PricingRules = {
+    minimumPrice: 50,
+    mowing: { small: 40, medium: 65, large: 100 },
+    cleanup: { small: 150, medium: 250, large: 400 },
+    mulch: { perYard: 65, laborPerHour: 50 },
+    landscaping: { consultFee: 75, hourlyRate: 85 },
+    seasonalModifiers: { spring: 1.15, summer: 1.0, fall: 1.1, winter: 0.9 },
+    addOns: { edging: 25, trimming: 30, leafBlowing: 20, weedControl: 45 },
+  };
+
+  const policySummary = policyService.getPolicySummary();
+  const policy: PolicyThresholds = {
+    tier: policySummary.tier as "Owner" | "SMB" | "Commercial",
+    confidence_threshold: policySummary.confidenceThreshold,
+    auto_send_quotes: policySummary.autoSendQuotes,
+    max_auto_quote_usd: 0,
+  };
+
+  const context: QuotingContext = {
+    hasPhotos: false,
+    photoNotes: null,
+    businessName: state.businessName,
+  };
+
+  const quoteResult = await runQuotingAgent(lead, pricing, policy, context);
+  output.quote = quoteResult;
+
+  const policyQuoteType = quoteResult.quote.type === "needs_site_visit" ? "range" : quoteResult.quote.type;
+  const quotePolicyCheck = await checkPolicyForAction({
+    action: "send_quote",
+    data: {
+      phone: conversation.customerPhone,
+      quoteType: policyQuoteType as "fixed" | "range",
+      amountMin: quoteResult.quote.low_usd,
+      amountMax: quoteResult.quote.high_usd,
+      confidence: quoteResult.confidence,
+    },
+  });
+
+  const quoteMessage = quoteResult.customer_message.recommended_text;
+  const lowStr = quoteResult.quote.low_usd.toFixed(2);
+  const highStr = quoteResult.quote.high_usd.toFixed(2);
+
+  if (!quotePolicyCheck.allowed) {
+    if (!quotePolicyCheck.requiresApproval) {
+      await storage.createMessage({
+        conversationId: conversation.id,
+        role: "system",
+        content: `Quote blocked: ${quotePolicyCheck.stopReason}`,
+      });
+      
+      return {
+        stepId: step.step_id,
+        success: true,
+        output,
+        stopped: true,
+        stopReason: quotePolicyCheck.stopReason || "Policy blocked quote",
+      };
+    }
+    
+    const approvalResult = await approvals.requestApproval({
+      type: "send_quote",
+      summary: `Send quote of $${lowStr}-$${highStr} for ${serviceType}`,
+      payload: {
+        quoteType: quoteResult.quote.type,
+        lowUsd: quoteResult.quote.low_usd,
+        highUsd: quoteResult.quote.high_usd,
+        lineItems: quoteResult.quote.line_items,
+        serviceType,
+        message: quoteMessage,
+        customerName: conversation.customerName,
+        phone: conversation.customerPhone,
+        propertyContext: quoteResult.property_context,
+        policyReason: quotePolicyCheck.stopReason,
+      },
+    }, conversation.id);
+
+    output.approvalId = approvalResult.approvalId;
+
+    await storage.createMessage({
+      conversationId: conversation.id,
+      role: "system",
+      content: `Quote generated: $${lowStr}-$${highStr}. Awaiting approval.`,
+    });
+
+    return {
+      stepId: step.step_id,
+      success: true,
+      output,
+      stopped: true,
+      stopReason: quotePolicyCheck.stopReason || "Awaiting quote approval",
+      approvalId: approvalResult.approvalId,
+    };
+  }
+
+  if (quoteResult.requires_human_approval || step.requires_human_approval) {
+    const approvalResult = await approvals.requestApproval({
+      type: "send_quote",
+      summary: `Send quote of $${lowStr}-$${highStr} for ${serviceType}`,
+      payload: {
+        quoteType: quoteResult.quote.type,
+        lowUsd: quoteResult.quote.low_usd,
+        highUsd: quoteResult.quote.high_usd,
+        lineItems: quoteResult.quote.line_items,
+        serviceType,
+        message: quoteMessage,
+        customerName: conversation.customerName,
+        phone: conversation.customerPhone,
+        propertyContext: quoteResult.property_context,
+      },
+    }, conversation.id);
+
+    output.approvalId = approvalResult.approvalId;
+
+    await storage.createMessage({
+      conversationId: conversation.id,
+      role: "system",
+      content: `Quote generated: $${lowStr}-$${highStr}. Awaiting approval.`,
+    });
+
+    return {
+      stepId: step.step_id,
+      success: true,
+      output,
+      stopped: true,
+      stopReason: quoteResult.approval_reason || step.approval_reason || "Awaiting quote approval",
+      approvalId: approvalResult.approvalId,
+    };
+  }
+
+  await storage.createMessage({
+    conversationId: conversation.id,
+    role: "ai",
+    content: quoteMessage,
+  });
+  await comms.sendSms({ to: conversation.customerPhone, text: quoteMessage });
+
+  return { stepId: step.step_id, success: true, output };
+}
+
+async function executeScheduleStep(
+  step: Step,
+  state: StateContext,
+  conversation: Conversation | null,
+  output: Record<string, unknown>
+): Promise<StepResult> {
+  if (!conversation) {
+    return { stepId: step.step_id, success: false, error: "No conversation context" };
+  }
+
+  const serviceType = step.inputs.serviceType as string || "General service";
+  const messages = await storage.getMessagesByConversation(conversation.id);
+  const lastCustomerMessage = messages.filter(m => m.role === "customer").pop();
+
+  const schedule = await proposeSchedule(
+    lastCustomerMessage?.content || "Schedule service",
+    serviceType,
+    { name: conversation.customerName || undefined, phone: conversation.customerPhone },
+    { businessName: state.businessName }
+  );
+
+  output.schedule = schedule;
+
+  const bookPolicyCheck = await checkPolicyForAction({
+    action: "book_job",
+    data: {
+      phone: conversation.customerPhone,
+      confidence: 0.85,
+      slotScore: 80,
+    },
+  });
+
+  if (!bookPolicyCheck.allowed) {
+    if (!bookPolicyCheck.requiresApproval) {
+      await storage.createMessage({
+        conversationId: conversation.id,
+        role: "system",
+        content: `Booking blocked: ${bookPolicyCheck.stopReason}`,
+      });
+      
+      return {
+        stepId: step.step_id,
+        success: true,
+        output,
+        stopped: true,
+        stopReason: bookPolicyCheck.stopReason || "Policy blocked booking",
+      };
+    }
+    
+    const approvalResult = await approvals.requestApproval({
+      type: "book_job",
+      summary: `Schedule ${serviceType} for ${conversation.customerName || conversation.customerPhone}`,
+      payload: {
+        customerName: conversation.customerName,
+        phone: conversation.customerPhone,
+        serviceType,
+        proposedDate: schedule.proposedDateISO,
+        message: schedule.suggestedMessage,
+        policyReason: bookPolicyCheck.stopReason,
+      },
+    }, conversation.id);
+
+    output.approvalId = approvalResult.approvalId;
+
+    await storage.createMessage({
+      conversationId: conversation.id,
+      role: "system",
+      content: `Scheduling proposed for ${schedule.proposedDate?.toLocaleDateString()}. Awaiting approval.`,
+    });
+
+    return {
+      stepId: step.step_id,
+      success: true,
+      output,
+      stopped: true,
+      stopReason: bookPolicyCheck.stopReason || "Awaiting scheduling approval",
+      approvalId: approvalResult.approvalId,
+    };
+  }
+  
+  if (step.requires_human_approval) {
+    const approvalResult = await approvals.requestApproval({
+      type: "book_job",
+      summary: `Schedule ${serviceType} for ${conversation.customerName || conversation.customerPhone}`,
+      payload: {
+        customerName: conversation.customerName,
+        phone: conversation.customerPhone,
+        serviceType,
+        proposedDate: schedule.proposedDateISO,
+        message: schedule.suggestedMessage,
+      },
+    }, conversation.id);
+
+    output.approvalId = approvalResult.approvalId;
+
+    await storage.createMessage({
+      conversationId: conversation.id,
+      role: "system",
+      content: `Scheduling proposed for ${schedule.proposedDate?.toLocaleDateString()}. Awaiting approval.`,
+    });
+
+    return {
+      stepId: step.step_id,
+      success: true,
+      output,
+      stopped: true,
+      stopReason: step.approval_reason || "Awaiting scheduling approval",
+      approvalId: approvalResult.approvalId,
+    };
+  }
+
+  const jobResult = await fsm.createJob({
+    leadId: step.inputs.leadId as string || "lead_unknown",
+    start_iso: schedule.proposedDateISO || new Date().toISOString(),
+    end_iso: new Date(new Date(schedule.proposedDateISO || Date.now()).getTime() + 2 * 60 * 60 * 1000).toISOString(),
+    service_type: serviceType,
+    notes: `Scheduled for ${conversation.customerName}`,
+  });
+
+  output.jobId = jobResult.jobId;
+
+  const confirmMessage = formatScheduleConfirmation(
+    schedule.proposedDate || new Date(),
+    serviceType,
+    state.businessName,
+    conversation.customerName || undefined
+  );
+
+  await storage.createMessage({
+    conversationId: conversation.id,
+    role: "ai",
+    content: confirmMessage,
+  });
+  await comms.sendSms({ to: conversation.customerPhone, text: confirmMessage });
+
+  return { stepId: step.step_id, success: true, output };
+}
+
+async function executeReviewsStep(
+  step: Step,
+  state: StateContext,
+  conversation: Conversation | null,
+  output: Record<string, unknown>
+): Promise<StepResult> {
+  const jobId = step.inputs.jobId as number;
+  const phone = step.inputs.phone as string;
+  const customerName = step.inputs.customerName as string | undefined;
+
+  if (!jobId || !phone) {
+    return { stepId: step.step_id, success: false, error: "Missing job ID or phone" };
+  }
+
+  const reviewMessage = await generateReviewRequest(
+    state.businessName,
+    customerName,
+    step.inputs.serviceType as string || "landscaping service"
+  );
+
+  await comms.sendSms({ to: phone, text: reviewMessage });
+
+  if (conversation) {
+    await storage.createMessage({
+      conversationId: conversation.id,
+      role: "ai",
+      content: reviewMessage,
+    });
+    await storage.updateConversation(conversation.id, {
+      status: "completed",
+      agentType: "reviews",
+    });
+  }
+
+  output.reviewMessageSent = true;
+
+  await metrics.record({
+    name: "review_request_sent",
+    value: 1,
+    tags: { jobId: String(jobId) },
+  });
+
+  return { stepId: step.step_id, success: true, output };
+}

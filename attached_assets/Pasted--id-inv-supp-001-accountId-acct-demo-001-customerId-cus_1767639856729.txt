@@ -1,0 +1,115 @@
+[
+  {
+    "id": "inv_supp_001",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_from_lead_101",
+    "jobId": "job_106",
+    "quoteId": null,
+    "status": "PAID",
+    "amount": 95,
+    "currency": "USD",
+    "issueStatus": null,
+    "dueDate": "2026-01-05",
+    "sentAt": "2026-01-04T12:00:00-05:00",
+    "paidAt": "2026-01-04T16:10:00-05:00",
+    "createdAt": "2026-01-04T11:10:00-05:00",
+    "lineItems": [
+      { "name": "One-Time Lawn Mowing", "qty": 1, "unitPrice": 95 }
+    ]
+  },
+  {
+    "id": "inv_supp_002",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_from_lead_107",
+    "jobId": "job_101",
+    "quoteId": "quote_107",
+    "status": "SENT",
+    "amount": 95,
+    "currency": "USD",
+    "issueStatus": null,
+    "dueDate": "2026-01-13",
+    "sentAt": "2026-01-06T12:00:00-05:00",
+    "paidAt": null,
+    "createdAt": "2026-01-06T11:20:00-05:00",
+    "lineItems": [
+      { "name": "One-Time Lawn Mowing", "qty": 1, "unitPrice": 95 }
+    ]
+  },
+  {
+    "id": "inv_supp_003",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_from_lead_102",
+    "jobId": "job_104",
+    "quoteId": "quote_102",
+    "status": "PENDING_APPROVAL",
+    "amount": 860,
+    "currency": "USD",
+    "issueStatus": "VARIANCE",
+    "dueDate": "2026-01-14",
+    "sentAt": null,
+    "paidAt": null,
+    "createdAt": "2026-01-05T12:10:00-05:00",
+    "lineItems": [
+      { "name": "Mulch Delivery", "qty": 1, "unitPrice": 280 },
+      { "name": "Mulch Installation (Labor)", "qty": 1, "unitPrice": 580 }
+    ],
+    "notes": "Pending approval: confirm mulch yards before finalizing."
+  },
+  {
+    "id": "inv_supp_004",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_from_lead_105",
+    "jobId": "job_105",
+    "quoteId": "quote_105",
+    "status": "DRAFT",
+    "amount": 75,
+    "currency": "USD",
+    "issueStatus": null,
+    "dueDate": "2026-01-15",
+    "sentAt": null,
+    "paidAt": null,
+    "createdAt": "2026-01-05T09:30:00-05:00",
+    "lineItems": [
+      { "name": "Recurring Lawn Maintenance (Visit 1)", "qty": 1, "unitPrice": 75 }
+    ]
+  },
+  {
+    "id": "inv_supp_005",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_from_lead_116",
+    "jobId": "job_103",
+    "quoteId": "quote_116",
+    "status": "DISPUTED",
+    "amount": 190,
+    "currency": "USD",
+    "issueStatus": "DISPUTE",
+    "dueDate": "2026-01-13",
+    "sentAt": "2026-01-06T18:00:00-05:00",
+    "paidAt": null,
+    "createdAt": "2026-01-06T17:05:00-05:00",
+    "lineItems": [
+      { "name": "One-Time Lawn Mowing", "qty": 1, "unitPrice": 95 },
+      { "name": "Hedge Trimming", "qty": 1, "unitPrice": 95 }
+    ],
+    "notes": "Customer disputed hedge line-item; remediation required."
+  },
+  {
+    "id": "inv_supp_006",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_from_lead_111",
+    "jobId": "job_107",
+    "quoteId": "quote_111",
+    "status": "OVERDUE",
+    "amount": 640,
+    "currency": "USD",
+    "issueStatus": "OVERDUE",
+    "dueDate": "2025-12-29",
+    "sentAt": "2025-12-20T12:00:00-05:00",
+    "paidAt": null,
+    "createdAt": "2025-12-20T11:40:00-05:00",
+    "lineItems": [
+      { "name": "Mulch Installation", "qty": 1, "unitPrice": 640 }
+    ],
+    "notes": "Overdue example for collections/reminders flow."
+  }
+]

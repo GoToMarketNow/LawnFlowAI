@@ -1,0 +1,421 @@
+import { storage } from "../storage";
+import { plan, getDefaultBusinessProfile, type EventContext, type StateContext, type BusinessProfile as SupervisorBusinessProfile, type ServiceAreaEval } from "./supervisor";
+import { execute } from "./runner";
+import { audit, metrics, comms, fsm, approvals } from "../tools";
+import { twilioConnector } from "../connectors/twilio-mock";
+import { formatScheduleConfirmation } from "../agents/schedule";
+import { mockGeocodeAddress, buildServiceAreaEval, type ServiceAreaConfig } from "../utils/service-area";
+import type { Conversation, BusinessProfile } from "@shared/schema";
+import { randomUUID } from "crypto";
+
+export interface EventPayload {
+  type: "missed_call" | "inbound_sms" | "web_lead" | "job_completed" | "quote_request";
+  data: Record<string, unknown>;
+  eventId?: string;
+}
+
+export interface ProcessingResult {
+  success: boolean;
+  message: string;
+  conversationId?: number;
+  eventId?: number;
+  planId?: string;
+  actions?: string[];
+  stoppedForApproval?: boolean;
+  approvalId?: string;
+}
+
+interface BusinessContext {
+  businessId?: number;
+  businessName: string;
+  services: string[];
+  serviceArea: string;
+  serviceAreaConfig?: ServiceAreaConfig;
+}
+
+async function getBusinessContext(): Promise<BusinessContext> {
+  const profile = await storage.getBusinessProfile();
+  
+  let serviceAreaConfig: ServiceAreaConfig | undefined;
+  if (
+    profile?.serviceAreaCenterLat !== null &&
+    profile?.serviceAreaCenterLat !== undefined &&
+    profile?.serviceAreaCenterLng !== null &&
+    profile?.serviceAreaCenterLng !== undefined &&
+    profile?.serviceAreaRadiusMi !== null &&
+    profile?.serviceAreaRadiusMi !== undefined &&
+    profile?.serviceAreaMaxMi !== null &&
+    profile?.serviceAreaMaxMi !== undefined
+  ) {
+    serviceAreaConfig = {
+      centerLat: profile.serviceAreaCenterLat,
+      centerLng: profile.serviceAreaCenterLng,
+      radiusMi: profile.serviceAreaRadiusMi,
+      maxMi: profile.serviceAreaMaxMi,
+      allowExtended: profile.serviceAreaAllowExtended ?? true,
+    };
+  }
+  
+  return {
+    businessId: profile?.id,
+    businessName: profile?.name || "Green Thumb Landscaping",
+    services: profile?.services || ["Lawn Mowing", "Landscaping", "Tree Trimming"],
+    serviceArea: profile?.serviceArea || "Local area",
+    serviceAreaConfig,
+  };
+}
+
+async function evaluateServiceArea(
+  address: string | undefined,
+  businessContext: BusinessContext
+): Promise<ServiceAreaEval | undefined> {
+  if (!address || !businessContext.serviceAreaConfig) {
+    return undefined;
+  }
+  
+  const geocoded = await mockGeocodeAddress(address);
+  if (!geocoded) {
+    return undefined;
+  }
+  
+  return buildServiceAreaEval(
+    geocoded.lat,
+    geocoded.lng,
+    businessContext.serviceAreaConfig
+  );
+}
+
+export const orchestrator = {
+  async handleEvent(payload: EventPayload): Promise<ProcessingResult> {
+    const eventId = payload.eventId || `evt_${randomUUID()}`;
+    console.log(`[Orchestrator] Handling event ${eventId}: ${payload.type}`);
+
+    try {
+      const existingReceipt = await storage.getEventReceipt(eventId);
+      if (existingReceipt) {
+        if (existingReceipt.status === "completed") {
+          console.log(`[Orchestrator] Event ${eventId} already completed (idempotency check)`);
+          const result = existingReceipt.result as ProcessingResult | undefined;
+          return {
+            success: true,
+            message: "Event already processed",
+            eventId: existingReceipt.id,
+            ...result,
+          };
+        } else if (existingReceipt.status === "failed") {
+          console.log(`[Orchestrator] Event ${eventId} previously failed, allowing retry`);
+          await storage.updateEventReceipt(eventId, { status: "processing" });
+        } else if (existingReceipt.status === "processing") {
+          console.log(`[Orchestrator] Event ${eventId} currently processing, skipping`);
+          return {
+            success: false,
+            message: "Event is currently being processed",
+            eventId: existingReceipt.id,
+          };
+        }
+      } else {
+        await storage.createEventReceipt({
+          eventId,
+          eventType: payload.type,
+          status: "processing",
+        });
+      }
+
+      const event = await storage.createEvent({
+        type: payload.type,
+        payload: payload.data,
+        status: "processing",
+      });
+
+      await audit.logEvent({
+        action: "orchestrator.handleEvent.start",
+        actor: "system",
+        payload: { eventId, type: payload.type },
+      });
+
+      const businessContext = await getBusinessContext();
+
+      const phone = payload.data.phone as string | undefined;
+      let conversation: Conversation | undefined;
+      let messagesList: any[] = [];
+      
+      if (phone) {
+        conversation = await storage.getConversationByPhone(phone);
+        if (conversation) {
+          messagesList = await storage.getMessagesByConversation(conversation.id);
+        }
+      }
+
+      const channel = payload.data.channel as string 
+        || (payload.type === "inbound_sms" ? "sms" 
+        : payload.type === "missed_call" ? "phone" 
+        : payload.type === "web_lead" ? "web_form"
+        : payload.type === "job_completed" ? "internal"
+        : "unknown");
+      
+      const eventContext: EventContext = {
+        type: payload.type as any,
+        channel,
+        payload: payload.data,
+        eventId,
+      };
+
+      // Evaluate service area if address is provided
+      const address = payload.data.address as string | undefined;
+      const serviceAreaEval = await evaluateServiceArea(address, businessContext);
+      
+      if (serviceAreaEval) {
+        console.log(`[Orchestrator] Service area evaluation: ${serviceAreaEval.tier} (${serviceAreaEval.distance_mi.toFixed(1)} mi)`);
+      }
+
+      const stateContext: StateContext = {
+        conversation,
+        messages: messagesList,
+        businessId: businessContext.businessId,
+        businessName: businessContext.businessName,
+        services: businessContext.services,
+        serviceArea: businessContext.serviceArea,
+        serviceAreaEval,
+      };
+
+      const businessProfile = getDefaultBusinessProfile();
+      const supervisorPlan = await plan(eventContext, stateContext, businessProfile);
+      const executionResult = await execute(supervisorPlan, stateContext, conversation || null);
+
+      await storage.updateEvent(event.id, {
+        status: executionResult.success ? "completed" : "failed",
+        processedAt: new Date(),
+        conversationId: executionResult.conversationId,
+      });
+
+      await storage.updateEventReceipt(eventId, {
+        status: executionResult.success ? "completed" : "failed",
+        result: executionResult as any,
+        completedAt: new Date(),
+      });
+
+      await metrics.record({
+        name: "event_processed",
+        value: 1,
+        tags: { type: payload.type, success: String(executionResult.success) },
+      });
+
+      return {
+        success: executionResult.success,
+        message: executionResult.stopReason || "Event processed successfully",
+        conversationId: executionResult.conversationId,
+        eventId: event.id,
+        planId: executionResult.planId,
+        stoppedForApproval: !!executionResult.stoppedAtStep,
+        approvalId: executionResult.completedSteps.find(s => s.approvalId)?.approvalId,
+        actions: executionResult.completedSteps.map(s => s.stepId),
+      };
+
+    } catch (error) {
+      console.error("[Orchestrator] Error handling event:", error);
+      
+      await storage.updateEventReceipt(eventId, {
+        status: "failed",
+        result: { error: error instanceof Error ? error.message : "Unknown error" },
+        completedAt: new Date(),
+      });
+
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Event processing failed",
+      };
+    }
+  },
+};
+
+export async function processEvent(payload: EventPayload): Promise<ProcessingResult> {
+  return orchestrator.handleEvent(payload);
+}
+
+export async function approveAction(
+  actionId: number,
+  notes?: string
+): Promise<{ success: boolean; message: string }> {
+  const action = await storage.getPendingAction(actionId);
+  if (!action) {
+    return { success: false, message: "Action not found" };
+  }
+
+  if (action.status !== "pending") {
+    return { success: false, message: "Action already resolved" };
+  }
+
+  const payload = action.payload as Record<string, unknown>;
+  const conversation = await storage.getConversation(action.conversationId);
+  const businessProfile = await storage.getBusinessProfile();
+
+  try {
+    switch (action.actionType) {
+      case "send_quote": {
+        const message = String(payload.message || "");
+        if (conversation) {
+          await storage.createMessage({
+            conversationId: conversation.id,
+            role: "ai",
+            content: message,
+          });
+          await comms.sendSms({ to: conversation.customerPhone, text: message });
+        }
+        break;
+      }
+
+      case "schedule_job": {
+        const scheduledDate = payload.proposedDate
+          ? new Date(String(payload.proposedDate))
+          : new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+
+        const job = await storage.createJob({
+          conversationId: action.conversationId,
+          businessId: businessProfile?.id || null,
+          customerName: String(payload.customerName || ""),
+          customerPhone: String(payload.phone || conversation?.customerPhone || ""),
+          customerAddress: payload.address as string || null,
+          serviceType: String(payload.serviceType || ""),
+          scheduledDate,
+          estimatedPrice: Number(payload.estimatedPrice) || null,
+          status: "scheduled",
+          notes: notes || (payload.notes as string) || null,
+        });
+
+        const jobResult = await fsm.createJob({
+          leadId: payload.leadId as string || `lead_${action.conversationId}`,
+          start_iso: scheduledDate.toISOString(),
+          end_iso: new Date(scheduledDate.getTime() + 2 * 60 * 60 * 1000).toISOString(),
+          service_type: String(payload.serviceType || ""),
+          notes: `Job ${job.id} for ${payload.customerName}`,
+        });
+
+        await audit.logEvent({
+          action: "job.created",
+          actor: "operator",
+          payload: { jobId: job.id, fsmJobId: jobResult.jobId, fromAction: actionId },
+        });
+
+        if (conversation) {
+          await storage.updateConversation(conversation.id, {
+            status: "scheduled",
+            agentType: "schedule",
+          });
+
+          const confirmMessage = formatScheduleConfirmation(
+            scheduledDate,
+            String(payload.serviceType),
+            businessProfile?.name || "Our team",
+            String(payload.customerName)
+          );
+
+          await storage.createMessage({
+            conversationId: conversation.id,
+            role: "ai",
+            content: confirmMessage,
+          });
+
+          await comms.sendSms({ to: conversation.customerPhone, text: confirmMessage });
+        }
+        break;
+      }
+
+      case "send_sms": {
+        const message = String(payload.message || "");
+        const phone = String(payload.phone || conversation?.customerPhone || "");
+        if (phone && message) {
+          await comms.sendSms({ to: phone, text: message });
+          if (conversation) {
+            await storage.createMessage({
+              conversationId: conversation.id,
+              role: "ai",
+              content: message,
+            });
+          }
+        }
+        break;
+      }
+    }
+
+    await approvals.resolveApproval({
+      approvalId: `approval_${actionId}`,
+      decision: "approved",
+      notes: notes || null,
+    });
+
+    await audit.logEvent({
+      action: "action.approved",
+      actor: "operator",
+      payload: { actionId, notes },
+    });
+
+    return { success: true, message: "Action approved and executed" };
+  } catch (error) {
+    console.error("[Orchestrator] Error approving action:", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Approval failed",
+    };
+  }
+}
+
+export async function rejectAction(
+  actionId: number,
+  notes?: string
+): Promise<{ success: boolean; message: string }> {
+  const action = await storage.getPendingAction(actionId);
+  if (!action) {
+    return { success: false, message: "Action not found" };
+  }
+
+  if (action.status !== "pending") {
+    return { success: false, message: "Action already resolved" };
+  }
+
+  await approvals.resolveApproval({
+    approvalId: `approval_${actionId}`,
+    decision: "rejected",
+    notes: notes || null,
+  });
+
+  await audit.logEvent({
+    action: "action.rejected",
+    actor: "operator",
+    payload: { actionId, notes },
+  });
+
+  return { success: true, message: "Action rejected" };
+}
+
+export async function simulateJobCompleted(jobId: number): Promise<ProcessingResult> {
+  const job = await storage.getJob(jobId);
+  if (!job) {
+    return { success: false, message: "Job not found" };
+  }
+
+  await storage.updateJob(jobId, {
+    status: "completed",
+  });
+
+  await audit.logEvent({
+    action: "job.completed",
+    actor: "system",
+    payload: { jobId },
+  });
+
+  const result = await orchestrator.handleEvent({
+    type: "job_completed",
+    data: {
+      jobId,
+      phone: job.customerPhone,
+      customerName: job.customerName,
+      serviceType: job.serviceType,
+    },
+    eventId: `job_completed_${jobId}_${Date.now()}`,
+  });
+
+  return result;
+}
+
+export { plan } from "./supervisor";
+export { execute } from "./runner";

@@ -1,0 +1,256 @@
+You are a senior full-stack engineer implementing “Customer Experience Vector Memory” into the LawnFlow MVP.
+
+STACK (assume existing)
+- Next.js App Router + TypeScript
+- Prisma + Postgres (already in Replit)
+- Existing entities: Account, JobRequest, CustomerMessage, OrchestrationRun, etc.
+
+GOAL
+Add a vector-memory layer that maps each customer’s experiences across:
+- services (mowing, cleanup, mulch, shrub trim, etc.)
+- interactions (SMS messages, ops notes, confirmations)
+- preferences (communication style, schedule windows, gate codes, constraints)
+- outcomes (NPS, complaints, retention signals)
+
+This memory must be:
+- per-account + per-customer
+- searchable by semantic similarity (vector search)
+- usable by the internal orchestrator during Lead → Cash steps
+- easy to view and debug in Ops UI
+
+CONSTRAINTS
+- Use Postgres + pgvector (single DB)
+- Keep it MVP-fast (no extra infrastructure)
+- Implement caching and safe fallbacks (if embeddings fail, still store text)
+- Protect PII: only store what you need; never store credit card info; keep gate codes optional and tagged.
+
+================================================================================
+A) DATABASE: ENABLE PGVECTOR + PRISMA MODELS
+================================================================================
+
+1) Add a one-time migration to enable pgvector:
+- Create a migration SQL file that runs:
+  CREATE EXTENSION IF NOT EXISTS vector;
+
+2) Add Prisma models:
+
+Customer
+- id (uuid)
+- accountId (FK)
+- name (string)
+- phone (string)
+- email (nullable)
+- primaryAddress (nullable)
+- createdAt, updatedAt
+- unique constraint on (accountId, phone)
+
+CustomerMemory
+- id (uuid)
+- accountId (FK)
+- customerId (FK)
+- memoryType (enum: interaction|preference|outcome|summary)
+- serviceType (nullable string)
+- channel (nullable enum: sms|call|email|in_app|ops_note)
+- importance (int default 3)  // 1–5
+- sentiment (float nullable)   // -1..+1 (optional)
+- npsScore (int nullable)      // 0–10 optional
+- occurredAt (timestamp default now())
+- text (text)                  // canonical text to embed
+- embedding (Unsupported("vector(1536)") nullable)  // pgvector column
+- tagsJson (jsonb default {})
+- sourceEntityType (nullable string) // e.g. "CustomerMessage" "JobRequest"
+- sourceEntityId (nullable string)
+- createdAt, updatedAt
+
+Add appropriate indexes:
+- (accountId, customerId, occurredAt desc)
+- GIN on tagsJson (optional)
+- Vector index: create AFTER MVP (add commented SQL for HNSW):
+  CREATE INDEX ... USING hnsw (embedding vector_cosine_ops);
+
+IMPORTANT:
+Prisma does not natively support pgvector types without extensions.
+For MVP, use Prisma with Unsupported type for embedding, and run vector SQL queries using prisma.$queryRaw.
+
+================================================================================
+B) EMBEDDING PROVIDER (MVP)
+================================================================================
+
+Implement embeddings using OpenAI embeddings by default.
+
+ENV VARS:
+- OPENAI_API_KEY
+- EMBEDDING_MODEL = "text-embedding-3-small" (or configurable)
+- EMBEDDING_DIM = 1536
+
+If OPENAI_API_KEY missing:
+- Store memory rows with embedding = NULL
+- Log warning, still fully functional (no vector search, only keyword fallback)
+
+Create /lib/embeddings/embedder.ts:
+- embedText(text: string): Promise<number[] | null>
+- truncate/normalize input (max chars)
+- retry 2 times with exponential backoff
+- return null on failure (do not throw)
+
+================================================================================
+C) MEMORY TEXT NORMALIZATION (CRITICAL)
+================================================================================
+
+Create /lib/memory/formatters.ts:
+- formatInteractionMemory({customer, messageThreadSummary, serviceType?}) => text
+- formatPreferenceMemory({customer, prefs}) => text
+- formatOutcomeMemory({customer, outcome}) => text
+Rules:
+- Keep text concise, factual, and consistent
+- Do not include raw long threads; summarize to 1–3 bullets
+- Include structured anchors: “Customer:”, “Service:”, “Preference:”, “Issue:”, “Resolution:”
+- Example:
+  "Customer: Jamie Parker. Service: mowing weekly. Preference: text-only; mornings; gate on left. Note: dislikes clippings on patio."
+
+================================================================================
+D) CORE API ENDPOINTS
+================================================================================
+
+1) POST /api/memory/upsert
+Body:
+{
+  customer: { name, phone, email?, address? },
+  memory: {
+    memoryType, serviceType?, channel?,
+    importance?, sentiment?, npsScore?,
+    occurredAt?, text, tagsJson?,
+    sourceEntityType?, sourceEntityId?
+  }
+}
+
+Behavior:
+- Upsert Customer by (accountId, phone)
+- Normalize text via formatter if raw text not provided (allow raw text for ops note)
+- Generate embedding if possible
+- Insert CustomerMemory row with embedding or null
+- Return { customerId, memoryId }
+
+2) POST /api/memory/search
+Body:
+{
+  customerId,
+  queryText,
+  limit? (default 8),
+  memoryTypes? (optional filter),
+  serviceType? (optional)
+}
+
+Behavior:
+- Embed queryText
+- If embedding exists:
+  - Run vector similarity query with prisma.$queryRaw using cosine distance:
+    SELECT ... ORDER BY embedding <=> $queryEmbedding LIMIT $limit
+- If embedding not available:
+  - Fallback: ILIKE keyword search on text
+Return ranked memories with similarity score when available.
+
+3) GET /api/memory/customer?customerId=
+- Return customer + latest memories + top preferences extraction
+
+================================================================================
+E) INTEGRATION INTO ORCHESTRATOR (LEAD → CASH)
+================================================================================
+
+Update orchestrator stages to use memory:
+
+1) On LEAD_INTAKE completion:
+- create/ensure Customer (name/phone/address)
+- write SUMMARY memory:
+  memoryType="summary", channel="sms", serviceType=first service
+  tags: { stage: "lead_intake" }
+
+2) On QUOTE_BUILD completion:
+- write OUTCOME memory (pending):
+  memoryType="outcome"
+  text includes quote range, assumptions, confidence
+  tags: { stage: "quote_build", quoteLow, quoteHigh }
+
+3) On QUOTE_CONFIRM result:
+- write OUTCOME memory:
+  accepted/declined/question/modify
+  tags: { stage: "quote_confirm", outcome }
+
+4) On SCHEDULE_PROPOSE + selection:
+- write PREFERENCE memory:
+  preferred day/time window, text-only, etc.
+  tags: { stage: "schedule" }
+
+5) On CREW_ASSIGN decision:
+- write INTERACTION/SUMMARY memory:
+  selected crewId, reasons, any constraints
+
+During QUOTE_BUILD and SCHEDULE_PROPOSE stages:
+- call POST /api/memory/search with queryText like:
+  "What are this customer's preferences, past issues, and scheduling constraints?"
+- incorporate the top 5 results into the orchestrator contextJson as a “customerInsights” field.
+
+IMPORTANT:
+Do not allow memory retrieval to override hard constraints; it is advisory.
+
+================================================================================
+F) OPS UI (DEBUGGABLE)
+================================================================================
+
+Add /ops/customers and /ops/customers/[customerId] pages:
+
+Customers List:
+- search by phone/name
+- show last interaction date
+- show top preference tags
+
+Customer Detail:
+- “Customer Profile” card (name/phone/address)
+- “Preferences” section (latest preference memories)
+- “Recent Interactions” timeline (chronological)
+- “NPS & Sentiment” mini panel (average NPS if present)
+- “Semantic Search” box that calls /api/memory/search and displays top matches + similarity
+
+Also add a lightweight “Add Ops Note” form that writes:
+memoryType="interaction", channel="ops_note", importance=4
+
+================================================================================
+G) TESTS
+================================================================================
+
+Add tests for:
+1) Customer upsert idempotency by phone
+2) Memory insert works with embedding disabled (OPENAI_API_KEY missing)
+3) Vector search path:
+- mock embedText to return fixed vector
+- verify $queryRaw called with expected SQL structure
+4) Keyword fallback search path:
+- returns ILIKE matches when embeddings unavailable
+
+Add npm script:
+- "test": "vitest"
+
+================================================================================
+H) DELIVERABLES (CODE FILES)
+================================================================================
+
+Generate code file-by-file with paths:
+
+- prisma/schema.prisma updates
+- prisma migration SQL enabling pgvector
+- /lib/embeddings/embedder.ts
+- /lib/memory/formatters.ts
+- /lib/memory/search.ts (vector + fallback)
+- /app/api/memory/upsert/route.ts
+- /app/api/memory/search/route.ts
+- /app/api/memory/customer/route.ts
+- orchestrator integration changes (write + read hooks)
+- /app/ops/customers/page.tsx
+- /app/ops/customers/[customerId]/page.tsx
+- tests: /tests/memory.test.ts
+
+QUALITY BAR
+- Strict Zod validation on API inputs
+- Never crash on missing embeddings; degrade gracefully
+- Ensure per-account isolation
+- Keep memory text short and useful for NPS/retention optimization

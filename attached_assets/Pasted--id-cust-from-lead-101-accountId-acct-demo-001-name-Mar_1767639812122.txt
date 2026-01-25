@@ -1,0 +1,112 @@
+[
+  {
+    "id": "cust_from_lead_101",
+    "accountId": "acct_demo_001",
+    "name": "Mark Wilson",
+    "phoneE164": "+14345553001",
+    "email": null,
+    "addressText": "2500 Hydraulic Rd, Charlottesville, VA 22901",
+    "zip": "22901",
+    "tags": ["RESIDENTIAL"],
+    "createdAt": "2026-01-05T09:20:00-05:00"
+  },
+  {
+    "id": "cust_from_lead_102",
+    "accountId": "acct_demo_001",
+    "name": "Ana Lopez",
+    "phoneE164": "+14345553002",
+    "email": "ana.lopez@example.com",
+    "addressText": "1011 Crozet Ave, Crozet, VA 22932",
+    "zip": "22932",
+    "tags": ["RESIDENTIAL", "MULCH"],
+    "createdAt": "2026-01-05T10:20:00-05:00"
+  },
+  {
+    "id": "cust_from_lead_105",
+    "accountId": "acct_demo_001",
+    "name": "Priya Patel",
+    "phoneE164": "+14345553005",
+    "email": "priya.patel@example.com",
+    "addressText": "800 High St, Charlottesville, VA 22902",
+    "zip": "22902",
+    "tags": ["RESIDENTIAL", "RECURRING"],
+    "createdAt": "2026-01-05T09:00:00-05:00"
+  },
+  {
+    "id": "cust_from_lead_106",
+    "accountId": "acct_demo_001",
+    "name": "Oak Hill Dental",
+    "phoneE164": "+14345553006",
+    "email": "ops@oakhilldental.example.com",
+    "addressText": "900 Rio Rd E, Charlottesville, VA 22901",
+    "zip": "22901",
+    "tags": ["COMMERCIAL"],
+    "createdAt": "2026-01-05T10:05:00-05:00"
+  },
+  {
+    "id": "cust_from_lead_107",
+    "accountId": "acct_demo_001",
+    "name": "Emily Price",
+    "phoneE164": "+14345553007",
+    "email": "emily.price@example.com",
+    "addressText": "Pantops Dr, Charlottesville, VA 22911",
+    "zip": "22911",
+    "tags": ["RESIDENTIAL"],
+    "createdAt": "2026-01-05T11:25:00-05:00"
+  },
+  {
+    "id": "cust_from_lead_111",
+    "accountId": "acct_demo_001",
+    "name": "Harrison Family",
+    "phoneE164": "+14345553011",
+    "email": "harrison.family@example.com",
+    "addressText": "Ivy Rd, Charlottesville, VA 22903",
+    "zip": "22903",
+    "tags": ["RESIDENTIAL", "MULCH"],
+    "createdAt": "2026-01-05T09:20:00-05:00"
+  },
+  {
+    "id": "cust_from_lead_114",
+    "accountId": "acct_demo_001",
+    "name": "Jordan Miles",
+    "phoneE164": "+14345553014",
+    "email": null,
+    "addressText": "Earlysville, VA 22936",
+    "zip": "22936",
+    "tags": ["RESIDENTIAL"],
+    "createdAt": "2026-01-05T09:05:00-05:00"
+  },
+  {
+    "id": "cust_from_lead_116",
+    "accountId": "acct_demo_001",
+    "name": "Julia Kim",
+    "phoneE164": "+14345553016",
+    "email": null,
+    "addressText": "Jefferson Park Ave, Charlottesville, VA 22903",
+    "zip": "22903",
+    "tags": ["RESIDENTIAL"],
+    "createdAt": "2026-01-05T12:25:00-05:00"
+  },
+  {
+    "id": "cust_from_lead_120",
+    "accountId": "acct_demo_001",
+    "name": "Ramon Ortega",
+    "phoneE164": "+14345553020",
+    "email": null,
+    "addressText": "Keswick, VA 22947",
+    "zip": "22947",
+    "tags": ["RESIDENTIAL", "SNOW"],
+    "createdAt": "2026-01-05T10:40:00-05:00"
+  },
+  {
+    "id": "cust_from_lead_122",
+    "accountId": "acct_demo_001",
+    "name": "Tyson Bell",
+    "phoneE164": "+14345553022",
+    "email": null,
+    "addressText": "Staunton, VA 24401",
+    "zip": "24401",
+    "tags": ["RESIDENTIAL", "RECURRING"],
+    "createdAt": "2026-01-05T12:05:00-05:00"
+  }
+]

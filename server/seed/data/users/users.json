@@ -1,0 +1,72 @@
+[
+  {
+    "id": "usr_owner_001",
+    "accountId": "acct_demo_001",
+    "name": "James Dobbs",
+    "role": "OWNER_ADMIN",
+    "phoneE164": "+14349876488",
+    "email": "jamesdobbs99@gmail.com",
+    "language": "EN",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "usr_lead_001",
+    "accountId": "acct_demo_001",
+    "name": "Ava Martinez",
+    "role": "CREW_LEAD",
+    "phoneE164": "+14345550101",
+    "email": "ava@example.com",
+    "language": "EN",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "usr_mem_001",
+    "accountId": "acct_demo_001",
+    "name": "Carlos Reyes",
+    "role": "CREW_MEMBER",
+    "phoneE164": "+14345550102",
+    "email": "carlos@example.com",
+    "language": "ES",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "usr_lead_002",
+    "accountId": "acct_demo_001",
+    "name": "Noah Jenkins",
+    "role": "CREW_LEAD",
+    "phoneE164": "+14345550103",
+    "email": "noah@example.com",
+    "language": "EN",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "usr_mem_002",
+    "accountId": "acct_demo_001",
+    "name": "Mia Thompson",
+    "role": "CREW_MEMBER",
+    "phoneE164": "+14345550104",
+    "email": "mia@example.com",
+    "language": "EN",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "usr_lead_003",
+    "accountId": "acct_demo_001",
+    "name": "Luis Alvarez",
+    "role": "CREW_LEAD",
+    "phoneE164": "+14345550105",
+    "email": "luis@example.com",
+    "language": "ES",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "usr_mem_003",
+    "accountId": "acct_demo_001",
+    "name": "Ethan Park",
+    "role": "CREW_MEMBER",
+    "phoneE164": "+14345550106",
+    "email": "ethan@example.com",
+    "language": "EN",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  }
+]

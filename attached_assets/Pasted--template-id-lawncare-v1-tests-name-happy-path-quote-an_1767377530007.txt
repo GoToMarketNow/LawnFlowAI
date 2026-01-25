@@ -1,0 +1,226 @@
+{
+  "template_id": "lawncare_v1",
+  "tests": [
+    {
+      "name": "happy_path_quote_and_book",
+      "account_id": "acct_demo_1",
+      "from_phone": "+15550000001",
+      "to_phone": "+15551112222",
+      "business_name": "GreenLeaf Lawn Care",
+      "assumptions": {
+        "lead_intake_enrichment": {
+          "address_confidence": 0.92,
+          "address_one_line": "123 Oak St, Charlottesville, VA 22901",
+          "arcgis": { "estimated_lot_acres": 0.33, "estimated_area_sqft": 14374, "confidence": 0.86 }
+        },
+        "scheduling_slots": [
+          "Tue 2–4pm",
+          "Thu 9–11am",
+          "Fri 1–3pm"
+        ],
+        "quote_exact_amount": 62,
+        "quote_range": { "low": 55, "high": 75 }
+      },
+      "steps": [
+        {
+          "inbound": "1",
+          "expect_state_after": "ADDRESS",
+          "expect_collected": { "intent": "recurring" }
+        },
+        {
+          "inbound": "123 Oak St, Charlottesville",
+          "expect_state_after": "PROPERTY_CONTEXT",
+          "expect_derived": { "address_one_line": "123 Oak St, Charlottesville, VA 22901" }
+        },
+        {
+          "inbound": "2",
+          "expect_state_after": "SERVICES",
+          "expect_collected": { "lot_size_bucket": "medium" }
+        },
+        {
+          "inbound": "1,2",
+          "expect_state_after": "FREQUENCY",
+          "expect_collected": { "services_requested": ["mowing", "edging"] }
+        },
+        {
+          "inbound": "2",
+          "expect_state_after": "TIMELINE",
+          "expect_collected": { "frequency": "biweekly" }
+        },
+        {
+          "inbound": "1",
+          "expect_state_after": "PRICE_RANGE",
+          "expect_collected": { "timeline": "asap" }
+        },
+        {
+          "inbound": "1",
+          "expect_state_after": "EXACT_QUOTE_Q1",
+          "expect_quote": { "range_low": 65, "range_high": 90 }
+        },
+        {
+          "inbound": "2",
+          "expect_state_after": "EXACT_QUOTE_Q2",
+          "expect_collected": { "fence": "no" }
+        },
+        {
+          "inbound": "1",
+          "expect_state_after": "EXACT_QUOTE",
+          "expect_collected": { "slope": "flat" }
+        },
+        {
+          "inbound": "1",
+          "expect_state_after": "SCHEDULING"
+        },
+        {
+          "inbound": "2",
+          "expect_state_after": "BOOKING_CONFIRM",
+          "expect_scheduling": { "selected_slot": "Thu 9–11am" }
+        },
+        {
+          "inbound": "YES",
+          "expect_state_after": "POST_BOOKING",
+          "expect_actions": ["create_or_update_jobber_records_if_yes"]
+        }
+      ]
+    },
+
+    {
+      "name": "address_low_confidence_then_confirm_yes",
+      "account_id": "acct_demo_1",
+      "from_phone": "+15550000002",
+      "to_phone": "+15551112222",
+      "assumptions": {
+        "lead_intake_enrichment_sequence": [
+          {
+            "address_confidence": 0.62,
+            "address_one_line": "12 Oak St, Charlottesville, VA 22901",
+            "arcgis": { "estimated_lot_acres": 0.20, "estimated_area_sqft": 8712, "confidence": 0.55 }
+          }
+        ],
+        "scheduling_slots": ["Tue 2–4pm", "Thu 9–11am", "Fri 1–3pm"]
+      },
+      "steps": [
+        { "inbound": "1", "expect_state_after": "ADDRESS" },
+        { "inbound": "12 ok st", "expect_state_after": "ADDRESS_CONFIRM" },
+        { "inbound": "1", "expect_state_after": "PROPERTY_CONTEXT", "expect_collected": { "address_confirmed": true } },
+        { "inbound": "4", "expect_state_after": "SERVICES", "expect_collected": { "lot_size_bucket": "unknown" } }
+      ]
+    },
+
+    {
+      "name": "price_objection_recovered_by_switching_frequency",
+      "account_id": "acct_demo_1",
+      "from_phone": "+15550000003",
+      "to_phone": "+15551112222",
+      "assumptions": {
+        "lead_intake_enrichment": {
+          "address_confidence": 0.9,
+          "address_one_line": "88 Pine Ln, Charlottesville, VA 22903",
+          "arcgis": { "estimated_lot_acres": 0.5, "estimated_area_sqft": 21780, "confidence": 0.8 }
+        },
+        "scheduling_slots": ["Wed 10–12", "Thu 2–4", "Fri 9–11"]
+      },
+      "steps": [
+        { "inbound": "1", "expect_state_after": "ADDRESS" },
+        { "inbound": "88 Pine Ln, Charlottesville", "expect_state_after": "PROPERTY_CONTEXT" },
+        { "inbound": "3", "expect_state_after": "SERVICES" },
+        { "inbound": "1", "expect_state_after": "FREQUENCY", "expect_collected": { "services_requested": ["mowing"] } },
+        { "inbound": "1", "expect_state_after": "TIMELINE", "expect_collected": { "frequency": "weekly" } },
+        { "inbound": "2", "expect_state_after": "PRICE_RANGE", "expect_collected": { "timeline": "1_2_weeks" } },
+        {
+          "inbound": "This is too expensive",
+          "expect_state_after": "OBJECTION",
+          "expect_derived": { "objection_type": "price" }
+        },
+        {
+          "inbound": "2",
+          "expect_state_after": "PRICE_RANGE",
+          "expect_collected": { "frequency": "biweekly" }
+        },
+        { "inbound": "1", "expect_state_after": "EXACT_QUOTE_Q1" }
+      ]
+    },
+
+    {
+      "name": "urgent_request_routes_to_call_offer",
+      "account_id": "acct_demo_1",
+      "from_phone": "+15550000004",
+      "to_phone": "+15551112222",
+      "assumptions": {
+        "lead_intake_enrichment": {
+          "address_confidence": 0.88,
+          "address_one_line": "500 Ridge Rd, Charlottesville, VA 22901",
+          "arcgis": { "estimated_lot_acres": 0.27, "estimated_area_sqft": 11761, "confidence": 0.78 }
+        }
+      },
+      "steps": [
+        { "inbound": "2", "expect_state_after": "ADDRESS" },
+        { "inbound": "500 Ridge Rd, Charlottesville", "expect_state_after": "PROPERTY_CONTEXT" },
+        { "inbound": "2", "expect_state_after": "SERVICES" },
+        { "inbound": "5", "expect_state_after": "FREQUENCY", "expect_collected": { "services_requested": ["cleanup"] } },
+        { "inbound": "4", "expect_state_after": "TIMELINE", "expect_collected": { "frequency": "one_time" } },
+        { "inbound": "1", "expect_state_after": "PRICE_RANGE" },
+        { "inbound": "I need this tomorrow", "expect_state_after": "OBJECTION", "expect_derived": { "objection_type": "urgency" } },
+        { "inbound": "1", "expect_state_after": "SCHEDULING" }
+      ]
+    },
+
+    {
+      "name": "stall_triggers_handoff_after_schedule_attempts",
+      "account_id": "acct_demo_1",
+      "from_phone": "+15550000005",
+      "to_phone": "+15551112222",
+      "assumptions": {
+        "lead_intake_enrichment": {
+          "address_confidence": 0.93,
+          "address_one_line": "42 Maple Ave, Charlottesville, VA 22902",
+          "arcgis": { "estimated_lot_acres": 0.25, "estimated_area_sqft": 10890, "confidence": 0.84 }
+        },
+        "scheduling_slots": ["Tue 2–4pm", "Thu 9–11am", "Fri 1–3pm"]
+      },
+      "steps": [
+        { "inbound": "1", "expect_state_after": "ADDRESS" },
+        { "inbound": "42 Maple Ave, Charlottesville", "expect_state_after": "PROPERTY_CONTEXT" },
+        { "inbound": "2", "expect_state_after": "SERVICES" },
+        { "inbound": "1", "expect_state_after": "FREQUENCY", "expect_collected": { "services_requested": ["mowing"] } },
+        { "inbound": "2", "expect_state_after": "TIMELINE" },
+        { "inbound": "3", "expect_state_after": "PRICE_RANGE" },
+        { "inbound": "1", "expect_state_after": "EXACT_QUOTE_Q1" },
+        { "inbound": "2", "expect_state_after": "EXACT_QUOTE_Q2" },
+        { "inbound": "1", "expect_state_after": "EXACT_QUOTE" },
+        { "inbound": "1", "expect_state_after": "SCHEDULING" },
+
+        { "inbound": "idk", "expect_state_after": "SCHEDULING" },
+        { "inbound": "maybe later", "expect_state_after": "SCHEDULING" },
+        {
+          "inbound": "stop",
+          "expect_state_after": "HUMAN_HANDOFF",
+          "expect_actions": ["create_handoff_ticket", "pause_for_human"]
+        }
+      ]
+    },
+
+    {
+      "name": "explicit_human_request_immediate_handoff_call_offer",
+      "account_id": "acct_demo_1",
+      "from_phone": "+15550000006",
+      "to_phone": "+15551112222",
+      "assumptions": {
+        "lead_intake_enrichment": {
+          "address_confidence": 0.9,
+          "address_one_line": "777 Garden Ct, Charlottesville, VA 22911",
+          "arcgis": { "estimated_lot_acres": 0.4, "estimated_area_sqft": 17424, "confidence": 0.82 }
+        }
+      },
+      "steps": [
+        { "inbound": "1", "expect_state_after": "ADDRESS" },
+        { "inbound": "777 Garden Ct, Charlottesville", "expect_state_after": "PROPERTY_CONTEXT" },
+        { "inbound": "2", "expect_state_after": "SERVICES" },
+        { "inbound": "1", "expect_state_after": "FREQUENCY", "expect_collected": { "services_requested": ["mowing"] } },
+        { "inbound": "2", "expect_state_after": "TIMELINE" },
+        { "inbound": "3", "expect_state_after": "PRICE_RANGE" },
+        { "inbound": "Call me", "expect_state_after": "HUMAN_HANDOFF" }
+      ]
+    }
+  ]
+}

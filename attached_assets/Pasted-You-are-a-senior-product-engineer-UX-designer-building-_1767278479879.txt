@@ -1,0 +1,225 @@
+You are a senior product engineer + UX designer building a guided onboarding wizard for “LawnFlow” (an agentic ops add-on for lawn/landscaping SMBs). Your job is to generate production-ready code and copy for a simple, intuitive setup experience.
+
+GOAL
+Create a dynamic, UI-driven onboarding wizard that supports TWO setup routes:
+Route A) “Connect my existing system” (LawnFlow sits on top of Jobber / Housecall Pro / Service Autopilot / Other)
+Route B) “Use LawnFlow standalone” (basic CRM + scheduling + comms inside LawnFlow for MVP)
+
+CONSTRAINTS
+- Must be simple for a non-technical owner/operator
+- Minimize steps; show progress
+- All steps save state incrementally (“Save & Continue”)
+- Each step has clear microcopy and defaults
+- Must support “Skip for now” where safe
+- Integrate with existing MVP stack (Next.js App Router + Prisma + SQLite + Node backend)
+- Do NOT run enrichment automatically; only collect business config
+- Must be compatible with Google Maps service area feature (already planned)
+
+DELIVERABLES
+1) Next.js UI wizard (multi-step)
+2) Backend endpoints + Prisma schema additions for onboarding state
+3) Step definitions as data (config-driven) so we can change questions without rewriting the UI
+4) Validation and gating (cannot proceed without required info)
+5) A “Review & Launch” final step that summarizes config and enables the system
+
+WIZARD ARCHITECTURE
+- Implement a generic Wizard framework:
+  - Step registry: array of step objects with id, title, route visibility, validation schema, component, next/prev logic
+  - Central state store: persisted to DB after each step
+  - Resume capability: user can leave and continue later
+
+DATA MODEL (Prisma)
+Add an OnboardingProfile (or extend BusinessProfile) to persist:
+- onboardingRoute: "CONNECT_EXISTING" | "STANDALONE"
+- onboardingStep: string
+- isOnboardingComplete: boolean
+- integrations:
+  - fsmProvider: "JOBBER"|"HOUSECALL_PRO"|"SERVICE_AUTOPILOT"|"OTHER"|"NONE"
+  - fsmConnected: boolean
+  - quickbooksConnected: boolean
+  - phoneProvider: "TWILIO"|"EXISTING_NUMBER"|"NONE"
+- businessBasics:
+  - businessName, ownerName, email, phone
+  - businessAddress
+  - businessHours (structured)
+  - serviceTypes (mowing/cleanup/mulch/landscaping/other)
+  - pricingBasics (min prices, price model choice)
+- serviceArea:
+  - center lat/lng, radiusMi, maxMi, allowExtended
+- workflowPreferences:
+  - missedCallRecoveryEnabled
+  - autoTextEnabled
+  - autoQuoteEnabled (tier-based gating)
+  - approvalsRequired (by action)
+- onboardingNotes: JSON blob for “other” answers
+
+UI REQUIREMENTS
+- 2-column layout: left = step nav + progress; right = step content
+- show “Estimated time to finish: 5–8 minutes”
+- step completion indicators
+- “Back”, “Save & Continue”, “Skip for now” (when allowed)
+- a top-level “Setup route” choice screen
+
+WIZARD STEPS (HIGH LEVEL)
+Step 0: Welcome
+- Explain value in plain language:
+  - “Answer every missed call”
+  - “Send quotes faster”
+  - “Book more jobs with less admin”
+- CTA: “Start setup”
+
+Step 1: Choose Setup Route (REQUIRED)
+Question:
+- “Do you already use a job management tool?”
+Options:
+A) Yes — Connect my existing system
+B) No / Not really — Use LawnFlow standalone
+
+If A selected, ask which provider:
+- Jobber / Housecall Pro / Service Autopilot / Other / Not sure
+
+Step 2: Business Basics (REQUIRED both routes)
+Questions:
+- Business name
+- Owner name
+- Best email
+- Best phone number
+- Primary business address
+Considerations:
+- Phone is required for missed call + texting features
+
+Step 3: Service Area (REQUIRED both routes)
+- Embed Google Maps service area builder:
+  - draggable center marker
+  - radius slider (miles)
+  - max travel limit dropdown: 5/10/20/40
+  - allow extended toggle
+Questions:
+- “Do you ever take jobs slightly outside your normal area?” (toggle)
+Considerations:
+- Persist center lat/lng, radiusMi, maxMi, allowExtended
+
+Step 4: Services & Capacity (REQUIRED both routes)
+Questions:
+- Services offered (multi-select): mowing, cleanup, mulch, landscaping install, irrigation, other
+- Typical response time: same day / 24h / 48h
+- Rough weekly capacity: light / medium / heavy
+Considerations:
+- Used to respond correctly and set expectations in messages
+
+Step 5A (CONNECT_EXISTING route): Connect Back Office (REQUIRED if Route A)
+Screen:
+- “Connect your system so LawnFlow can schedule + log jobs”
+Questions:
+- Choose provider (prefilled from Step 1)
+- Connect flow (OAuth placeholder for MVP if needed)
+- If provider unknown: capture “Other provider name” + “Do you have API/webhooks?” yes/no/unknown
+Considerations:
+- For MVP, implement:
+  - “Connect” button that stores a connection status record (fsmConnected false/true)
+  - Mock connector support if real OAuth not ready
+  - Provide instructions and a “Test connection” button (even if mocked)
+
+Step 5B (STANDALONE route): Standalone Setup (REQUIRED if Route B)
+Questions:
+- Do you want LawnFlow to:
+  - Track customers (yes/no)
+  - Track jobs (yes/no)
+  - Send invoices (later; not required for MVP)
+- Minimal CRM schema setup:
+  - create default statuses: New Lead, Qualified, Scheduled, Completed, Invoiced
+Considerations:
+- Create internal tables for customers/leads/jobs if not already present
+
+Step 6: Communication Setup (REQUIRED both routes)
+Goal: make inbound/outbound work cleanly
+Questions:
+- “Do you want LawnFlow to text customers?” yes/no (default yes)
+- “What number should we use?”
+  - Use my existing business number (forward missed calls to LawnFlow)
+  - Use a new LawnFlow number (Twilio)
+Considerations:
+- If using existing number: show call forwarding instructions (copy)
+- If using Twilio: collect area code preference
+
+Step 7: Pricing Basics (REQUIRED both routes, minimal)
+Goal: agents don’t hallucinate pricing
+Questions:
+- Choose pricing model:
+  - Flat per visit
+  - Range estimate (recommended)
+  - Needs site visit first
+- Minimum prices:
+  - mowing min $
+  - cleanup min $
+  - mulch min $
+Considerations:
+- Store pricing rules and add “confidence gating” in agent logic
+
+Step 8: Automation Preferences + Approvals (REQUIRED both routes)
+Questions:
+- Enable missed call recovery (default ON)
+- Enable auto-text follow-ups (default ON)
+- Enable auto-quote (default OFF for Owner tier)
+- Require approval before booking a job (default ON)
+Considerations:
+- These flags control orchestration policy
+
+Step 9: Review & Launch (REQUIRED)
+Show a summary card:
+- Route (Connected/Standalone)
+- Service area settings
+- Services offered
+- Comms setup
+- Pricing basics
+- Automation preferences
+Buttons:
+- “Launch LawnFlow”
+- “Run a test (simulate missed call)”
+On launch:
+- set isOnboardingComplete = true
+
+DYNAMIC LOGIC REQUIREMENTS
+- Steps 5A vs 5B depend on onboardingRoute
+- Show/hide questions based on prior answers (example):
+  - If texting disabled, hide number selection
+  - If allowExtended false, hide maxMi selection (or still store it but disable)
+- Validation:
+  - Cannot proceed without business name, phone, service area center+radius, and at least one service type
+- Save state after each step; allow resume
+
+MICROCOPY REQUIREMENTS (keep plain language)
+- Each step should include:
+  - A one-sentence “why we ask this”
+  - A short hint under each field
+
+IMPLEMENTATION TASKS (DO THESE IN ORDER)
+1) Add Prisma model changes for onboarding state (either new OnboardingProfile or extend BusinessProfile)
+2) Add API routes:
+   - GET /api/onboarding (load state)
+   - POST /api/onboarding (save partial updates)
+   - POST /api/onboarding/complete (finalize)
+3) Build Wizard framework components:
+   - Stepper nav
+   - Step renderer
+   - validation hooks (zod)
+4) Implement Step screens per spec (including Google Maps service area step)
+5) Add “Resume onboarding” logic (if onboarding not complete)
+6) Add final “Run a test event” button that calls existing simulate endpoint
+
+OUTPUT FORMAT
+- Produce code file-by-file (paths + content)
+- Include Prisma migration
+- Include minimal styling (clean, simple)
+- Include README snippet for env vars and how to run the wizard
+
+IMPORTANT
+- Do not run enrichment or external data providers
+- Only collect configuration
+- Keep the wizard fast and friendly
+- Ensure data saved is enough for agents to answer:
+  - service eligibility (service area)
+  - service offerings
+  - response time expectations
+  - basic pricing constraints
+  - comms preferences

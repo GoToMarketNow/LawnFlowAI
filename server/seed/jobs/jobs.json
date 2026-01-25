@@ -1,0 +1,203 @@
+[
+  {
+    "id": "job_001",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_001",
+    "assignedCrewId": "crew_cville_001",
+    "title": "Weekly Lawn - Nguyen",
+    "serviceCodes": [
+      "LAWN_RECUR"
+    ],
+    "status": "SCHEDULED",
+    "scheduledStartAt": "2026-01-05T08:00:00-05:00",
+    "scheduledEndAt": "2026-01-05T09:00:00-05:00",
+    "windowStartAt": "2026-01-05T08:00:00-05:00",
+    "windowEndAt": "2026-01-05T09:00:00-05:00",
+    "address": {
+      "line1": "1200 Market St",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22902",
+      "lat": 38.0335,
+      "lng": -78.48
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_002",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_004",
+    "assignedCrewId": "crew_albemarle_002",
+    "title": "Mulch Refresh - Brooks",
+    "serviceCodes": [
+      "MULCH_INSTALL"
+    ],
+    "status": "SCHEDULED",
+    "scheduledStartAt": "2026-01-05T10:00:00-05:00",
+    "scheduledEndAt": "2026-01-05T11:30:00-05:00",
+    "windowStartAt": "2026-01-05T10:00:00-05:00",
+    "windowEndAt": "2026-01-05T11:30:00-05:00",
+    "address": {
+      "line1": "410 Ridge St",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22902",
+      "lat": 38.035,
+      "lng": -78.49
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_003",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_002",
+    "assignedCrewId": "crew_cville_001",
+    "title": "One-Time Lawn + Cleanup - Carter",
+    "serviceCodes": [
+      "LAWN_ONE",
+      "CLEAN_SEASON"
+    ],
+    "status": "ON_SITE",
+    "scheduledStartAt": "2026-01-05T13:00:00-05:00",
+    "scheduledEndAt": "2026-01-05T15:00:00-05:00",
+    "windowStartAt": "2026-01-05T13:00:00-05:00",
+    "windowEndAt": "2026-01-05T15:00:00-05:00",
+    "address": {
+      "line1": "85 Ivy Rd",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22903",
+      "lat": 38.046,
+      "lng": -78.53
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_004",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_003",
+    "assignedCrewId": "crew_greene_003",
+    "title": "Brush Trim - La Tienda",
+    "serviceCodes": [
+      "TREE_BRUSH"
+    ],
+    "status": "EN_ROUTE",
+    "scheduledStartAt": "2026-01-05T16:00:00-05:00",
+    "scheduledEndAt": "2026-01-05T17:15:00-05:00",
+    "windowStartAt": "2026-01-05T16:00:00-05:00",
+    "windowEndAt": "2026-01-05T17:15:00-05:00",
+    "address": {
+      "line1": "300 Commerce Ave",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22911",
+      "lat": 38.0712,
+      "lng": -78.4363
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_005",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_001",
+    "assignedCrewId": "crew_albemarle_002",
+    "title": "Firewood Delivery - Nguyen",
+    "serviceCodes": [
+      "FIREWOOD"
+    ],
+    "status": "SCHEDULED",
+    "scheduledStartAt": "2026-01-06T09:00:00-05:00",
+    "scheduledEndAt": "2026-01-06T10:00:00-05:00",
+    "windowStartAt": "2026-01-06T09:00:00-05:00",
+    "windowEndAt": "2026-01-06T10:00:00-05:00",
+    "address": {
+      "line1": "1200 Market St",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22902",
+      "lat": 38.0335,
+      "lng": -78.48
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_006",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_002",
+    "assignedCrewId": null,
+    "title": "New One-Time Mow - Carter",
+    "serviceCodes": [
+      "LAWN_ONE"
+    ],
+    "status": "UNASSIGNED",
+    "scheduledStartAt": "2026-01-06T11:00:00-05:00",
+    "scheduledEndAt": "2026-01-06T12:00:00-05:00",
+    "windowStartAt": "2026-01-06T11:00:00-05:00",
+    "windowEndAt": "2026-01-06T12:00:00-05:00",
+    "address": {
+      "line1": "85 Ivy Rd",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22903",
+      "lat": 38.046,
+      "lng": -78.53
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_007",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_004",
+    "assignedCrewId": "crew_cville_001",
+    "title": "Weekly Lawn - Brooks (Completed)",
+    "serviceCodes": [
+      "LAWN_RECUR"
+    ],
+    "status": "COMPLETE",
+    "scheduledStartAt": "2026-01-04T14:00:00-05:00",
+    "scheduledEndAt": "2026-01-04T15:00:00-05:00",
+    "windowStartAt": "2026-01-04T14:00:00-05:00",
+    "windowEndAt": "2026-01-04T15:00:00-05:00",
+    "address": {
+      "line1": "410 Ridge St",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22902",
+      "lat": 38.035,
+      "lng": -78.49
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "job_008",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_003",
+    "assignedCrewId": "crew_greene_003",
+    "title": "Seasonal Cleanup - La Tienda (Canceled)",
+    "serviceCodes": [
+      "CLEAN_SEASON"
+    ],
+    "status": "CANCELED",
+    "scheduledStartAt": "2026-01-03T15:00:00-05:00",
+    "scheduledEndAt": "2026-01-03T16:30:00-05:00",
+    "windowStartAt": "2026-01-03T15:00:00-05:00",
+    "windowEndAt": "2026-01-03T16:30:00-05:00",
+    "address": {
+      "line1": "300 Commerce Ave",
+      "city": "Charlottesville",
+      "state": "VA",
+      "zip": "22911",
+      "lat": 38.0712,
+      "lng": -78.4363
+    },
+    "notes": "Demo job for MVP simulations.",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  }
+]

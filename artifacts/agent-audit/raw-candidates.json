@@ -1,0 +1,4542 @@
+{
+  "generatedAt": "2026-01-24T20:49:01.620Z",
+  "count": 324,
+  "candidates": [
+    {
+      "file": "agent-service\\src\\agents\\agent-interface.ts",
+      "score": 7,
+      "hits": {
+        "agent": 12,
+        "definition": 0,
+        "run/execute/handler": 2,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\agents\\billing.ts",
+      "score": 21,
+      "hits": {
+        "agent": 11,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 11,
+        "notifications": 58,
+        "openai": 17
+      }
+    },
+    {
+      "file": "agent-service\\src\\agents\\crewIntelligence.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 9,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\agents\\inbound-engagement.ts",
+      "score": 12,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 9,
+        "openai": 7
+      }
+    },
+    {
+      "file": "agent-service\\src\\agents\\intake.ts",
+      "score": 13,
+      "hits": {
+        "agent": 5,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 2,
+        "openai": 10
+      }
+    },
+    {
+      "file": "agent-service\\src\\agents\\jobFeasibility.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 7,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\agents\\marginBurn.ts",
+      "score": 6,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 6,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\agents\\orchestrator.ts",
+      "score": 11,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 8,
+        "notifications": 8,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\agents\\preference.ts",
+      "score": 11,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 4,
+        "openai": 10
+      }
+    },
+    {
+      "file": "agent-service\\src\\agents\\pricing.ts",
+      "score": 8,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 1,
+        "openai": 7
+      }
+    },
+    {
+      "file": "agent-service\\src\\agents\\promotion.ts",
+      "score": 6,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 7
+      }
+    },
+    {
+      "file": "agent-service\\src\\agents\\quote.ts",
+      "score": 9,
+      "hits": {
+        "agent": 4,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 7
+      }
+    },
+    {
+      "file": "agent-service\\src\\agents\\quoting.ts",
+      "score": 11,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 3,
+        "notifications": 2,
+        "openai": 7
+      }
+    },
+    {
+      "file": "agent-service\\src\\agents\\reviews.ts",
+      "score": 15,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 6,
+        "notifications": 7,
+        "openai": 7
+      }
+    },
+    {
+      "file": "agent-service\\src\\agents\\routeCost.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\agents\\schedule.ts",
+      "score": 10,
+      "hits": {
+        "agent": 4,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 0,
+        "openai": 7
+      }
+    },
+    {
+      "file": "agent-service\\src\\agents\\scheduling.ts",
+      "score": 7,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 2,
+        "notifications": 0,
+        "openai": 4
+      }
+    },
+    {
+      "file": "agent-service\\src\\agents\\service-selection.ts",
+      "score": 7,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 0,
+        "openai": 7
+      }
+    },
+    {
+      "file": "agent-service\\src\\agents\\simulationRanking.ts",
+      "score": 6,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 20,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\connectors\\fsm-mock.ts",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\db.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\index.ts",
+      "score": 3,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\lib\\learning\\index.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\services\\configuration.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\services\\geo.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\services\\lotSizeResolver.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\services\\quote-calculator.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 10,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\shared\\comms-schema.ts",
+      "score": 10,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 6,
+        "notifications": 37,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\shared\\models\\chat.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\shared\\orchestrator\\contracts.ts",
+      "score": 3,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 1,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\shared\\schema.ts",
+      "score": 21,
+      "hits": {
+        "agent": 13,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 84,
+        "hitl": 13,
+        "notifications": 15,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\src\\storage.ts",
+      "score": 1,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 1,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\tests\\billing-agent.test.ts",
+      "score": 1,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "agent-service\\tests\\golden-dataset.ts",
+      "score": 7,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 2,
+        "notifications": 5,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\App.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 3,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 2,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\components\\onboarding\\OnboardingWizard.tsx",
+      "score": 4,
+      "hits": {
+        "agent": 3,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\components\\onboarding\\ReviewStep.tsx",
+      "score": 4,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 4,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\components\\ops\\ops-map.tsx",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\components\\ops\\simulation-cards.tsx",
+      "score": 4,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 3,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\components\\zip-service-area.tsx",
+      "score": 4,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 4,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\lib\\ui\\nav-v3.ts",
+      "score": 12,
+      "hits": {
+        "agent": 4,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 3,
+        "notifications": 6,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\lib\\ui\\nav.ts",
+      "score": 3,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 1,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\lib\\ui\\tokens.ts",
+      "score": 14,
+      "hits": {
+        "agent": 16,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 9,
+        "notifications": 4,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\agent-detail.tsx",
+      "score": 10,
+      "hits": {
+        "agent": 40,
+        "definition": 0,
+        "run/execute/handler": 23,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\agent-setup.tsx",
+      "score": 2,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\agents.tsx",
+      "score": 9,
+      "hits": {
+        "agent": 76,
+        "definition": 0,
+        "run/execute/handler": 2,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 2,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\approvals.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 12,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\billing-invoices.tsx",
+      "score": 4,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 4,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\business-profile.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 11,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\comms-studio.tsx",
+      "score": 7,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 20,
+        "notifications": 2,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\conversations.tsx",
+      "score": 3,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 2,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\crew-detail.tsx",
+      "score": 4,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 3,
+        "notifications": 1,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\customers.tsx",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\dashboard.tsx",
+      "score": 9,
+      "hits": {
+        "agent": 6,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 3,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\events-feed.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 15,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\home.tsx",
+      "score": 4,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 2,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\inbox.tsx",
+      "score": 6,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 9,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\jobs.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 7,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\knowledge-approvals.tsx",
+      "score": 6,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 1,
+        "hitl": 48,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\knowledge-builder.tsx",
+      "score": 7,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 2,
+        "hitl": 7,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\knowledge-list.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 7,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\knowledge-reviews.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 25,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\leads.tsx",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\learning.tsx",
+      "score": 4,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 3,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\login.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 9,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\marketing-approvals.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 49,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\onboarding.tsx",
+      "score": 10,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 9,
+        "notifications": 15,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\pending-actions.tsx",
+      "score": 6,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 9,
+        "notifications": 1,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\pricing-control-center.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 15,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\quote-builder.tsx",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 2,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\quotes.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 11,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\register.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 10,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\settings\\agents.tsx",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\settings\\comms-studio.tsx",
+      "score": 4,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\settings\\integrations.tsx",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\settings\\templates.tsx",
+      "score": 6,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 15,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\settings\\users.tsx",
+      "score": 4,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 4,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\settings.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\simulator.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 23,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\sms-sessions.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 8,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\views.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 25,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\weather-approvals.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 13,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\work-queue.tsx",
+      "score": 4,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 3,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "client\\src\\pages\\workflow-tasks.tsx",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 3,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "docs\\personas.spec.ts",
+      "score": 4,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 2,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\billing_orchestrator\\config.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\billing_orchestrator\\index.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\billing_orchestrator\\tests\\index.test.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\customer_comms\\config.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\customer_comms\\index.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\customer_comms\\tests\\index.test.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\dispatch_routing\\config.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\dispatch_routing\\index.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\dispatch_routing\\tests\\index.test.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\intake_enrichment\\config.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\intake_enrichment\\index.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\intake_enrichment\\tests\\index.test.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\margin_variance\\config.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\margin_variance\\index.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\margin_variance\\tests\\index.test.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\quote_job_orchestrator\\config.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\quote_job_orchestrator\\index.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\quote_job_orchestrator\\tests\\index.test.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\reconciliation\\config.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\reconciliation\\index.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\reconciliation\\tests\\index.test.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\renewal_upsell\\config.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\renewal_upsell\\index.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\agents\\renewal_upsell\\tests\\index.test.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\index.ts",
+      "score": 2,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 1,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\runtime\\agentRunner.ts",
+      "score": 10,
+      "hits": {
+        "agent": 4,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 1,
+        "openai": 13
+      }
+    },
+    {
+      "file": "lawnflow-agents\\runtime\\cost.ts",
+      "score": 1,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 1
+      }
+    },
+    {
+      "file": "lawnflow-agents\\runtime\\index.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\runtime\\promptLoader.ts",
+      "score": 3,
+      "hits": {
+        "agent": 3,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\runtime\\schemas.ts",
+      "score": 1,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\runtime\\toolRouter.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\runtime\\types.ts",
+      "score": 1,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\shared\\index.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\shared\\types\\index.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\shared\\utils\\index.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\agents\\completion-finalization.ts",
+      "score": 7,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 1,
+        "openai": 10
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\agents\\crew-notification.ts",
+      "score": 9,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 10
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\agents\\crew-support.ts",
+      "score": 7,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 1,
+        "openai": 14
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\agents\\customer-follow-up.ts",
+      "score": 14,
+      "hits": {
+        "agent": 4,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 4,
+        "openai": 10
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\agents\\customer-notification.ts",
+      "score": 11,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 14,
+        "openai": 10
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\agents\\customer-service.ts",
+      "score": 8,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 2,
+        "openai": 14
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\agents\\escalation-monitor.ts",
+      "score": 14,
+      "hits": {
+        "agent": 3,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 4,
+        "openai": 10
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\agents\\follow-up-scheduler.ts",
+      "score": 7,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 1,
+        "openai": 10
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\agents\\inbound-intake.ts",
+      "score": 9,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 2,
+        "openai": 11
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\agents\\job-creation.ts",
+      "score": 7,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 14
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\agents\\job-monitoring.ts",
+      "score": 13,
+      "hits": {
+        "agent": 3,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 4,
+        "openai": 10
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\agents\\manager-escalation.ts",
+      "score": 8,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 1,
+        "openai": 10
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\agents\\pricing-profit.ts",
+      "score": 10,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 2,
+        "openai": 10
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\agents\\quality-assurance.ts",
+      "score": 9,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 2,
+        "openai": 10
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\agents\\scheduling-dispatch.ts",
+      "score": 9,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 2,
+        "openai": 10
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\core\\interfaces.ts",
+      "score": 8,
+      "hits": {
+        "agent": 4,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\core\\orchestrator.ts",
+      "score": 8,
+      "hits": {
+        "agent": 6,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 1,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\core\\registry.ts",
+      "score": 5,
+      "hits": {
+        "agent": 9,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-agents\\src\\types\\index.ts",
+      "score": 4,
+      "hits": {
+        "agent": 4,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-ai\\e2e\\specs\\pending-actions.spec.ts",
+      "score": 4,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 4,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-ai\\src\\components\\SystemLog.tsx",
+      "score": 6,
+      "hits": {
+        "agent": 5,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-ai\\src\\components\\WorkflowVisualizer.tsx",
+      "score": 4,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 3,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-ai\\src\\pages\\AgentConfig.tsx",
+      "score": 8,
+      "hits": {
+        "agent": 11,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 2,
+        "openai": 0
+      }
+    },
+    {
+      "file": "lawnflow-ai\\src\\pages\\PendingActions.tsx",
+      "score": 7,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 2,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 4,
+        "notifications": 1,
+        "openai": 0
+      }
+    },
+    {
+      "file": "mobile\\src\\screens\\messages\\ThreadScreen.tsx",
+      "score": 4,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 4,
+        "openai": 0
+      }
+    },
+    {
+      "file": "mobile\\src\\screens\\reviews\\ReviewPromptScreen.tsx",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 3,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "mobile\\src\\screens\\settings\\PayrollPreferencesScreen.tsx",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "mobile\\src\\screens\\weather\\CrewWeatherScreen.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 9,
+        "openai": 0
+      }
+    },
+    {
+      "file": "mobile\\src\\screens\\weather\\WeatherDashboardScreen.tsx",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 11,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "mobile\\src\\services\\api\\commands.ts",
+      "score": 3,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "mobile\\src\\services\\api\\queries.ts",
+      "score": 3,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 1,
+        "openai": 0
+      }
+    },
+    {
+      "file": "onboarding\\build.ts",
+      "score": 6,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 19,
+        "openai": 0
+      }
+    },
+    {
+      "file": "scripts\\seed-crews.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 16,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\agents\\billing.ts",
+      "score": 21,
+      "hits": {
+        "agent": 10,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 11,
+        "notifications": 58,
+        "openai": 17
+      }
+    },
+    {
+      "file": "server\\agents\\crewIntelligence.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 9,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\agents\\inbound-engagement.ts",
+      "score": 12,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 9,
+        "openai": 7
+      }
+    },
+    {
+      "file": "server\\agents\\intake.ts",
+      "score": 13,
+      "hits": {
+        "agent": 5,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 2,
+        "openai": 10
+      }
+    },
+    {
+      "file": "server\\agents\\jobFeasibility.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 7,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\agents\\marginBurn.ts",
+      "score": 6,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 6,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\agents\\marketing.ts",
+      "score": 9,
+      "hits": {
+        "agent": 24,
+        "definition": 0,
+        "run/execute/handler": 3,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\agents\\orchestrator.ts",
+      "score": 11,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 8,
+        "notifications": 8,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\agents\\preference.ts",
+      "score": 11,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 4,
+        "openai": 10
+      }
+    },
+    {
+      "file": "server\\agents\\pricing.ts",
+      "score": 8,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 1,
+        "openai": 7
+      }
+    },
+    {
+      "file": "server\\agents\\promotion.ts",
+      "score": 6,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 7
+      }
+    },
+    {
+      "file": "server\\agents\\quote.ts",
+      "score": 9,
+      "hits": {
+        "agent": 4,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 7
+      }
+    },
+    {
+      "file": "server\\agents\\quoting.ts",
+      "score": 11,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 3,
+        "notifications": 2,
+        "openai": 7
+      }
+    },
+    {
+      "file": "server\\agents\\reviews.ts",
+      "score": 15,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 6,
+        "notifications": 7,
+        "openai": 7
+      }
+    },
+    {
+      "file": "server\\agents\\routeCost.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\agents\\schedule.ts",
+      "score": 10,
+      "hits": {
+        "agent": 4,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 0,
+        "openai": 7
+      }
+    },
+    {
+      "file": "server\\agents\\scheduling.ts",
+      "score": 9,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 3,
+        "notifications": 0,
+        "openai": 7
+      }
+    },
+    {
+      "file": "server\\agents\\service-selection.ts",
+      "score": 7,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 0,
+        "openai": 7
+      }
+    },
+    {
+      "file": "server\\agents\\simulationRanking.ts",
+      "score": 6,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 20,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\agents\\__tests__\\crewIntelligence.test.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\agents\\__tests__\\jobFeasibility.test.ts",
+      "score": 1,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\agents\\__tests__\\marginBurn.test.ts",
+      "score": 1,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\agents\\__tests__\\orchestrator.test.ts",
+      "score": 5,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 4,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\agents\\__tests__\\routeCost.test.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\agents\\__tests__\\simulationRanking.test.ts",
+      "score": 2,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 1,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\auth-routes.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 39,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\connectors\\fsm-mock.ts",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\connectors\\jobber-client.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 6,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\connectors\\jobber-fsm.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 8,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\connectors\\jobber-rules.ts",
+      "score": 6,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 12,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\connectors\\twilio-mock.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 47,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\connectors\\twilio.ts",
+      "score": 7,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 2,
+        "notifications": 25,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\index.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 9,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\lib\\assistant\\actionHandler.ts",
+      "score": 4,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 4,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\lib\\assistant\\agent.ts",
+      "score": 9,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 1,
+        "openai": 9
+      }
+    },
+    {
+      "file": "server\\lib\\assistant\\citationValidator.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 7,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\lib\\assistant\\toolRouter.ts",
+      "score": 6,
+      "hits": {
+        "agent": 0,
+        "definition": 1,
+        "run/execute/handler": 4,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 1,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\lib\\comms\\carbonCopy.ts",
+      "score": 18,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 3,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 9,
+        "notifications": 7,
+        "openai": 13
+      }
+    },
+    {
+      "file": "server\\lib\\comms\\orchestrator.ts",
+      "score": 6,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 7,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\lib\\comms\\renderer.ts",
+      "score": 4,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 4,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\lib\\comms\\templates.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 6,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\lib\\comms\\threadSafety.ts",
+      "score": 6,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 6,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 1,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\lib\\comms\\urgency-compute.ts",
+      "score": 6,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 11,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\lib\\knowledge\\builderAgent.ts",
+      "score": 13,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 25,
+        "openai": 22
+      }
+    },
+    {
+      "file": "server\\lib\\knowledge\\embeddings.ts",
+      "score": 7,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 2,
+        "openai": 14
+      }
+    },
+    {
+      "file": "server\\lib\\knowledge\\search.ts",
+      "score": 8,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 3,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 6,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\lib\\knowledge\\stewardAgent.ts",
+      "score": 14,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 10,
+        "notifications": 3,
+        "openai": 7
+      }
+    },
+    {
+      "file": "server\\lib\\knowledge\\validator.ts",
+      "score": 11,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 3,
+        "hitl": 3,
+        "notifications": 25,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\lib\\learning\\diff.ts",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\lib\\learning\\suggestions.ts",
+      "score": 10,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 6,
+        "notifications": 12,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\memory\\embedder.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 6
+      }
+    },
+    {
+      "file": "server\\memory\\formatters.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 26,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\memory\\search.ts",
+      "score": 4,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\memory\\storage.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 9,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\onboarding\\engine.ts",
+      "score": 9,
+      "hits": {
+        "agent": 0,
+        "definition": 20,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 2,
+        "notifications": 2,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\onboarding\\routes.ts",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 3,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\billing\\engine.ts",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 2,
+        "notifications": 1,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\index.ts",
+      "score": 6,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 3,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 2,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\leadToCash\\agents\\crewAssign.ts",
+      "score": 6,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 5,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\leadToCash\\agents\\crewLock.ts",
+      "score": 6,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 2,
+        "notifications": 4,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\leadToCash\\agents\\dispatchReady.ts",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 2,
+        "notifications": 1,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\leadToCash\\agents\\feasibilityCheck.ts",
+      "score": 4,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\leadToCash\\agents\\jobBook.ts",
+      "score": 4,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\leadToCash\\agents\\leadIntake.ts",
+      "score": 4,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\leadToCash\\agents\\marginValidate.ts",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\leadToCash\\agents\\propertyResolver.ts",
+      "score": 1,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\leadToCash\\agents\\quoteBuild.ts",
+      "score": 6,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 9,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\leadToCash\\agents\\quoteConfirm.ts",
+      "score": 1,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\leadToCash\\agents\\schedulePropose.ts",
+      "score": 6,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 5,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\leadToCash\\agents\\simulationRun.ts",
+      "score": 0,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\leadToCash\\engine.ts",
+      "score": 15,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 69,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 9,
+        "notifications": 12,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\leadToCash\\logger.ts",
+      "score": 4,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 2,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\leadToCash\\memoryHooks.ts",
+      "score": 10,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 22,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 6,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\payment\\adapters\\paymentProviderAdapter.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 5,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\payment\\adapters\\smsAdapter.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 25,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\payment\\commandHandlers.ts",
+      "score": 6,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 4,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\payment\\paymentAgent.ts",
+      "score": 8,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 13,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\payment\\paymentSaga.ts",
+      "score": 10,
+      "hits": {
+        "agent": 12,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 4,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\payment\\__tests__\\paymentAgent.test.ts",
+      "score": 5,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\postJobQA\\engine.ts",
+      "score": 9,
+      "hits": {
+        "agent": 3,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 4,
+        "notifications": 1,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\postJobQA\\postJobQAAgent.ts",
+      "score": 14,
+      "hits": {
+        "agent": 3,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 12,
+        "openai": 10
+      }
+    },
+    {
+      "file": "server\\orchestrator\\postJobQA\\reviewManagementAgent.ts",
+      "score": 17,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 34,
+        "notifications": 7,
+        "openai": 8
+      }
+    },
+    {
+      "file": "server\\orchestrator\\runner.ts",
+      "score": 17,
+      "hits": {
+        "agent": 7,
+        "definition": 0,
+        "run/execute/handler": 6,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 13,
+        "notifications": 2,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\orchestrator\\supervisor.ts",
+      "score": 20,
+      "hits": {
+        "agent": 14,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 20,
+        "notifications": 14,
+        "openai": 7
+      }
+    },
+    {
+      "file": "server\\pricing\\quoteRater.ts",
+      "score": 6,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 8,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\replit_integrations\\batch\\utils.ts",
+      "score": 7,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 2,
+        "openai": 7
+      }
+    },
+    {
+      "file": "server\\replit_integrations\\chat\\routes.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 8
+      }
+    },
+    {
+      "file": "server\\replit_integrations\\image\\client.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 10
+      }
+    },
+    {
+      "file": "server\\replit_integrations\\image\\routes.ts",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 3
+      }
+    },
+    {
+      "file": "server\\routes\\assistant.ts",
+      "score": 3,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 1,
+        "openai": 1
+      }
+    },
+    {
+      "file": "server\\routes\\knowledge.ts",
+      "score": 14,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 2,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 34,
+        "notifications": 5,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\routes\\marketing.ts",
+      "score": 12,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 26,
+        "notifications": 6,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\routes\\support-queue.ts",
+      "score": 8,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 3,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 6,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\routes-mobile.ts",
+      "score": 8,
+      "hits": {
+        "agent": 3,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 5,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\routes-postjob-qa.ts",
+      "score": 11,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 6,
+        "notifications": 10,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\routes-weather.ts",
+      "score": 10,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 32,
+        "notifications": 8,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\routes.ts",
+      "score": 29,
+      "hits": {
+        "agent": 96,
+        "definition": 0,
+        "run/execute/handler": 78,
+        "temporal": 0,
+        "events": 4,
+        "hitl": 58,
+        "notifications": 133,
+        "openai": 8
+      }
+    },
+    {
+      "file": "server\\seed\\loader.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 7,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\seed\\runner.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 9,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\seed-active-comms.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 10,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\seed-agents.ts",
+      "score": 8,
+      "hits": {
+        "agent": 25,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 3,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\seed-comms-studio.ts",
+      "score": 8,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 3,
+        "notifications": 10,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\services\\quote-calculator.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 10,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\services\\weather\\geohash.ts",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\services\\weather\\providers\\nws.ts",
+      "score": 6,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 12,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\services\\weather\\riskScorer.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 17,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\sms\\handoff.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 12,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\sms\\quoteEngine.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 7,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\sms\\stateMachine.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 7,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\storage.ts",
+      "score": 15,
+      "hits": {
+        "agent": 11,
+        "definition": 0,
+        "run/execute/handler": 5,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 39,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\templates\\weather-notifications.ts",
+      "score": 10,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 8,
+        "notifications": 12,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\activities\\billing.ts",
+      "score": 4,
+      "hits": {
+        "agent": 3,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\activities\\db.ts",
+      "score": 4,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 2,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 2,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\activities\\finops.ts",
+      "score": 6,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 1,
+        "openai": 14
+      }
+    },
+    {
+      "file": "server\\temporal\\activities\\humanTasks.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 4,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\activities\\index.ts",
+      "score": 5,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\activities\\marketing.ts",
+      "score": 10,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 4,
+        "notifications": 10,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\activities\\memory.ts",
+      "score": 10,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 8,
+        "openai": 5
+      }
+    },
+    {
+      "file": "server\\temporal\\activities\\policy.ts",
+      "score": 4,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 4,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\activities\\prequalification.ts",
+      "score": 11,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 6,
+        "openai": 16
+      }
+    },
+    {
+      "file": "server\\temporal\\activities\\stripe.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 6,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\activities\\toolGateway.ts",
+      "score": 6,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 35,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\activities\\twilio.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 34,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\activities\\weather.ts",
+      "score": 6,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 15,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\activities\\writeback.ts",
+      "score": 7,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 2,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 7
+      }
+    },
+    {
+      "file": "server\\temporal\\api-finops.ts",
+      "score": 4,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 2,
+        "openai": 2
+      }
+    },
+    {
+      "file": "server\\temporal\\api-observability.ts",
+      "score": 10,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 6,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 5,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\api-tasks.ts",
+      "score": 11,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 15,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 10,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\api.ts",
+      "score": 9,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 4,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 7,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\observability.ts",
+      "score": 9,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 26,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 4,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\workflows\\billing.ts",
+      "score": 11,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 12,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 13,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\workflows\\jobCloseout.ts",
+      "score": 17,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 8,
+        "events": 0,
+        "hitl": 20,
+        "notifications": 9,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\workflows\\leadToCash.ts",
+      "score": 14,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 2,
+        "temporal": 12,
+        "events": 0,
+        "hitl": 19,
+        "notifications": 2,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\workflows\\referralNurture.ts",
+      "score": 10,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 6,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 10,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\workflows\\responseRouter.ts",
+      "score": 8,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 2,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 12,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\workflows\\scheduleImpactPlanning.ts",
+      "score": 10,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 11,
+        "events": 0,
+        "hitl": 17,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\workflows\\snowIceFulfillment.ts",
+      "score": 10,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 8,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 4,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\workflows\\socialOpportunity.ts",
+      "score": 11,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 6,
+        "events": 0,
+        "hitl": 4,
+        "notifications": 2,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\workflows\\weatherMonitoring.ts",
+      "score": 8,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 3,
+        "temporal": 11,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\temporal\\workflows\\winterEventActivation.ts",
+      "score": 13,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 15,
+        "events": 0,
+        "hitl": 8,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\workers\\comms\\customerCommsWorker.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 6,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\workers\\crewComms\\crewCommsWorker.ts",
+      "score": 6,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 28,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\workers\\crewComms\\templates.ts",
+      "score": 6,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 38,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\workers\\dispatch\\dispatcher.ts",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\workers\\dispatch\\planningEngine.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 14,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\workers\\margin\\marginWorker.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 4,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\workers\\margin\\varianceEngine.ts",
+      "score": 10,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 5,
+        "notifications": 8,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\workers\\upsell\\rulesEngine.ts",
+      "score": 3,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "server\\workers\\upsell\\upsellWorker.ts",
+      "score": 4,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 4,
+        "openai": 0
+      }
+    },
+    {
+      "file": "shared\\assistant-schema.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 16,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "shared\\comms-schema.ts",
+      "score": 10,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 6,
+        "notifications": 37,
+        "openai": 0
+      }
+    },
+    {
+      "file": "shared\\knowledge-schema.ts",
+      "score": 10,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 9,
+        "hitl": 5,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "shared\\knowledge-types.ts",
+      "score": 6,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 13,
+        "openai": 0
+      }
+    },
+    {
+      "file": "shared\\orchestrator\\contracts.ts",
+      "score": 3,
+      "hits": {
+        "agent": 2,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 1,
+        "openai": 0
+      }
+    },
+    {
+      "file": "shared\\orchestrator\\payment-contracts.ts",
+      "score": 9,
+      "hits": {
+        "agent": 3,
+        "definition": 0,
+        "run/execute/handler": 1,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 8,
+        "openai": 0
+      }
+    },
+    {
+      "file": "shared\\schema-finops.ts",
+      "score": 10,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 15,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 5
+      }
+    },
+    {
+      "file": "shared\\schema-marketing.ts",
+      "score": 12,
+      "hits": {
+        "agent": 0,
+        "definition": 1,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 14,
+        "hitl": 1,
+        "notifications": 8,
+        "openai": 0
+      }
+    },
+    {
+      "file": "shared\\schema-payment.ts",
+      "score": 8,
+      "hits": {
+        "agent": 5,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 1,
+        "notifications": 2,
+        "openai": 0
+      }
+    },
+    {
+      "file": "shared\\schema-postjob-qa.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 9,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "shared\\schema-temporal.ts",
+      "score": 10,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 16,
+        "hitl": 11,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "shared\\schema-weather.ts",
+      "score": 13,
+      "hits": {
+        "agent": 1,
+        "definition": 1,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 25,
+        "hitl": 3,
+        "notifications": 3,
+        "openai": 0
+      }
+    },
+    {
+      "file": "shared\\schema.ts",
+      "score": 26,
+      "hits": {
+        "agent": 16,
+        "definition": 1,
+        "run/execute/handler": 4,
+        "temporal": 0,
+        "events": 231,
+        "hitl": 16,
+        "notifications": 72,
+        "openai": 1
+      }
+    },
+    {
+      "file": "shared\\thread-enrichment-schema.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 6,
+        "hitl": 0,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "tests\\agent-parsing.test.ts",
+      "score": 5,
+      "hits": {
+        "agent": 4,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 1,
+        "openai": 0
+      }
+    },
+    {
+      "file": "tests\\billing.test.ts",
+      "score": 8,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 2,
+        "notifications": 16,
+        "openai": 0
+      }
+    },
+    {
+      "file": "tests\\inbound-engagement.test.ts",
+      "score": 6,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 0,
+        "notifications": 10,
+        "openai": 0
+      }
+    },
+    {
+      "file": "tests\\policy.test.ts",
+      "score": 5,
+      "hits": {
+        "agent": 0,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 12,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "tests\\quoting.test.ts",
+      "score": 3,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 2,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "tests\\reviews.test.ts",
+      "score": 9,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 3,
+        "notifications": 15,
+        "openai": 0
+      }
+    },
+    {
+      "file": "tests\\scheduling.test.ts",
+      "score": 3,
+      "hits": {
+        "agent": 1,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 2,
+        "notifications": 0,
+        "openai": 0
+      }
+    },
+    {
+      "file": "tests\\supervisor.test.ts",
+      "score": 10,
+      "hits": {
+        "agent": 13,
+        "definition": 0,
+        "run/execute/handler": 0,
+        "temporal": 0,
+        "events": 0,
+        "hitl": 8,
+        "notifications": 0,
+        "openai": 0
+      }
+    }
+  ]
+}

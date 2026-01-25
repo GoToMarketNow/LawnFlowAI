@@ -1,0 +1,123 @@
+You are a senior UX/UI designer + front-end engineer implementing persistent, best-practice navigation for the LawnFlow web app.
+
+GOAL
+Add a persistent navigation system across the entire platform with two primary destinations:
+1) Dashboard
+2) My Profile
+
+The navigation must be:
+- Always accessible (persistent)
+- Obvious and easy to find
+- Mobile-friendly
+- Consistent across all pages (including onboarding)
+- Accessible (keyboard + ARIA)
+- Minimal and clean (MVP-friendly)
+
+STACK
+- Next.js (App Router) + TypeScript
+- Tailwind (if present) or minimal CSS modules
+- Existing pages include onboarding + admin/dashboard views
+
+UX REQUIREMENTS (BEST PRACTICES)
+1) Desktop layout:
+- Left sidebar navigation for authenticated users
+- App logo/name at top
+- Primary nav links:
+  - Dashboard
+  - My Profile
+- Secondary area (optional): Settings, Billing (can be placeholders)
+- Active state highlight for current page
+- Collapsible sidebar (optional MVP)
+
+2) Mobile layout:
+- Top app bar with:
+  - hamburger menu (opens drawer)
+  - app name/logo
+  - profile icon/avatar (taps to open My Profile)
+- Drawer includes Dashboard + My Profile
+
+3) Placement & discoverability:
+- “Dashboard” is the home anchor and default landing after login
+- “My Profile” is always accessible from:
+  - primary nav link
+  - avatar menu top-right (desktop) / top bar (mobile)
+
+4) Information architecture:
+- Dashboard: operational overview (usage, actions, queue, test event)
+- My Profile: user details + company profile + service area + integrations + security
+(You may create sub-sections but keep My Profile as a single top-level route.)
+
+AUTH REQUIREMENTS
+- Navigation only shows for authenticated users.
+- During onboarding, show a simplified nav (Dashboard + My Profile), but gate Dashboard actions until onboarding complete.
+- If user is unauthenticated, show no app nav.
+
+ROUTING REQUIREMENTS
+- /dashboard
+- /profile (My Profile)
+- Optionally:
+  - /settings (placeholder)
+  - /billing (placeholder)
+
+IMPLEMENTATION REQUIREMENTS
+1) Create a top-level authenticated layout:
+- app/(authed)/layout.tsx OR similar route group
+- This layout wraps all authenticated pages with the persistent nav
+- Ensure onboarding routes also use this layout, but you can show a “Setup in progress” banner.
+
+2) Build reusable UI components:
+- <AppShell> (layout wrapper)
+- <SidebarNav> (desktop)
+- <TopBar> (mobile)
+- <MobileDrawer> (mobile nav)
+- <UserMenu> (avatar dropdown with “My Profile”, “Logout”)
+
+3) Active link highlighting:
+- Use Next.js usePathname() to apply active styles
+- Active state must be visible and consistent
+
+4) Accessibility:
+- Nav has aria-label="Primary"
+- Buttons have aria-expanded where relevant
+- Tab navigation works
+- Focus trap in mobile drawer
+- ESC closes drawer
+
+5) Visual design guidelines (MVP):
+- Use simple icon + label for nav items
+- Keep spacing generous
+- Avoid clutter
+- Make “Dashboard” first, “My Profile” second
+- Use a subtle but clear active indicator (left border or background)
+
+COPY (microcopy)
+- Use “Dashboard” label exactly
+- Use “My Profile” label exactly
+- User menu label: “Account”
+- Add optional helper text in onboarding: “Setup in progress”
+
+DELIVERABLES
+- File-by-file code changes with paths
+- Add layout wrapper and ensure all pages under authenticated app use it
+- Create /dashboard and /profile routes (or refactor existing)
+- Add nav components, responsive behavior, and active states
+- Add minimal styling and ensure it looks good on desktop and mobile
+- Add a short README note on structure and how to add new nav items later
+
+OUTPUT FORMAT
+Generate code file-by-file with paths and full content.
+
+IMPLEMENTATION ORDER (DO THIS IN ORDER)
+1) Identify current route structure and auth guard
+2) Create authed layout wrapper (AppShell)
+3) Build SidebarNav and TopBar (responsive)
+4) Wire navigation into layout and wrap /dashboard and /profile
+5) Add active state highlighting
+6) Add avatar dropdown to access My Profile
+7) Add mobile drawer and ensure accessibility
+8) Test keyboard navigation and mobile responsiveness
+
+IMPORTANT
+- Keep the UI minimal and consistent with the existing app style
+- Do not introduce heavy UI libraries unless already in use
+- Do not break onboarding; just ensure nav persists with appropriate gating

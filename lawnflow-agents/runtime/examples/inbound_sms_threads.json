@@ -1,0 +1,115 @@
+[
+  {
+    "threadId": "thread_001",
+    "customerId": "cust_123",
+    "customerName": "John Smith",
+    "phone": "+1555123456",
+    "messages": [
+      {
+        "id": "msg_001",
+        "direction": "inbound",
+        "timestamp": "2024-01-15T09:00:00Z",
+        "content": "Hi, I need my lawn mowed this week. What's your availability?",
+        "processed": true,
+        "intent": "scheduling_request",
+        "entities": {
+          "service": "mowing",
+          "urgency": "this_week"
+        }
+      },
+      {
+        "id": "msg_002",
+        "direction": "outbound",
+        "timestamp": "2024-01-15T09:05:00Z",
+        "content": "Hi John! We have availability Tuesday at 10 AM or Thursday at 2 PM. Which works better for you?",
+        "processed": true
+      },
+      {
+        "id": "msg_003",
+        "direction": "inbound",
+        "timestamp": "2024-01-15T09:10:00Z",
+        "content": "Tuesday at 10 would be perfect. What's the cost?",
+        "processed": true,
+        "intent": "pricing_inquiry",
+        "entities": {
+          "preferred_date": "tuesday",
+          "preferred_time": "10_am"
+        }
+      }
+    ],
+    "status": "active",
+    "lastActivity": "2024-01-15T09:10:00Z",
+    "priority": "medium"
+  },
+  {
+    "threadId": "thread_002",
+    "customerId": "cust_456",
+    "customerName": "Sarah Johnson",
+    "phone": "+1555987654",
+    "messages": [
+      {
+        "id": "msg_004",
+        "direction": "inbound",
+        "timestamp": "2024-01-14T14:30:00Z",
+        "content": "My yard is getting really long. Can you come tomorrow?",
+        "processed": true,
+        "intent": "urgent_scheduling",
+        "entities": {
+          "service": "mowing",
+          "urgency": "tomorrow"
+        }
+      },
+      {
+        "id": "msg_005",
+        "direction": "outbound",
+        "timestamp": "2024-01-14T14:35:00Z",
+        "content": "Hi Sarah! We can come tomorrow afternoon around 3 PM. For your property size, it would be $65. Does that work?",
+        "processed": true
+      },
+      {
+        "id": "msg_006",
+        "direction": "inbound",
+        "timestamp": "2024-01-14T14:40:00Z",
+        "content": "Yes, that works. Please confirm the address: 123 Oak Street, Springfield.",
+        "processed": true,
+        "intent": "confirmation",
+        "entities": {
+          "address": "123 Oak Street, Springfield"
+        }
+      }
+    ],
+    "status": "booked",
+    "lastActivity": "2024-01-14T14:40:00Z",
+    "priority": "high"
+  },
+  {
+    "threadId": "thread_003",
+    "customerId": "cust_789",
+    "customerName": "Mike Wilson",
+    "phone": "+1555111111",
+    "messages": [
+      {
+        "id": "msg_007",
+        "direction": "inbound",
+        "timestamp": "2024-01-13T11:15:00Z",
+        "content": "What's your pricing for weekly lawn service?",
+        "processed": true,
+        "intent": "pricing_inquiry",
+        "entities": {
+          "service": "lawn_service",
+          "frequency": "weekly"
+        }
+      },
+      {
+        "id": "msg_008",
+        "direction": "outbound",
+        "timestamp": "2024-01-13T11:20:00Z",
+        "content": "Hi Mike! Weekly mowing starts at $45/week for a standard lot. We also offer edging (+$10) and seasonal cleanup. What's your property size?",
+        "processed": true
+      }
+    ],
+    "status": "awaiting_response",
+    "lastActivity": "2024-01-13T11:20:00Z",
+    "priority": "low"
+  }
+]

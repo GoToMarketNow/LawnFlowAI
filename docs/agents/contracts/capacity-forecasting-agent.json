@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CapacityForecastingAgent Contract",
+  "description": "Forecasts crew capacity and provides scheduling recommendations",
+  
+  "input": {
+    "type": "object",
+    "required": ["accountId"],
+    "properties": {
+      "accountId": {
+        "type": "integer",
+        "description": "Business account ID"
+      },
+      "forecastDays": {
+        "type": "integer",
+        "default": 7,
+        "description": "Number of days to forecast"
+      },
+      "zones": {
+        "type": "array",
+        "items": { "type": "integer" },
+        "description": "Filter forecast to specific zone IDs"
+      }
+    }
+  },
+  
+  "output": {
+    "type": "object",
+    "required": ["forecastDate", "overallCapacity", "dailyForecast", "zoneRecommendations", "summary"],
+    "properties": {
+      "forecastDate": { "type": "string", "format": "date-time" },
+      "overallCapacity": {
+        "type": "string",
+        "enum": ["AVAILABLE", "LIMITED", "FULL", "OVERLOADED"]
+      },
+      "dailyForecast": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "date": { "type": "string", "format": "date" },
+            "availableSlots": { "type": "integer" },
+            "bookedSlots": { "type": "integer" },
+            "utilizationPercent": { "type": "number" },
+            "recommendation": {
+              "type": "string",
+              "enum": ["ACCEPT_MORE", "AT_CAPACITY", "OVERBOOKED", "PAUSE_INTAKE"]
+            }
+          }
+        }
+      },
+      "zoneRecommendations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "zoneId": { "type": "integer" },
+            "zoneName": { "type": "string" },
+            "status": {
+              "type": "string",
+              "enum": ["ACCEPT", "PAUSE", "REDIRECT"]
+            },
+            "reason": { "type": "string" }
+          }
+        }
+      },
+      "summary": { "type": "string" }
+    }
+  },
+  
+  "triggers": ["Daily (early morning)", "On schedule changes", "On-demand analysis"],
+  "escalation": "Overloaded capacity triggers owner notification",
+  "apiEndpoint": "POST /api/agents/capacity-forecast"
+}

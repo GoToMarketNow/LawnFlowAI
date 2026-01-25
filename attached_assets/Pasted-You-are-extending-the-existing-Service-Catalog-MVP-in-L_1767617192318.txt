@@ -1,0 +1,124 @@
+You are extending the existing Service Catalog MVP in LawnFlow.ai.
+Add Mulching and Firewood Delivery services with material, lead-time, and site preference support.
+
+================================================================================
+1) DATA MODEL EXTENSIONS (PRISMA)
+================================================================================
+
+Add to Service:
+- requiresLeadTime (bool)
+- defaultLeadTimeDays (nullable)
+- includesMaterials (bool)
+- requiresQualifiedCrew (bool)
+
+Add new model: MulchProfile
+- id
+- accountId
+- customerId
+- serviceId
+- mulchType
+- averageVolume
+- volumeUnit (BAGS | YARDS)
+- installZones (text)
+- crewNotes (text)
+- lastInstallAt (nullable)
+- createdAt, updatedAt
+
+Add new model: FirewoodProfile
+- id
+- accountId
+- customerId
+- preferredCordSize (FULL | HALF)
+- stackingRequired (bool)
+- deliveryLocationNotes
+- frequency (ONE_TIME | SEASONAL | RECURRING)
+- createdAt, updatedAt
+
+Add to ServicePricing:
+- materialCostIncluded (bool)
+- materialCostEstimate (nullable)
+
+================================================================================
+2) SERVICE DEFINITIONS (SEED DATA)
+================================================================================
+
+Seed services:
+
+Mulch Delivery
+- category: CLEANUP
+- serviceType: ONE_TIME | SEASONAL
+- requiresLeadTime: true
+- includesMaterials: true
+- requiresQualifiedCrew: false
+
+Mulch Installation
+- category: CLEANUP
+- serviceType: ONE_TIME | SEASONAL | RECURRING
+- requiresLeadTime: true
+- includesMaterials: true
+- requiresQualifiedCrew: true
+
+Firewood Delivery
+- category: CUSTOM
+- serviceType: ONE_TIME | SEASONAL | RECURRING
+- requiresLeadTime: true
+- includesMaterials: true
+- requiresQualifiedCrew: false
+
+================================================================================
+3) AGENT LOGIC UPDATES
+================================================================================
+
+ServiceSelectionAgent:
+- If mulch requested:
+  - ask if delivery only or delivery + installation
+- If firewood requested:
+  - ask one-time vs recurring vs seasonal
+
+PricingAgent:
+- Use stored MulchProfile / FirewoodProfile if exists
+- Otherwise estimate and flag as first-install confidence adjustment
+
+SchedulingAgent:
+- Enforce lead-time
+- Prevent same-day scheduling
+- Bundle delivery + install where applicable
+
+QuoteAgent:
+- Separate material vs labor in explanation
+- Highlight savings for recurring services
+
+================================================================================
+4) POST-JOB PREFERENCE CAPTURE
+================================================================================
+
+After first mulch or firewood job:
+- Prompt crew (or agent) to confirm:
+  - actual volume used
+  - mulch/firewood type
+  - access notes
+- Persist profile for future jobs
+
+================================================================================
+5) ACCEPTANCE CRITERIA
+================================================================================
+- Mulch services enforce lead-time
+- Delivery vs install flows differ
+- Site preferences persist and are reused
+- Firewood supports one-time + recurring
+- Quotes explain material + labor clearly
+- Future jobs require no re-discovery
+
+================================================================================
+IMPLEMENTATION STEP
+================================================================================
+Only implement:
+- Prisma models
+- Seed data
+- Minimal updates to ServiceSelectionAgent logic
+
+Stop after schema + seed.
+Report:
+- new tables
+- seeded services
+- next integration steps

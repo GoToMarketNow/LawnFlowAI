@@ -1,0 +1,86 @@
+[
+  {
+    "id": "issue_inv_002",
+    "accountId": "acct_demo_001",
+    "type": "VARIANCE",
+    "severity": "MED",
+    "status": "OPEN",
+    "relatedInvoiceId": "inv_002",
+    "summary": "Invoice needs approval before sending.",
+    "detailsJson": {
+      "reason": "Variance threshold exceeded"
+    },
+    "createdAt": "2026-01-05T12:00:00-05:00",
+    "updatedAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "issue_inv_005",
+    "accountId": "acct_demo_001",
+    "type": "OVERDUE",
+    "severity": "MED",
+    "status": "OPEN",
+    "relatedInvoiceId": "inv_005",
+    "summary": "Partial payment received; balance pending.",
+    "detailsJson": {
+      "balanceDue": 300.0
+    },
+    "createdAt": "2026-01-05T12:00:00-05:00",
+    "updatedAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "issue_inv_006",
+    "accountId": "acct_demo_001",
+    "type": "OVERDUE",
+    "severity": "HIGH",
+    "status": "OPEN",
+    "relatedInvoiceId": "inv_006",
+    "summary": "Invoice is overdue; schedule reminder cadence.",
+    "detailsJson": {
+      "daysPastDue": 5
+    },
+    "createdAt": "2026-01-05T12:00:00-05:00",
+    "updatedAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "issue_inv_008",
+    "accountId": "acct_demo_001",
+    "type": "DISPUTE",
+    "severity": "HIGH",
+    "status": "IN_PROGRESS",
+    "relatedInvoiceId": "inv_008",
+    "summary": "Customer disputed line item; remediation required.",
+    "detailsJson": {
+      "reason": "Scope mismatch vs quote"
+    },
+    "createdAt": "2026-01-05T12:00:00-05:00",
+    "updatedAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "issue_inv_009",
+    "accountId": "acct_demo_001",
+    "type": "SYNC_ERROR",
+    "severity": "HIGH",
+    "status": "OPEN",
+    "relatedInvoiceId": "inv_009",
+    "summary": "QuickBooks sync failed; check item mapping.",
+    "detailsJson": {
+      "error": "Missing QB item mapping for serviceCode MULCH_INSTALL"
+    },
+    "createdAt": "2026-01-05T12:00:00-05:00",
+    "updatedAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "issue_inv_015",
+    "accountId": "acct_demo_001",
+    "type": "OVERDUE",
+    "severity": "MED",
+    "status": "OPEN",
+    "relatedInvoiceId": "inv_015",
+    "summary": "Invoice overdue; send reminder.",
+    "detailsJson": {
+      "daysPastDue": 2
+    },
+    "createdAt": "2026-01-05T12:00:00-05:00",
+    "updatedAt": "2026-01-05T12:00:00-05:00"
+  }
+]

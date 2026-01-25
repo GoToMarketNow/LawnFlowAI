@@ -1,0 +1,12 @@
+{
+  "mcp": {
+    "servers": [
+      {
+        "name": "my-local-server",
+        "command": "echo",
+        "args": ["Hello from my local server!"],
+        "enabled": true
+      }
+    ]
+  }
+}

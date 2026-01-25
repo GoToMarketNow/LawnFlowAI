@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PricingOptimizationAgent Contract",
+  "description": "Analyzes quote acceptance rates and recommends pricing adjustments",
+  
+  "input": {
+    "type": "object",
+    "required": ["accountId"],
+    "properties": {
+      "accountId": {
+        "type": "integer",
+        "description": "Business account ID"
+      },
+      "period": {
+        "type": "object",
+        "properties": {
+          "start": { "type": "string", "format": "date-time" },
+          "end": { "type": "string", "format": "date-time" }
+        },
+        "description": "Analysis period (default: last 30 days)"
+      },
+      "serviceTypes": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Filter analysis to specific service types"
+      }
+    }
+  },
+  
+  "output": {
+    "type": "object",
+    "required": ["analysisDate", "overallHealth", "metrics", "recommendations", "requiresOwnerApproval"],
+    "properties": {
+      "analysisDate": { "type": "string", "format": "date-time" },
+      "overallHealth": {
+        "type": "string",
+        "enum": ["HEALTHY", "NEEDS_ATTENTION", "CRITICAL"]
+      },
+      "metrics": {
+        "type": "object",
+        "properties": {
+          "totalQuotes": { "type": "integer" },
+          "acceptedQuotes": { "type": "integer" },
+          "acceptanceRate": { "type": "number" },
+          "averageQuoteValue": { "type": "number" },
+          "averageDaysToDecision": { "type": "number" }
+        }
+      },
+      "recommendations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "serviceType": { "type": "string" },
+            "currentPrice": { "type": "number" },
+            "recommendedPrice": { "type": "number" },
+            "changePercent": { "type": "number" },
+            "reason": { "type": "string" },
+            "confidence": { "type": "number" },
+            "expectedImpact": {
+              "type": "object",
+              "properties": {
+                "acceptanceRateChange": { "type": "number" },
+                "revenueImpact": { "type": "number" }
+              }
+            }
+          }
+        }
+      },
+      "requiresOwnerApproval": { "type": "boolean" },
+      "rolloutPlan": { "type": "string" }
+    }
+  },
+  
+  "triggers": ["Weekly scheduled", "Quote acceptance drops below threshold", "On-demand analysis"],
+  "escalation": "All pricing changes require owner approval",
+  "apiEndpoint": "POST /api/agents/pricing-optimization"
+}

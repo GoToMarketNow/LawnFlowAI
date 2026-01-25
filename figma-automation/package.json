@@ -1,0 +1,21 @@
+{
+  "name": "lawnflow-figma-automation",
+  "version": "1.0.0",
+  "description": "Automated Figma file generation from React Native UX metadata",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "generate": "node src/index.js",
+    "validate": "node src/validate-metadata.js",
+    "preview": "node src/preview-structure.js"
+  },
+  "dependencies": {
+    "figma-js": "^1.16.0",
+    "dotenv": "^16.0.3"
+  },
+  "devDependencies": {
+    "prettier": "^3.0.0"
+  },
+  "author": "LawnFlow Team",
+  "license": "MIT"
+}

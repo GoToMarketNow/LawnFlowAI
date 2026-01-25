@@ -1,0 +1,2472 @@
+import { sql, relations } from "drizzle-orm";
+import { pgTable, text, varchar, serial, integer, timestamp, boolean, jsonb, doublePrecision, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
+
+// Business Profile - stores landscaping company info
+export const businessProfiles = pgTable("business_profiles", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  ownerName: text("owner_name"),
+  phone: text("phone").notNull(),
+  email: text("email").notNull(),
+  address: text("address"),
+  serviceArea: text("service_area"),
+  services: text("services").array(),
+  businessHours: text("business_hours"),
+  autoResponseEnabled: boolean("auto_response_enabled").default(true),
+  
+  // Service Area Builder fields
+  serviceAreaMode: text("service_area_mode").default("circle"), // "circle" | "zip"
+  serviceAreaCenterLat: doublePrecision("service_area_center_lat"),
+  serviceAreaCenterLng: doublePrecision("service_area_center_lng"),
+  serviceAreaRadiusMi: integer("service_area_radius_mi"),
+  serviceAreaMaxMi: integer("service_area_max_mi"), // Must be 5, 10, 20, or 40
+  serviceAreaAllowExtended: boolean("service_area_allow_extended").default(true),
+  serviceZipCodes: text("service_zip_codes").array(), // ZIP codes for ZIP mode
+  
+  // Onboarding state
+  onboardingRoute: text("onboarding_route"), // "connect_existing" | "standalone"
+  onboardingStep: text("onboarding_step").default("welcome"),
+  isOnboardingComplete: boolean("is_onboarding_complete").default(false),
+  
+  // FSM Integration
+  fsmProvider: text("fsm_provider"), // "jobber" | "housecall_pro" | "service_autopilot" | "other" | "none"
+  fsmConnected: boolean("fsm_connected").default(false),
+  fsmProviderOther: text("fsm_provider_other"),
+  
+  // Communication settings
+  phoneProvider: text("phone_provider"), // "twilio" | "existing_number" | "none"
+  twilioAreaCode: text("twilio_area_code"),
+  textingEnabled: boolean("texting_enabled").default(true),
+  
+  // Services & Capacity
+  serviceTypes: text("service_types").array(), // mowing, cleanup, mulch, landscaping, irrigation, other
+  typicalResponseTime: text("typical_response_time"), // same_day, 24h, 48h
+  weeklyCapacity: text("weekly_capacity"), // light, medium, heavy
+  
+  // Pricing basics
+  pricingModel: text("pricing_model"), // flat_per_visit, range_estimate, site_visit_first
+  mowingMinPrice: integer("mowing_min_price"), // in cents
+  cleanupMinPrice: integer("cleanup_min_price"), // in cents
+  mulchMinPrice: integer("mulch_min_price"), // in cents
+  
+  // Automation preferences
+  missedCallRecoveryEnabled: boolean("missed_call_recovery_enabled").default(true),
+  autoTextEnabled: boolean("auto_text_enabled").default(true),
+  autoQuoteEnabled: boolean("auto_quote_enabled").default(false),
+  approvalsRequiredForBooking: boolean("approvals_required_for_booking").default(true),
+  
+  // Standalone CRM settings (for Route B)
+  trackCustomersEnabled: boolean("track_customers_enabled").default(true),
+  trackJobsEnabled: boolean("track_jobs_enabled").default(true),
+  
+  // Billing & Accounting settings
+  useQuickBooks: boolean("use_quick_books"),
+  quickBooksConnected: boolean("quick_books_connected").default(false),
+  invoiceTerms: text("invoice_terms").default("net_7"), // due_on_receipt, net_7, net_14, net_30
+  defaultTaxRate: integer("default_tax_rate").default(0), // percentage * 100 (e.g., 750 = 7.5%)
+  taxEnabled: boolean("tax_enabled").default(false),
+  
+  // Misc
+  onboardingNotes: jsonb("onboarding_notes"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Conversations - tracks all customer interactions
+export const conversations = pgTable("conversations", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  customerPhone: text("customer_phone").notNull(),
+  customerName: text("customer_name"),
+  status: text("status").notNull().default("active"), // active, qualified, scheduled, completed, lost
+  source: text("source").notNull(), // missed_call, inbound_sms, web_lead
+  agentType: text("agent_type"), // intake, quote, schedule, invoice, reviews
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Messages - individual messages in conversations
+export const messages = pgTable("messages", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id").references(() => conversations.id).notNull(),
+  role: text("role").notNull(), // customer, ai, system
+  content: text("content").notNull(),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Events - inbound events that trigger workflows
+export const events = pgTable("events", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull(), // missed_call, inbound_sms, web_lead
+  payload: jsonb("payload").notNull(),
+  status: text("status").notNull().default("pending"), // pending, processing, completed, failed
+  conversationId: integer("conversation_id").references(() => conversations.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  processedAt: timestamp("processed_at"),
+});
+
+// Pending Actions - actions awaiting human approval
+export const pendingActions = pgTable("pending_actions", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id").references(() => conversations.id).notNull(),
+  actionType: text("action_type").notNull(), // send_quote, schedule_job, send_sms
+  description: text("description").notNull(),
+  payload: jsonb("payload").notNull(),
+  status: text("status").notNull().default("pending"), // pending, approved, rejected
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: text("resolved_by"),
+});
+
+// Jobs - mock FSM jobs created after approval
+export const jobs = pgTable("jobs", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id").references(() => conversations.id),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  customerName: text("customer_name").notNull(),
+  customerPhone: text("customer_phone").notNull(),
+  customerAddress: text("customer_address"),
+  serviceType: text("service_type").notNull(),
+  scheduledDate: timestamp("scheduled_date"),
+  estimatedPrice: integer("estimated_price"), // in cents
+  status: text("status").notNull().default("pending"), // pending, scheduled, in_progress, completed, cancelled
+  notes: text("notes"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Audit Log - tracks all system actions
+export const auditLogs = pgTable("audit_logs", {
+  id: serial("id").primaryKey(),
+  entityType: text("entity_type").notNull(), // conversation, job, action
+  entityId: integer("entity_id").notNull(),
+  action: text("action").notNull(),
+  details: jsonb("details"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Event Receipts - idempotency tracking for event processing
+export const eventReceipts = pgTable("event_receipts", {
+  id: serial("id").primaryKey(),
+  eventId: text("event_id").notNull().unique(), // External event ID for deduplication
+  eventType: text("event_type").notNull(),
+  status: text("status").notNull().default("processing"), // processing, completed, failed
+  result: jsonb("result"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  completedAt: timestamp("completed_at"),
+});
+
+// Policy Profiles - tiered automation policy configuration
+export const policyProfiles = pgTable("policy_profiles", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  tier: text("tier").notNull().default("owner_operator"), // owner_operator, smb, commercial
+  
+  // Automation flags
+  autoSendMessages: boolean("auto_send_messages").default(true),
+  autoSendQuotes: boolean("auto_send_quotes").default(false),
+  autoBookJobs: boolean("auto_book_jobs").default(false),
+  afterHoursAutomation: boolean("after_hours_automation").default(false),
+  
+  // Thresholds
+  confidenceThreshold: integer("confidence_threshold").default(85), // 85 = 0.85
+  slotScoreThreshold: integer("slot_score_threshold").default(80), // For commercial auto-booking
+  
+  // Service area configuration (JSON array of zip codes or { radius: number, center: {lat, lng} })
+  serviceAreaZips: text("service_area_zips").array(),
+  serviceAreaRadius: integer("service_area_radius"), // miles from HQ
+  
+  // Do-not-serve rules (blocked phone numbers and addresses)
+  blockedPhones: text("blocked_phones").array(),
+  blockedAddresses: text("blocked_addresses").array(),
+  
+  // Pricing rules for Commercial tier (JSON)
+  pricingRules: jsonb("pricing_rules"), // { minQuote, maxQuote, requiresApprovalAbove }
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// FSM Leads - mock lead tracking
+export const leads = pgTable("leads", {
+  id: serial("id").primaryKey(),
+  externalId: text("external_id").notNull().unique(), // FSM lead ID
+  conversationId: integer("conversation_id").references(() => conversations.id),
+  name: text("name"),
+  phone: text("phone").notNull(),
+  address: text("address"),
+  serviceRequested: text("service_requested").notNull(),
+  notes: text("notes"),
+  status: text("status").notNull().default("new"), // new, contacted, qualified, converted, lost
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Account Packages - subscription package definitions
+export const accountPackages = pgTable("account_packages", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  packageName: text("package_name").notNull().default("starter"), // starter, growth, pro
+  monthlyActionsIncluded: integer("monthly_actions_included").notNull().default(3000),
+  hardCapActions: integer("hard_cap_actions").notNull().default(3500),
+  packSizeActions: integer("pack_size_actions").notNull().default(1000),
+  packPriceUsd: integer("pack_price_usd").notNull().default(25), // in dollars
+  
+  // Peak months for seasonality (1-12)
+  peakMonths: integer("peak_months").array(),
+  
+  // Cooldowns for nudge timing
+  lastUpgradeNudge: timestamp("last_upgrade_nudge"),
+  lastPackNudge: timestamp("last_pack_nudge"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// AI Action Usage - tracks daily AI action consumption
+export const aiActionUsage = pgTable("ai_action_usage", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  date: timestamp("date").notNull(), // Date of usage (start of day)
+  
+  // Action type breakdowns
+  inboundQualification: integer("inbound_qualification").default(0).notNull(),
+  supervisorOrchestration: integer("supervisor_orchestration").default(0).notNull(),
+  quoteGeneration: integer("quote_generation").default(0).notNull(),
+  schedulingProposal: integer("scheduling_proposal").default(0).notNull(),
+  billingFollowup: integer("billing_followup").default(0).notNull(),
+  reviewRequest: integer("review_request").default(0).notNull(),
+  
+  // Total for the day
+  totalActions: integer("total_actions").default(0).notNull(),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessDateIdx: uniqueIndex("ai_action_usage_business_date_idx").on(table.businessId, table.date),
+}));
+
+// Growth Advisor Recommendations - stores recommendation history
+export const growthRecommendations = pgTable("growth_recommendations", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  
+  recommendationType: text("recommendation_type").notNull(), // upgrade, pack, monitor, seasonal_boost
+  packageRecommended: text("package_recommended"), // growth, pro
+  urgency: text("urgency").notNull(), // low, moderate, high
+  reasoning: text("reasoning").notNull(),
+  
+  // Cost analysis (stored as JSON)
+  costAnalysis: jsonb("cost_analysis"),
+  
+  // Predictions at time of recommendation
+  projectedMonthlyActions: integer("projected_monthly_actions"),
+  projectedDateHitAllowance: timestamp("projected_date_hit_allowance"),
+  projectedDateHitHardCap: timestamp("projected_date_hit_hard_cap"),
+  modelConfidence: doublePrecision("model_confidence"),
+  
+  // User action
+  userAction: text("user_action"), // accepted, dismissed, ignored
+  userActionAt: timestamp("user_action_at"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// ZIP Geocode Cache - caches geocoding results to reduce API calls
+export const zipGeoCache = pgTable("zip_geo_cache", {
+  zip: text("zip").primaryKey(),
+  centerLat: doublePrecision("center_lat").notNull(),
+  centerLng: doublePrecision("center_lng").notNull(),
+  viewportNorth: doublePrecision("viewport_north").notNull(),
+  viewportSouth: doublePrecision("viewport_south").notNull(),
+  viewportEast: doublePrecision("viewport_east").notNull(),
+  viewportWest: doublePrecision("viewport_west").notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+
+// Agent Configurations - stores configurations for each agent per business
+export const agentConfigurations = pgTable("agent_configurations", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  
+  agentKey: text("agent_key").notNull(), // Unique identifier for the agent (e.g., "billing_agent", "quoting_agent")
+  configJson: jsonb("config_json").notNull(), // The actual configuration data for the agent
+  
+  isActive: boolean("is_active").notNull().default(true),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessAgentIdx: uniqueIndex("agent_config_business_agent_idx").on(table.businessId, table.agentKey),
+}));
+
+export const insertAgentConfigurationSchema = createInsertSchema(agentConfigurations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type AgentConfiguration = typeof agentConfigurations.$inferSelect;
+export type InsertAgentConfiguration = z.infer<typeof insertAgentConfigurationSchema>;
+
+// Relations
+export const businessProfilesRelations = relations(businessProfiles, ({ many }) => ({
+  conversations: many(conversations),
+  jobs: many(jobs),
+  agentConfigurations: many(agentConfigurations),
+}));
+
+export const agentConfigurationsRelations = relations(agentConfigurations, ({ one }) => ({
+  business: one(businessProfiles, {
+    fields: [agentConfigurations.businessId],
+    references: [businessProfiles.id],
+  }),
+}));
+
+export const conversationsRelations = relations(conversations, ({ one, many }) => ({
+  business: one(businessProfiles, {
+    fields: [conversations.businessId],
+    references: [businessProfiles.id],
+  }),
+  messages: many(messages),
+  events: many(events),
+  pendingActions: many(pendingActions),
+  jobs: many(jobs),
+}));
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  conversation: one(conversations, {
+    fields: [messages.conversationId],
+    references: [conversations.id],
+  }),
+}));
+
+export const eventsRelations = relations(events, ({ one }) => ({
+  conversation: one(conversations, {
+    fields: [events.conversationId],
+    references: [conversations.id],
+  }),
+}));
+
+export const pendingActionsRelations = relations(pendingActions, ({ one }) => ({
+  conversation: one(conversations, {
+    fields: [pendingActions.conversationId],
+    references: [conversations.id],
+  }),
+}));
+
+export const jobsRelations = relations(jobs, ({ one }) => ({
+  conversation: one(conversations, {
+    fields: [jobs.conversationId],
+    references: [conversations.id],
+  }),
+  business: one(businessProfiles, {
+    fields: [jobs.businessId],
+    references: [businessProfiles.id],
+  }),
+}));
+
+export const policyProfilesRelations = relations(policyProfiles, ({ one }) => ({
+  business: one(businessProfiles, {
+    fields: [policyProfiles.businessId],
+    references: [businessProfiles.id],
+  }),
+}));
+
+// Insert Schemas
+export const insertBusinessProfileSchema = createInsertSchema(businessProfiles).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertConversationSchema = createInsertSchema(conversations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertMessageSchema = createInsertSchema(messages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertEventSchema = createInsertSchema(events).omit({
+  id: true,
+  createdAt: true,
+  processedAt: true,
+});
+
+export const insertPendingActionSchema = createInsertSchema(pendingActions).omit({
+  id: true,
+  createdAt: true,
+  resolvedAt: true,
+  resolvedBy: true,
+});
+
+export const insertJobSchema = createInsertSchema(jobs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertEventReceiptSchema = createInsertSchema(eventReceipts).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+});
+
+export const insertLeadSchema = createInsertSchema(leads).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPolicyProfileSchema = createInsertSchema(policyProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertZipGeoCacheSchema = createInsertSchema(zipGeoCache).omit({
+  updatedAt: true,
+});
+
+export const insertAccountPackageSchema = createInsertSchema(accountPackages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAiActionUsageSchema = createInsertSchema(aiActionUsage).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertGrowthRecommendationSchema = createInsertSchema(growthRecommendations).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types
+export type BusinessProfile = typeof businessProfiles.$inferSelect;
+export type InsertBusinessProfile = z.infer<typeof insertBusinessProfileSchema>;
+
+export type Conversation = typeof conversations.$inferSelect;
+export type InsertConversation = z.infer<typeof insertConversationSchema>;
+
+export type Message = typeof messages.$inferSelect;
+export type InsertMessage = z.infer<typeof insertMessageSchema>;
+
+export type Event = typeof events.$inferSelect;
+export type InsertEvent = z.infer<typeof insertEventSchema>;
+
+export type PendingAction = typeof pendingActions.$inferSelect;
+export type InsertPendingAction = z.infer<typeof insertPendingActionSchema>;
+
+export type Job = typeof jobs.$inferSelect;
+export type InsertJob = z.infer<typeof insertJobSchema>;
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+
+export type EventReceipt = typeof eventReceipts.$inferSelect;
+export type InsertEventReceipt = z.infer<typeof insertEventReceiptSchema>;
+
+export type Lead = typeof leads.$inferSelect;
+export type InsertLead = z.infer<typeof insertLeadSchema>;
+
+export type PolicyProfile = typeof policyProfiles.$inferSelect;
+export type InsertPolicyProfile = z.infer<typeof insertPolicyProfileSchema>;
+
+export type ZipGeoCache = typeof zipGeoCache.$inferSelect;
+export type InsertZipGeoCache = z.infer<typeof insertZipGeoCacheSchema>;
+
+export type AccountPackage = typeof accountPackages.$inferSelect;
+export type InsertAccountPackage = z.infer<typeof insertAccountPackageSchema>;
+
+export type AiActionUsage = typeof aiActionUsage.$inferSelect;
+export type InsertAiActionUsage = z.infer<typeof insertAiActionUsageSchema>;
+
+export type GrowthRecommendation = typeof growthRecommendations.$inferSelect;
+export type InsertGrowthRecommendation = z.infer<typeof insertGrowthRecommendationSchema>;
+
+// Policy tier enum for type safety
+export const PolicyTiers = ["owner_operator", "smb", "commercial"] as const;
+export type PolicyTier = typeof PolicyTiers[number];
+
+// ============================================
+// User Authentication & Phone Verification
+// ============================================
+
+// User roles for RBAC
+export const UserRoles = ["owner", "admin", "crew_lead", "staff"] as const;
+export type UserRole = typeof UserRoles[number];
+
+// Users table for authentication
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  phoneE164: text("phone_e164").unique(), // E.164 format phone number
+  phoneVerifiedAt: timestamp("phone_verified_at"),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  role: text("role").notNull().default("owner"), // owner, admin, crew_lead, staff
+  displayName: text("display_name"), // For UI display
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Phone verification records for OTP
+export const phoneVerifications = pgTable("phone_verifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  phoneE164: text("phone_e164").notNull(),
+  otpHash: text("otp_hash").notNull(), // Hashed OTP, never stored in plaintext
+  expiresAt: timestamp("expires_at").notNull(),
+  attemptsUsed: integer("attempts_used").default(0).notNull(),
+  sendsUsedHour: integer("sends_used_hour").default(0).notNull(),
+  sendWindowStart: timestamp("send_window_start").notNull(),
+  verifiedAt: timestamp("verified_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Insert schemas
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPhoneVerificationSchema = createInsertSchema(phoneVerifications).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export type PhoneVerification = typeof phoneVerifications.$inferSelect;
+export type InsertPhoneVerification = z.infer<typeof insertPhoneVerificationSchema>;
+
+// ============================================
+// Parcel Coverage & Quote Context
+// ============================================
+
+// Parcel Coverage Registry - tracks which counties have parcel data available
+export const parcelCoverageRegistry = pgTable("parcel_coverage_registry", {
+  id: serial("id").primaryKey(),
+  state: text("state").notNull(),
+  countyFips: text("county_fips").notNull(),
+  countyName: text("county_name").notNull(),
+  coverageStatus: text("coverage_status").notNull().default("unknown"), // full, partial, none, unknown
+  provider: text("provider"), // Data provider name
+  lookupUrl: text("lookup_url"), // URL for manual lookups
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  stateCountyIdx: uniqueIndex("parcel_coverage_state_county_idx").on(table.state, table.countyFips),
+}));
+
+// Property Quote Context - stores property data for quote calculations
+export const propertyQuoteContext = pgTable("property_quote_context", {
+  id: serial("id").primaryKey(),
+  leadId: integer("lead_id").references(() => leads.id),
+  conversationId: integer("conversation_id").references(() => conversations.id),
+  
+  // Address info
+  normalizedAddress: text("normalized_address"),
+  zip: text("zip"),
+  countyName: text("county_name"),
+  state: text("state"),
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  
+  // Parcel data
+  parcelCoverageStatus: text("parcel_coverage_status"), // full, partial, none, unknown
+  parcelId: text("parcel_id"),
+  lotAreaSqft: integer("lot_area_sqft"),
+  areaBand: text("area_band"), // xs, small, medium, large, xl, xxl
+  
+  // Data source and confidence
+  source: text("source").notNull().default("unknown"), // parcel, customer, unknown
+  confidence: text("confidence").notNull().default("low"), // high, medium, low
+  
+  // Complexity flags (for pricing)
+  complexityTrees: text("complexity_trees").default("unknown"), // none, few, many, unknown
+  complexityShrubs: text("complexity_shrubs").default("unknown"),
+  complexityBeds: text("complexity_beds").default("unknown"),
+  complexitySlope: text("complexity_slope").default("unknown"), // flat, moderate, steep, unknown
+  complexityAccess: text("complexity_access").default("unknown"), // easy, moderate, difficult, unknown
+  
+  notes: text("notes"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Insert schemas
+export const insertParcelCoverageRegistrySchema = createInsertSchema(parcelCoverageRegistry).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export const insertPropertyQuoteContextSchema = createInsertSchema(propertyQuoteContext).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types
+export type ParcelCoverageRegistry = typeof parcelCoverageRegistry.$inferSelect;
+export type InsertParcelCoverageRegistry = z.infer<typeof insertParcelCoverageRegistrySchema>;
+
+export type PropertyQuoteContext = typeof propertyQuoteContext.$inferSelect;
+export type InsertPropertyQuoteContext = z.infer<typeof insertPropertyQuoteContextSchema>;
+
+// Area band definitions (sqft ranges)
+export const AreaBands = {
+  xs: { min: 0, max: 2500, label: "Extra Small (<2,500 sqft)" },
+  small: { min: 2500, max: 5000, label: "Small (2,500-5,000 sqft)" },
+  medium: { min: 5000, max: 10000, label: "Medium (5,000-10,000 sqft)" },
+  large: { min: 10000, max: 20000, label: "Large (10,000-20,000 sqft)" },
+  xl: { min: 20000, max: 43560, label: "Extra Large (20,000-1 acre)" },
+  xxl: { min: 43560, max: Infinity, label: "XXL (1+ acre)" },
+} as const;
+
+export type AreaBandKey = keyof typeof AreaBands;
+
+// ============================================
+// FREE-FIRST Lot Size Resolver Tables
+// ============================================
+
+// County Source - ArcGIS endpoint config for parcel lookups
+export const countySources = pgTable("county_sources", {
+  id: serial("id").primaryKey(),
+  stateFips: text("state_fips").notNull(),
+  countyFips: text("county_fips").notNull(),
+  countyName: text("county_name").notNull(),
+  status: text("status").notNull().default("unknown"), // full, partial, none, unknown
+  sourceType: text("source_type").notNull().default("none"), // arcgis_feature_service, arcgis_rest, manual_viewer, none
+  serviceUrl: text("service_url"), // FeatureServer base URL (no layer id)
+  layerId: integer("layer_id"), // parcel layer index
+  supportsPointQuery: boolean("supports_point_query").default(false),
+  areaFieldCandidates: jsonb("area_field_candidates").default(sql`'[]'::jsonb`), // ["Shape_Area","ACRES","LOT_ACRES",...]
+  areaUnits: text("area_units").default("unknown"), // sqft, sqm, acres, unknown
+  parcelIdField: text("parcel_id_field"), // field name for parcel ID
+  lastVerifiedAt: timestamp("last_verified_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  stateCountyIdx: uniqueIndex("county_sources_state_county_idx").on(table.stateFips, table.countyFips),
+}));
+
+// Geocode Cache - address to lat/lng cache (180 day TTL)
+export const geocodeCache = pgTable("geocode_cache", {
+  addressHash: text("address_hash").primaryKey(), // SHA-256 hash of normalized address
+  normalizedAddress: text("normalized_address").notNull(),
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  zip: text("zip"),
+  stateFips: text("state_fips"),
+  countyFips: text("county_fips"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Parcel Cache - lot size cache (365 day TTL, 30 day for negative)
+export const parcelCache = pgTable("parcel_cache", {
+  cacheKey: text("cache_key").primaryKey(), // `${countyFips}:${latRound}:${lngRound}`
+  countyFips: text("county_fips").notNull(),
+  latRound: doublePrecision("lat_round").notNull(),
+  lngRound: doublePrecision("lng_round").notNull(),
+  parcelAreaSqft: doublePrecision("parcel_area_sqft"),
+  parcelId: text("parcel_id"),
+  sourceUrl: text("source_url"),
+  confidence: text("confidence").notNull().default("low"), // high, medium, low
+  negative: boolean("negative").default(false), // true if unsupported or failed
+  negativeReason: text("negative_reason"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// ZIP County Crosswalk - ZIP to county FIPS mapping
+export const zipCountyCrosswalk = pgTable("zip_county_crosswalk", {
+  id: serial("id").primaryKey(),
+  zip: text("zip").notNull(),
+  countyFips: text("county_fips").notNull(),
+  stateFips: text("state_fips").notNull(),
+  countyName: text("county_name"),
+  weight: doublePrecision("weight").default(1.0), // probability/ratio for ZIPs spanning counties
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  zipIdx: uniqueIndex("zip_county_crosswalk_zip_idx").on(table.zip, table.countyFips),
+}));
+
+// Insert schemas for lot size resolver tables
+export const insertCountySourceSchema = createInsertSchema(countySources).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertGeocodeCacheSchema = createInsertSchema(geocodeCache).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertParcelCacheSchema = createInsertSchema(parcelCache).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertZipCountyCrosswalkSchema = createInsertSchema(zipCountyCrosswalk).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types for lot size resolver
+export type CountySource = typeof countySources.$inferSelect;
+export type InsertCountySource = z.infer<typeof insertCountySourceSchema>;
+
+export type GeocodeCache = typeof geocodeCache.$inferSelect;
+export type InsertGeocodeCache = z.infer<typeof insertGeocodeCacheSchema>;
+
+export type ParcelCache = typeof parcelCache.$inferSelect;
+export type InsertParcelCache = z.infer<typeof insertParcelCacheSchema>;
+
+export type ZipCountyCrosswalk = typeof zipCountyCrosswalk.$inferSelect;
+export type InsertZipCountyCrosswalk = z.infer<typeof insertZipCountyCrosswalkSchema>;
+
+// LotSizeResult interface for the resolver
+export interface LotSizeResult {
+  normalizedAddress: string;
+  lat: number;
+  lng: number;
+  zip: string | null;
+  countyFips: string | null;
+  countyName: string | null;
+  parcelCoverage: "full" | "partial" | "none" | "unknown";
+  lotAreaSqft: number | null;
+  lotAreaAcres: number | null;
+  confidence: "high" | "medium" | "low";
+  source: "county_gis" | "cache" | "customer_required";
+  fallback: {
+    requiresCustomerValidation: boolean;
+    questions: string[];
+  };
+}
+
+// ============================================
+// Jobber Integration Tables
+// ============================================
+
+// Jobber Accounts - OAuth tokens and account info
+export const jobberAccounts = pgTable("jobber_accounts", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  jobberAccountId: text("jobber_account_id").notNull().unique(),
+  jobberUserId: text("jobber_user_id"),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  tokenExpiresAt: timestamp("token_expires_at").notNull(),
+  scopes: text("scopes").array(),
+  webhookSecret: text("webhook_secret"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Jobber Webhook Events - deduplication and tracking
+export const jobberWebhookEvents = pgTable("jobber_webhook_events", {
+  id: serial("id").primaryKey(),
+  webhookEventId: text("webhook_event_id").notNull().unique(),
+  jobberAccountId: text("jobber_account_id").notNull(),
+  topic: text("topic").notNull(), // CLIENT_CREATE, PROPERTY_UPDATE, QUOTE_CREATE, etc.
+  objectId: text("object_id").notNull(), // ID of the client/property/quote
+  payload: jsonb("payload").notNull(),
+  status: text("status").notNull().default("pending"), // pending, processing, completed, failed, skipped
+  error: text("error"),
+  attempts: integer("attempts").default(0),
+  nextRetryAt: timestamp("next_retry_at"),
+  receivedAt: timestamp("received_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Jobber Enrichments - cached enrichment data for Jobber objects
+export const jobberEnrichments = pgTable("jobber_enrichments", {
+  id: serial("id").primaryKey(),
+  jobberAccountId: text("jobber_account_id").notNull(),
+  objectType: text("object_type").notNull(), // client, property, quote
+  objectId: text("object_id").notNull(),
+  lotSizeEstimate: integer("lot_size_estimate"), // in sqft
+  serviceClass: text("service_class"), // residential_small, residential_medium, residential_large, commercial
+  accessConstraints: text("access_constraints").array(), // gated, narrow_access, steep_driveway, etc.
+  slopeRisk: text("slope_risk"), // low, medium, high
+  enrichmentData: jsonb("enrichment_data"), // full enrichment payload
+  syncedToJobber: boolean("synced_to_jobber").default(false),
+  lastSyncAt: timestamp("last_sync_at"),
+  lastWriteSource: text("last_write_source"), // "lawnflow" | "external" - for loop prevention
+  lastWriteAt: timestamp("last_write_at"), // timestamp of last LawnFlow write
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  objectIdx: uniqueIndex("jobber_enrichments_object_idx").on(table.jobberAccountId, table.objectType, table.objectId),
+}));
+
+// Quote-Job Sync - tracks quote-to-job synchronization events
+export const jobberQuoteJobSync = pgTable("jobber_quote_job_sync", {
+  id: serial("id").primaryKey(),
+  jobberAccountId: text("jobber_account_id").notNull(),
+  quoteId: text("quote_id").notNull(),
+  jobId: text("job_id"),
+  idempotencyKey: text("idempotency_key").notNull(), // topic + objectId + updatedAt hash
+  status: text("status").notNull().default("pending"), // pending, processing, applied, change_order, skipped, failed
+  diffComputed: jsonb("diff_computed"), // computed line item diff
+  rulesViolations: text("rules_violations").array(), // which rules were violated
+  appliedChanges: jsonb("applied_changes"), // changes that were applied
+  changeOrderReason: text("change_order_reason"), // reason change order was required
+  error: text("error"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  processedAt: timestamp("processed_at"),
+}, (table) => ({
+  idempotencyIdx: uniqueIndex("jobber_quote_job_sync_idempotency_idx").on(table.idempotencyKey),
+  quoteIdx: uniqueIndex("jobber_quote_job_sync_quote_idx").on(table.jobberAccountId, table.quoteId),
+}));
+
+// Insert schemas for Jobber tables
+export const insertJobberAccountSchema = createInsertSchema(jobberAccounts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertJobberWebhookEventSchema = createInsertSchema(jobberWebhookEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertJobberEnrichmentSchema = createInsertSchema(jobberEnrichments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertJobberQuoteJobSyncSchema = createInsertSchema(jobberQuoteJobSync).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types for Jobber integration
+export type JobberAccount = typeof jobberAccounts.$inferSelect;
+export type InsertJobberAccount = z.infer<typeof insertJobberAccountSchema>;
+
+export type JobberWebhookEvent = typeof jobberWebhookEvents.$inferSelect;
+export type InsertJobberWebhookEvent = z.infer<typeof insertJobberWebhookEventSchema>;
+
+export type JobberEnrichment = typeof jobberEnrichments.$inferSelect;
+export type InsertJobberEnrichment = z.infer<typeof insertJobberEnrichmentSchema>;
+
+export type JobberQuoteJobSync = typeof jobberQuoteJobSync.$inferSelect;
+export type InsertJobberQuoteJobSync = z.infer<typeof insertJobberQuoteJobSyncSchema>;
+
+// ============================================
+// Dispatch & Routing Tables
+// ============================================
+
+// Crew Roster - crew capacity and equipment capabilities
+export const crewRoster = pgTable("crew_roster", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  jobberCrewId: text("jobber_crew_id"), // External Jobber team/crew ID if synced
+  name: text("name").notNull(),
+  color: text("color"), // For UI display (hex color)
+  capacity: integer("capacity").default(8), // Max jobs per day
+  equipmentCapabilities: text("equipment_capabilities").array(), // mower, aerator, trailer, etc.
+  homeBaseLat: doublePrecision("home_base_lat"),
+  homeBaseLng: doublePrecision("home_base_lng"),
+  homeBaseAddress: text("home_base_address"),
+  availabilityStart: text("availability_start").default("08:00"), // HH:mm format
+  availabilityEnd: text("availability_end").default("17:00"), // HH:mm format
+  workDays: text("work_days").array().default(["mon", "tue", "wed", "thu", "fri"]),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Dispatch Plans - route plans for a given date
+export const dispatchPlans = pgTable("dispatch_plans", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  jobberAccountId: text("jobber_account_id"),
+  planDate: timestamp("plan_date").notNull(), // Date this plan is for
+  mode: text("mode").notNull().default("nightly"), // "nightly" | "event"
+  status: text("status").notNull().default("draft"), // draft, pending_apply, applied, rejected, failed
+  triggerEventId: text("trigger_event_id"), // Webhook event ID that triggered this plan
+  
+  // Algorithm inputs snapshot
+  totalJobs: integer("total_jobs").default(0),
+  totalCrews: integer("total_crews").default(0),
+  inputSnapshot: jsonb("input_snapshot"), // { jobs, crews, constraints }
+  
+  // Algorithm outputs
+  crewAssignments: jsonb("crew_assignments"), // { crewId: [jobId, ...], ... }
+  routeStops: jsonb("route_stops"), // { crewId: [{ jobId, order, arriveBy, departBy, driveMins }, ...] }
+  totalDriveMinutes: integer("total_drive_minutes"),
+  utilizationPercent: integer("utilization_percent"),
+  
+  // Jobber sync
+  routeUrl: text("route_url"), // Link to route visualization
+  autoApplyEnabled: boolean("auto_apply_enabled").default(false),
+  appliedAt: timestamp("applied_at"),
+  applyError: text("apply_error"),
+  
+  // Metadata
+  algorithmVersion: text("algorithm_version").default("v1-greedy"),
+  computeTimeMs: integer("compute_time_ms"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  planDateIdx: uniqueIndex("dispatch_plans_date_idx").on(table.businessId, table.planDate, table.mode),
+}));
+
+// Dispatch Plan Events - audit log for dispatch operations
+export const dispatchPlanEvents = pgTable("dispatch_plan_events", {
+  id: serial("id").primaryKey(),
+  planId: integer("plan_id").references(() => dispatchPlans.id).notNull(),
+  eventType: text("event_type").notNull(), // created, computed, approved, applied, rejected, failed
+  actor: text("actor").default("system"), // system, user, webhook
+  details: jsonb("details"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Insert schemas for dispatch tables
+export const insertCrewRosterSchema = createInsertSchema(crewRoster).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertDispatchPlanSchema = createInsertSchema(dispatchPlans).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertDispatchPlanEventSchema = createInsertSchema(dispatchPlanEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types for dispatch
+export type CrewRoster = typeof crewRoster.$inferSelect;
+export type InsertCrewRoster = z.infer<typeof insertCrewRosterSchema>;
+
+export type DispatchPlan = typeof dispatchPlans.$inferSelect;
+export type InsertDispatchPlan = z.infer<typeof insertDispatchPlanSchema>;
+
+export type DispatchPlanEvent = typeof dispatchPlanEvents.$inferSelect;
+export type InsertDispatchPlanEvent = z.infer<typeof insertDispatchPlanEventSchema>;
+
+// Dispatch algorithm types
+export interface RouteStop {
+  jobId: string;
+  jobberJobId?: string;
+  order: number;
+  propertyAddress: string;
+  lat: number;
+  lng: number;
+  arriveBy: string; // ISO timestamp
+  departBy: string; // ISO timestamp
+  driveMinsFromPrev: number;
+  serviceType?: string;
+  estimatedDurationMins: number;
+}
+
+export interface CrewAssignment {
+  crewId: number;
+  crewName: string;
+  stops: RouteStop[];
+  totalDriveMins: number;
+  totalServiceMins: number;
+  utilizationPercent: number;
+}
+
+export interface DispatchPlanResult {
+  planDate: string;
+  assignments: CrewAssignment[];
+  unassignedJobs: string[];
+  totalDriveMins: number;
+  overallUtilization: number;
+  warnings: string[];
+}
+
+// ============================================
+// Margin & Variance Tracking Tables
+// ============================================
+
+// Job Snapshots - baseline data captured when job starts
+export const jobSnapshots = pgTable("job_snapshots", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  jobberAccountId: text("jobber_account_id"),
+  jobberJobId: text("jobber_job_id").notNull(),
+  jobberQuoteId: text("jobber_quote_id"), // Source quote if applicable
+  
+  // Baseline metrics (captured at job creation/start)
+  baselineRevenue: integer("baseline_revenue"), // cents
+  baselineCost: integer("baseline_cost"), // cents (labor + materials estimate)
+  baselineMarginPercent: integer("baseline_margin_percent"), // 0-100
+  
+  // Expected duration model inputs
+  serviceType: text("service_type").notNull(),
+  lotSizeSqft: integer("lot_size_sqft"),
+  crewSize: integer("crew_size").default(1),
+  expectedDurationMins: integer("expected_duration_mins").notNull(),
+  expectedVisits: integer("expected_visits").default(1),
+  
+  // Current progress (updated on VISIT_* events)
+  actualDurationMins: integer("actual_duration_mins").default(0),
+  visitsCompleted: integer("visits_completed").default(0),
+  timeLoggedMins: integer("time_logged_mins").default(0),
+  
+  // Variance tracking
+  durationVariancePercent: integer("duration_variance_percent").default(0), // negative = under, positive = over
+  marginRisk: text("margin_risk").default("normal"), // normal, medium, high
+  lastVarianceCheck: timestamp("last_variance_check"),
+  
+  // Sync status
+  jobberSynced: boolean("jobber_synced").default(false),
+  jobberSyncedAt: timestamp("jobber_synced_at"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  jobberJobIdx: uniqueIndex("job_snapshots_jobber_job_idx").on(table.jobberAccountId, table.jobberJobId),
+}));
+
+// Margin Alerts - internal alerts for variance threshold breaches
+export const marginAlerts = pgTable("margin_alerts", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  snapshotId: integer("snapshot_id").references(() => jobSnapshots.id).notNull(),
+  jobberJobId: text("jobber_job_id").notNull(),
+  
+  // Alert details
+  alertType: text("alert_type").notNull(), // duration_overrun, margin_risk, visit_overrun
+  severity: text("severity").notNull().default("medium"), // low, medium, high
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  
+  // Variance data
+  expectedValue: integer("expected_value"),
+  actualValue: integer("actual_value"),
+  variancePercent: integer("variance_percent"),
+  
+  // Recommended actions (JSON array)
+  recommendedActions: jsonb("recommended_actions"), // [{ action, description, priority }]
+  
+  // Status tracking
+  status: text("status").notNull().default("open"), // open, acknowledged, resolved, dismissed
+  acknowledgedBy: text("acknowledged_by"),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  resolvedBy: text("resolved_by"),
+  resolvedAt: timestamp("resolved_at"),
+  resolution: text("resolution"), // notes on how it was resolved
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Insert schemas for margin tables
+export const insertJobSnapshotSchema = createInsertSchema(jobSnapshots).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertMarginAlertSchema = createInsertSchema(marginAlerts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types for margin tracking
+export type JobSnapshot = typeof jobSnapshots.$inferSelect;
+export type InsertJobSnapshot = z.infer<typeof insertJobSnapshotSchema>;
+
+export type MarginAlert = typeof marginAlerts.$inferSelect;
+export type InsertMarginAlert = z.infer<typeof insertMarginAlertSchema>;
+
+// Margin alert recommended action type
+export interface MarginAlertAction {
+  action: string;
+  description: string;
+  priority: "low" | "medium" | "high";
+}
+
+// ==================== BILLING ORCHESTRATOR ====================
+
+// Tracks billing lifecycle state for each job
+export const jobBillingStates = pgTable("job_billing_states", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  jobberAccountId: text("jobber_account_id").notNull(),
+  jobberJobId: text("jobber_job_id").notNull(),
+  
+  // Job context
+  serviceType: text("service_type").notNull(),
+  totalJobValue: integer("total_job_value"), // cents
+  
+  // Current milestone state
+  currentMilestone: text("current_milestone").notNull().default("created"), // created, scheduled, in_progress, complete
+  milestoneReachedAt: timestamp("milestone_reached_at"),
+  
+  // Invoice stage flags (prevent duplicates)
+  depositInvoiceSent: boolean("deposit_invoice_sent").default(false),
+  progressInvoiceSent: boolean("progress_invoice_sent").default(false),
+  finalInvoiceSent: boolean("final_invoice_sent").default(false),
+  
+  // Billing stage (synced to Jobber custom field)
+  billingStage: text("billing_stage").default("pending"), // pending, deposit_sent, deposit_paid, progress_sent, progress_paid, final_sent, final_paid
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  jobberJobIdx: uniqueIndex("billing_states_jobber_job_idx").on(table.jobberAccountId, table.jobberJobId),
+}));
+
+// Individual invoices created for billing milestones
+export const billingInvoices = pgTable("billing_invoices", {
+  id: serial("id").primaryKey(),
+  billingStateId: integer("billing_state_id").references(() => jobBillingStates.id).notNull(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  
+  // Jobber references
+  jobberAccountId: text("jobber_account_id").notNull(),
+  jobberJobId: text("jobber_job_id").notNull(),
+  jobberInvoiceId: text("jobber_invoice_id"), // Set after invoice created in Jobber
+  
+  // Invoice details
+  invoiceType: text("invoice_type").notNull(), // deposit, progress, final
+  amount: integer("amount").notNull(), // cents
+  percentageOfTotal: integer("percentage_of_total"), // 0-100
+  description: text("description"),
+  
+  // Status tracking
+  status: text("status").notNull().default("pending"), // pending, created, sent, paid, cancelled
+  
+  // Timestamps
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  sentAt: timestamp("sent_at"),
+  paidAt: timestamp("paid_at"),
+  
+  // Error tracking
+  lastError: text("last_error"),
+  retryCount: integer("retry_count").default(0),
+}, (table) => ({
+  // Idempotency: one invoice per type per job
+  jobInvoiceTypeIdx: uniqueIndex("billing_invoice_job_type_idx").on(table.jobberAccountId, table.jobberJobId, table.invoiceType),
+}));
+
+// Insert schemas for billing tables
+export const insertJobBillingStateSchema = createInsertSchema(jobBillingStates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBillingInvoiceSchema = createInsertSchema(billingInvoices).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types for billing
+export type JobBillingState = typeof jobBillingStates.$inferSelect;
+export type InsertJobBillingState = z.infer<typeof insertJobBillingStateSchema>;
+
+export type BillingInvoice = typeof billingInvoices.$inferSelect;
+export type InsertBillingInvoice = z.infer<typeof insertBillingInvoiceSchema>;
+
+// ============================================================================
+// Reconciliation & Dead Letter Queue Tables
+// ============================================================================
+
+// Reconciliation alerts for invoice/payment mismatches
+export const reconciliationAlerts = pgTable("reconciliation_alerts", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  jobberAccountId: text("jobber_account_id").notNull(),
+  
+  // Reference to the problematic entity
+  entityType: text("entity_type").notNull(), // invoice, payment, job
+  entityId: text("entity_id").notNull(),
+  jobberInvoiceId: text("jobber_invoice_id"),
+  jobberJobId: text("jobber_job_id"),
+  
+  // Alert details
+  alertType: text("alert_type").notNull(), // payment_mismatch, deposit_inconsistency, missing_payment, overpayment
+  severity: text("severity").notNull().default("warning"), // info, warning, critical
+  
+  // Mismatch data for debugging
+  expectedValue: integer("expected_value"), // cents
+  actualValue: integer("actual_value"), // cents
+  variance: integer("variance"), // cents (actualValue - expectedValue)
+  
+  description: text("description"),
+  
+  // Resolution tracking
+  status: text("status").notNull().default("open"), // open, acknowledged, resolved, ignored
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: text("resolved_by"),
+  resolutionNotes: text("resolution_notes"),
+  
+  // Jobber sync status
+  jobberFieldUpdated: boolean("jobber_field_updated").default(false),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  entityIdx: index("recon_alerts_entity_idx").on(table.jobberAccountId, table.entityType, table.entityId),
+  statusIdx: index("recon_alerts_status_idx").on(table.businessId, table.status),
+}));
+
+// Dead letter queue for failed webhook events
+export const deadLetterQueue = pgTable("dead_letter_queue", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  jobberAccountId: text("jobber_account_id").notNull(),
+  
+  // Original webhook event data
+  webhookEventId: text("webhook_event_id").notNull(),
+  topic: text("topic").notNull(),
+  objectId: text("object_id").notNull(),
+  occurredAt: timestamp("occurred_at"),
+  payload: text("payload"), // JSON stringified webhook payload
+  
+  // Failure tracking
+  failureReason: text("failure_reason").notNull(),
+  failureDetails: text("failure_details"), // Stack trace or additional context
+  failedAt: timestamp("failed_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  
+  // Retry management
+  retryCount: integer("retry_count").default(0).notNull(),
+  maxRetries: integer("max_retries").default(3).notNull(),
+  lastRetryAt: timestamp("last_retry_at"),
+  nextRetryAt: timestamp("next_retry_at"),
+  
+  // Status
+  status: text("status").notNull().default("pending"), // pending, retrying, exhausted, resolved, discarded
+  resolvedAt: timestamp("resolved_at"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  webhookEventIdx: uniqueIndex("dlq_webhook_event_idx").on(table.webhookEventId),
+  statusIdx: index("dlq_status_idx").on(table.status, table.nextRetryAt),
+}));
+
+// Insert schemas
+export const insertReconciliationAlertSchema = createInsertSchema(reconciliationAlerts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertDeadLetterQueueSchema = createInsertSchema(deadLetterQueue).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Customer communication log for tracking all outbound messages
+export const customerCommLog = pgTable("customer_comm_log", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  jobberAccountId: text("jobber_account_id"),
+  
+  // Message details
+  messageType: text("message_type").notNull(), // job_rescheduled, job_completed, reminder, follow_up
+  serviceCategory: text("service_category"), // lawn_maintenance, hardscape
+  templateId: text("template_id").notNull(),
+  
+  // Recipient info
+  recipientPhone: text("recipient_phone").notNull(),
+  recipientName: text("recipient_name"),
+  
+  // Content
+  messageContent: text("message_content").notNull(),
+  templateVariables: jsonb("template_variables"), // Variables used in rendering
+  
+  // Related entities
+  jobberJobId: text("jobber_job_id"),
+  jobberClientId: text("jobber_client_id"),
+  conversationId: integer("conversation_id").references(() => conversations.id),
+  
+  // Delivery status
+  deliveryStatus: text("delivery_status").notNull().default("pending"), // pending, sent, delivered, failed
+  twilioMessageSid: text("twilio_message_sid"),
+  deliveredAt: timestamp("delivered_at"),
+  failureReason: text("failure_reason"),
+  
+  // Compliance tracking
+  complianceChecks: jsonb("compliance_checks"), // {noExactEta: true, hasRescheduleOption: true}
+  
+  // Jobber sync
+  jobberFieldUpdated: boolean("jobber_field_updated").default(false),
+  jobberFieldValue: text("jobber_field_value"), // The link/pointer written to Jobber
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("comm_log_business_idx").on(table.businessId),
+  jobIdx: index("comm_log_job_idx").on(table.jobberJobId),
+  statusIdx: index("comm_log_status_idx").on(table.deliveryStatus),
+}));
+
+export const insertCustomerCommLogSchema = createInsertSchema(customerCommLog).omit({
+  id: true,
+  createdAt: true,
+});
+
+// ============================================
+// Agent Management Control Center
+// ============================================
+
+// Agent Registry - All workers/agents registered in the system
+export const agentRegistry = pgTable("agent_registry", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  
+  // Agent identification
+  agentKey: text("agent_key").notNull(), // unique key: margin_worker, dispatch_worker, comms_worker, etc.
+  displayName: text("display_name").notNull(),
+  purpose: text("purpose"), // Short one-line purpose
+  description: text("description"),
+  category: text("category").notNull(), // core, ops, finance, comms
+  
+  // New: Lifecycle stage and domains for Agent Directory UI
+  stage: text("stage").notNull().default("core"), // lead_intake, quoting, confirmation, scheduling, crew_assignment, booking, retention_insights, integrations, core
+  domains: text("domains").array(), // messaging, pricing, routing, memory, integrations, orchestration, fsm
+  triggers: text("triggers").array(), // e.g., ["missed_call", "inbound_sms", "webhook"]
+  
+  // I/O Schema (from Zod contracts)
+  inputSchema: jsonb("input_schema"), // JSON schema for inputs
+  outputSchema: jsonb("output_schema"), // JSON schema for outputs
+  
+  // Status & Control
+  status: text("status").notNull().default("active"), // active, paused, error, needs_config
+  lastRunAt: timestamp("last_run_at"),
+  lastSuccessAt: timestamp("last_success_at"),
+  lastErrorAt: timestamp("last_error_at"),
+  lastError: text("last_error"),
+  
+  // Health metrics (computed)
+  healthScore: integer("health_score").default(100), // 0-100
+  successRate24h: doublePrecision("success_rate_24h").default(100),
+  avgLatencyMs: integer("avg_latency_ms"),
+  failureStreak: integer("failure_streak").default(0),
+  
+  // Value metrics
+  totalRuns: integer("total_runs").default(0),
+  timeSavedMinutes: integer("time_saved_minutes").default(0),
+  cashAcceleratedCents: integer("cash_accelerated_cents").default(0),
+  revenueProtectedCents: integer("revenue_protected_cents").default(0),
+  
+  // Configuration
+  config: jsonb("config"), // agent-specific config
+  schedule: text("schedule"), // cron expression or "event-driven"
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessAgentIdx: uniqueIndex("agent_business_key_idx").on(table.businessId, table.agentKey),
+  categoryIdx: index("agent_category_idx").on(table.category),
+  statusIdx: index("agent_status_idx").on(table.status),
+  stageIdx: index("agent_stage_idx").on(table.stage),
+}));
+
+// Agent Run Log - Execution history for each agent
+export const agentRuns = pgTable("agent_runs", {
+  id: serial("id").primaryKey(),
+  agentId: integer("agent_id").references(() => agentRegistry.id).notNull(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  
+  // Run details
+  runId: text("run_id").notNull(), // UUID for deduplication
+  status: text("status").notNull().default("running"), // running, success, failed, timeout
+  triggeredBy: text("triggered_by").notNull(), // cron, event, manual
+  eventType: text("event_type"), // For event-driven runs
+  eventPayload: jsonb("event_payload"),
+  isTestRun: boolean("is_test_run").default(false), // Manual test execution flag
+  
+  // Timing
+  startedAt: timestamp("started_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  completedAt: timestamp("completed_at"),
+  durationMs: integer("duration_ms"),
+  
+  // Outputs
+  result: jsonb("result"), // Output data
+  error: text("error"),
+  errorStack: text("error_stack"),
+  
+  // Metrics for this run
+  itemsProcessed: integer("items_processed").default(0),
+  timeSavedMinutes: integer("time_saved_minutes").default(0),
+  cashAcceleratedCents: integer("cash_accelerated_cents").default(0),
+  revenueProtectedCents: integer("revenue_protected_cents").default(0),
+  
+  // Related entities
+  relatedJobId: text("related_job_id"),
+  relatedClientId: text("related_client_id"),
+  jobRequestId: integer("job_request_id"), // For test runs with specific job requests
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  agentIdx: index("run_agent_idx").on(table.agentId),
+  statusIdx: index("run_status_idx").on(table.status),
+  startedIdx: index("run_started_idx").on(table.startedAt),
+  runIdIdx: uniqueIndex("run_id_unique_idx").on(table.runId),
+}));
+
+// Insert schemas
+export const insertAgentRegistrySchema = createInsertSchema(agentRegistry).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAgentRunSchema = createInsertSchema(agentRuns).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types
+export type AgentRegistryEntry = typeof agentRegistry.$inferSelect;
+export type InsertAgentRegistryEntry = z.infer<typeof insertAgentRegistrySchema>;
+
+export type AgentRunEntry = typeof agentRuns.$inferSelect;
+export type InsertAgentRunEntry = z.infer<typeof insertAgentRunSchema>;
+
+// Types
+export type ReconciliationAlert = typeof reconciliationAlerts.$inferSelect;
+export type InsertReconciliationAlert = z.infer<typeof insertReconciliationAlertSchema>;
+
+export type DeadLetterQueueItem = typeof deadLetterQueue.$inferSelect;
+export type InsertDeadLetterQueueItem = z.infer<typeof insertDeadLetterQueueSchema>;
+
+export type CustomerCommLogEntry = typeof customerCommLog.$inferSelect;
+export type InsertCustomerCommLogEntry = z.infer<typeof insertCustomerCommLogSchema>;
+
+// ============================================
+// SMS Intelligence Layer - Session Management
+// ============================================
+
+// SMS Sessions - tracks SMS conversation state machine progress
+export const smsSessions = pgTable("sms_sessions", {
+  id: serial("id").primaryKey(),
+  sessionId: text("session_id").notNull().unique(), // UUID for external reference
+  accountId: text("account_id").notNull(), // Jobber account or LawnFlow account
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  
+  // Channel info
+  channel: text("channel").notNull().default("sms"),
+  fromPhone: text("from_phone").notNull(), // Customer phone
+  toPhone: text("to_phone").notNull(), // Business SMS number
+  
+  // Session state
+  status: text("status").notNull().default("active"), // active, paused_for_human, dormant, closed
+  serviceTemplateId: text("service_template_id").notNull().default("lawncare_v1"),
+  state: text("state").notNull().default("INTENT"), // Current state machine state
+  stateEnteredAt: timestamp("state_entered_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  
+  // Activity tracking
+  lastInboundAt: timestamp("last_inbound_at"),
+  lastOutboundAt: timestamp("last_outbound_at"),
+  
+  // State machine data (JSONB columns)
+  attemptCounters: jsonb("attempt_counters").default({}), // Per-state attempt counters
+  confidence: jsonb("confidence").default({}), // Confidence scores
+  collected: jsonb("collected").default({}), // User-provided field values
+  derived: jsonb("derived").default({}), // System-derived values (ArcGIS, enrichment)
+  quote: jsonb("quote").default({}), // Quote information
+  scheduling: jsonb("scheduling").default({}), // Scheduling data
+  handoff: jsonb("handoff").default({}), // Handoff metadata
+  audit: jsonb("audit").default({}), // Jobber IDs, external references
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  sessionIdIdx: uniqueIndex("sms_session_id_idx").on(table.sessionId),
+  phoneIdx: index("sms_session_phone_idx").on(table.fromPhone),
+  statusIdx: index("sms_session_status_idx").on(table.status),
+  businessIdx: index("sms_session_business_idx").on(table.businessId),
+}));
+
+// SMS Events - append-only log of all messages
+export const smsEvents = pgTable("sms_events", {
+  id: serial("id").primaryKey(),
+  eventId: text("event_id").notNull().unique(), // UUID for deduplication
+  sessionId: text("session_id").notNull(), // References sms_sessions.sessionId
+  
+  // Event details
+  ts: timestamp("ts").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  direction: text("direction").notNull(), // inbound, outbound
+  providerMessageId: text("provider_message_id"), // Twilio MessageSid for deduplication
+  type: text("type").notNull().default("sms"),
+  text: text("text").notNull(),
+  
+  // Payload and analysis
+  payloadJson: jsonb("payload_json"), // Raw provider payload
+  nlpJson: jsonb("nlp_json"), // Optional intent/sentiment analysis
+  
+  // State tracking
+  stateBefore: text("state_before"),
+  stateAfter: text("state_after"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  eventIdIdx: uniqueIndex("sms_event_id_idx").on(table.eventId),
+  sessionIdx: index("sms_event_session_idx").on(table.sessionId),
+  providerMsgIdx: index("sms_event_provider_msg_idx").on(table.providerMessageId),
+  tsIdx: index("sms_event_ts_idx").on(table.ts),
+}));
+
+// Handoff Tickets - tracks human escalations
+export const handoffTickets = pgTable("handoff_tickets", {
+  id: serial("id").primaryKey(),
+  ticketId: text("ticket_id").notNull().unique(), // UUID
+  sessionId: text("session_id").notNull(), // References sms_sessions.sessionId
+  accountId: text("account_id").notNull(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  
+  // Ticket details
+  status: text("status").notNull().default("open"), // open, assigned, resolved, closed
+  priority: text("priority").notNull().default("normal"), // low, normal, high
+  reasonCodes: jsonb("reason_codes").default([]), // Array of reason codes
+  summary: text("summary"),
+  
+  // Assignment
+  assignedTo: text("assigned_to"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  ticketIdIdx: uniqueIndex("handoff_ticket_id_idx").on(table.ticketId),
+  sessionIdx: index("handoff_session_idx").on(table.sessionId),
+  statusIdx: index("handoff_status_idx").on(table.status),
+  businessIdx: index("handoff_business_idx").on(table.businessId),
+}));
+
+// Click-to-Call Tokens - expiring tokens for phone handoff
+export const clickToCallTokens = pgTable("click_to_call_tokens", {
+  id: serial("id").primaryKey(),
+  tokenId: text("token_id").notNull().unique(), // UUID
+  sessionId: text("session_id").notNull(), // References sms_sessions.sessionId
+  
+  // Token data
+  token: text("token").notNull().unique(), // Short random token for URL
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  tokenIdx: uniqueIndex("ctc_token_idx").on(table.token),
+  sessionIdx: index("ctc_session_idx").on(table.sessionId),
+  expiresIdx: index("ctc_expires_idx").on(table.expiresAt),
+}));
+
+// Call Events - tracks click-to-call usage (MVP optional)
+export const callEvents = pgTable("call_events", {
+  id: serial("id").primaryKey(),
+  callEventId: text("call_event_id").notNull().unique(), // UUID
+  sessionId: text("session_id").notNull(), // References sms_sessions.sessionId
+  
+  // Event details
+  ts: timestamp("ts").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  type: text("type").notNull(), // click, dial, connected, missed, completed
+  metadataJson: jsonb("metadata_json"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  callEventIdIdx: uniqueIndex("call_event_id_idx").on(table.callEventId),
+  sessionIdx: index("call_event_session_idx").on(table.sessionId),
+  typeIdx: index("call_event_type_idx").on(table.type),
+}));
+
+// Insert schemas for SMS tables
+export const insertSmsSessionSchema = createInsertSchema(smsSessions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSmsEventSchema = createInsertSchema(smsEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertHandoffTicketSchema = createInsertSchema(handoffTickets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertClickToCallTokenSchema = createInsertSchema(clickToCallTokens).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertCallEventSchema = createInsertSchema(callEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types for SMS Intelligence Layer
+export type SmsSession = typeof smsSessions.$inferSelect;
+export type InsertSmsSession = z.infer<typeof insertSmsSessionSchema>;
+
+export type SmsEvent = typeof smsEvents.$inferSelect;
+export type InsertSmsEvent = z.infer<typeof insertSmsEventSchema>;
+
+export type HandoffTicket = typeof handoffTickets.$inferSelect;
+export type InsertHandoffTicket = z.infer<typeof insertHandoffTicketSchema>;
+
+export type ClickToCallToken = typeof clickToCallTokens.$inferSelect;
+export type InsertClickToCallToken = z.infer<typeof insertClickToCallTokenSchema>;
+
+export type CallEvent = typeof callEvents.$inferSelect;
+export type InsertCallEvent = z.infer<typeof insertCallEventSchema>;
+
+// ============================================
+// Pricing Control Center
+// ============================================
+
+// Global positioning options for pricing strategy
+export const GlobalPositioning = ["aggressive", "balanced", "premium"] as const;
+export type GlobalPositioningType = typeof GlobalPositioning[number];
+
+// Property type bands for lot size classification
+export const PropertyTypeBands = ["townhome", "small", "medium", "large", "multi_acre"] as const;
+export type PropertyTypeBandType = typeof PropertyTypeBands[number];
+
+// Pricing Policies - owner/operator pricing configuration
+export const pricingPolicies = pgTable("pricing_policies", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  
+  name: text("name").notNull().default("Default Policy"),
+  version: integer("version").notNull().default(1),
+  isActive: boolean("is_active").notNull().default(true),
+  
+  // Global positioning strategy
+  globalPositioning: text("global_positioning").notNull().default("balanced"), // aggressive, balanced, premium
+  globalMultiplier: doublePrecision("global_multiplier").notNull().default(1.0), // 0.85 aggressive, 1.0 balanced, 1.15 premium
+  
+  // Per-service configuration: { [serviceType]: { minPrice, baseRate, multiplier, enabled } }
+  serviceConfigs: jsonb("service_configs").notNull().default({}),
+  
+  // Property type band configurations: { [band]: { minSqft, maxSqft, baseMultiplier } }
+  propertyTypeConfigs: jsonb("property_type_configs").notNull().default({}),
+  
+  // Guardrails: { floor, ceiling, lowConfidenceThreshold, reviewThreshold }
+  guardrails: jsonb("guardrails").notNull().default({}),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("pricing_policy_business_idx").on(table.businessId),
+  activeIdx: index("pricing_policy_active_idx").on(table.isActive),
+}));
+
+// Quote Proposals - computed quotes awaiting review/approval
+export const quoteProposals = pgTable("quote_proposals", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  
+  // Customer info (can be populated from lead or manually)
+  customerName: text("customer_name"),
+  customerPhone: text("customer_phone"),
+  customerAddress: text("customer_address"),
+  
+  // Link to lead/session
+  leadId: integer("lead_id").references(() => leads.id),
+  smsSessionId: text("sms_session_id"), // References sms_sessions.sessionId
+  
+  // Property classification
+  propertyTypeBand: text("property_type_band"), // townhome, small, medium, large, multi_acre
+  
+  // Services requested
+  servicesRequested: jsonb("services_requested").notNull().default([]), // Array of { serviceType, frequency, notes }
+  
+  // Property signals from parcel resolver
+  propertySignals: jsonb("property_signals").notNull().default({}), // { lotAreaSqft, confidence, propertyType, source }
+  
+  // Policy used for calculation
+  policyId: integer("policy_id").references(() => pricingPolicies.id),
+  policyVersion: integer("policy_version"),
+  
+  // Computed quote range (in cents)
+  rangeLow: integer("range_low").notNull(),
+  rangeHigh: integer("range_high").notNull(),
+  
+  // Calculation details
+  assumptions: jsonb("assumptions").notNull().default([]), // Array of { key, value, reason }
+  calculationBreakdown: jsonb("calculation_breakdown").default({}), // Detailed calculation steps
+  
+  // Review flags
+  needsReview: boolean("needs_review").notNull().default(false),
+  reviewReasons: jsonb("review_reasons").notNull().default([]), // Array of reason codes
+  
+  // Status workflow
+  status: text("status").notNull().default("pending"), // pending, approved, adjusted, sent, expired, declined
+  
+  // Final approved values (after adjustment)
+  approvedAmount: integer("approved_amount"), // Final approved quote in cents
+  approvedBy: integer("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  
+  // Sent tracking
+  sentAt: timestamp("sent_at"),
+  expiresAt: timestamp("expires_at"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("quote_proposal_business_idx").on(table.businessId),
+  leadIdx: index("quote_proposal_lead_idx").on(table.leadId),
+  sessionIdx: index("quote_proposal_session_idx").on(table.smsSessionId),
+  statusIdx: index("quote_proposal_status_idx").on(table.status),
+  needsReviewIdx: index("quote_proposal_needs_review_idx").on(table.needsReview),
+}));
+
+// Quote Adjustment Logs - audit trail for manual quote changes
+export const quoteAdjustmentLogs = pgTable("quote_adjustment_logs", {
+  id: serial("id").primaryKey(),
+  quoteProposalId: integer("quote_proposal_id").references(() => quoteProposals.id).notNull(),
+  
+  // Change details
+  changeType: text("change_type").notNull(), // approve, adjust_amount, add_note, decline, expire
+  beforeState: jsonb("before_state").notNull(), // Snapshot before change
+  afterState: jsonb("after_state").notNull(), // Snapshot after change
+  reason: text("reason"), // User-provided reason for change
+  
+  // Who made the change
+  changedByUserId: integer("changed_by_user_id").references(() => users.id),
+  changedByRole: text("changed_by_role"), // owner, operator, system
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  quoteIdx: index("quote_adjustment_quote_idx").on(table.quoteProposalId),
+  userIdx: index("quote_adjustment_user_idx").on(table.changedByUserId),
+}));
+
+// Insert schemas for Pricing Control Center
+export const insertPricingPolicySchema = createInsertSchema(pricingPolicies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertQuoteProposalSchema = createInsertSchema(quoteProposals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertQuoteAdjustmentLogSchema = createInsertSchema(quoteAdjustmentLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types for Pricing Control Center
+export type PricingPolicy = typeof pricingPolicies.$inferSelect;
+export type InsertPricingPolicy = z.infer<typeof insertPricingPolicySchema>;
+
+export type QuoteProposal = typeof quoteProposals.$inferSelect;
+export type InsertQuoteProposal = z.infer<typeof insertQuoteProposalSchema>;
+
+export type QuoteAdjustmentLog = typeof quoteAdjustmentLogs.$inferSelect;
+export type InsertQuoteAdjustmentLog = z.infer<typeof insertQuoteAdjustmentLogSchema>;
+
+// Typed JSON structures for pricing configuration
+export interface ServiceConfig {
+  enabled: boolean;
+  minPrice: number; // cents
+  baseRate: number; // cents per sqft or flat rate
+  rateType: "per_sqft" | "flat";
+  multiplier: number;
+}
+
+export interface PropertyTypeBandConfig {
+  minSqft: number;
+  maxSqft: number;
+  baseMultiplier: number;
+}
+
+export interface PricingGuardrails {
+  floorPrice: number; // cents - absolute minimum quote
+  ceilingPrice: number; // cents - absolute maximum quote
+  lowConfidenceThreshold: number; // 0-1, below this triggers review
+  reviewAboveAmount: number; // cents - quotes above this need review
+}
+
+// ============================================
+// Unified Quote Builder (UQB)
+// ============================================
+
+// Business RBAC Policy - configurable permissions per business
+export const businessRbacPolicies = pgTable("business_rbac_policies", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull().unique(),
+  
+  // Quote Builder permissions
+  allowCrewLeadSend: boolean("allow_crew_lead_send").notNull().default(false),
+  allowStaffSend: boolean("allow_staff_send").notNull().default(true),
+  requireApprovalAboveAmount: integer("require_approval_above_amount"), // cents - quotes above this need owner approval
+  
+  // Auto-approval settings
+  autoApproveWithinRange: boolean("auto_approve_within_range").notNull().default(false),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("rbac_policy_business_idx").on(table.businessId),
+}));
+
+// Quote Draft Status
+export const QuoteDraftStatuses = ["draft", "ready", "sent", "blocked", "expired"] as const;
+export type QuoteDraftStatus = typeof QuoteDraftStatuses[number];
+
+// Quote Drafts - incomplete quotes being built via UQB
+export const quoteDrafts = pgTable("quote_drafts", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  createdByUserId: integer("created_by_user_id").references(() => users.id).notNull(),
+  
+  // Customer info (populated progressively)
+  customerName: text("customer_name"),
+  customerPhone: text("customer_phone"),
+  serviceAddress: text("service_address"),
+  
+  // Voice transcript (if created via voice)
+  transcriptText: text("transcript_text"),
+  
+  // Structured input extracted from voice or form
+  structuredInput: jsonb("structured_input").notNull().default({}), // QuoteDraftInput type
+  
+  // Missing fields that need follow-up
+  missingFields: text("missing_fields").array().notNull().default([]),
+  currentQuestion: text("current_question"), // Current follow-up question
+  
+  // Property resolution
+  lotAreaSqft: integer("lot_area_sqft"),
+  lotConfidence: text("lot_confidence"), // high, medium, low
+  propertyBand: text("property_band"), // townhome, small, medium, large, multi_acre
+  
+  // Quote calculation (once resolved)
+  rangeLow: integer("range_low"),
+  rangeHigh: integer("range_high"),
+  assumptions: jsonb("assumptions").default([]),
+  
+  // Approval tracking
+  needsReview: boolean("needs_review").notNull().default(false),
+  reviewReasons: jsonb("review_reasons").default([]),
+  recommendedNextStep: text("recommended_next_step"), // request_photos, site_visit, ready_to_send
+  
+  // Status workflow
+  status: text("status").notNull().default("draft"), // draft, ready, sent, blocked, expired
+  
+  // Link to final quote proposal (once approved/sent)
+  quoteProposalId: integer("quote_proposal_id").references(() => quoteProposals.id),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("quote_draft_business_idx").on(table.businessId),
+  userIdx: index("quote_draft_user_idx").on(table.createdByUserId),
+  statusIdx: index("quote_draft_status_idx").on(table.status),
+}));
+
+// Insert schemas for UQB
+export const insertBusinessRbacPolicySchema = createInsertSchema(businessRbacPolicies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertQuoteDraftSchema = createInsertSchema(quoteDrafts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types for UQB
+export type BusinessRbacPolicy = typeof businessRbacPolicies.$inferSelect;
+export type InsertBusinessRbacPolicy = z.infer<typeof insertBusinessRbacPolicySchema>;
+
+export type QuoteDraft = typeof quoteDrafts.$inferSelect;
+export type InsertQuoteDraft = z.infer<typeof insertQuoteDraftSchema>;
+
+// QuoteDraftInput - unified input model for voice and form
+export interface QuoteDraftInput {
+  customer_name?: string;
+  customer_phone?: string;
+  service_address?: string;
+  services_requested?: string[];
+  frequency?: "one_time" | "weekly" | "biweekly" | "monthly" | "unknown";
+  complexity?: "light" | "medium" | "heavy" | "unknown";
+  lot_area_sqft?: number;
+  lot_confidence?: "high" | "medium" | "low";
+  property_band?: "townhome" | "small" | "medium" | "large" | "multi_acre" | "unknown";
+  photos_provided?: boolean;
+}
+
+// Voice parser response
+export interface VoiceParseResult {
+  extracted: Partial<QuoteDraftInput>;
+  missing_fields: string[];
+  questions: string[];
+}
+
+// ============================================
+// Route Optimizer
+// ============================================
+
+// Crew status enum
+export const CrewStatuses = ["ACTIVE", "INACTIVE"] as const;
+export type CrewStatus = typeof CrewStatuses[number];
+
+// Crew member role enum  
+export const CrewMemberRoles = ["LEADER", "MEMBER"] as const;
+export type CrewMemberRole = typeof CrewMemberRoles[number];
+
+// Crew - team unit for job assignments
+export const crews = pgTable("crews", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  name: text("name").notNull(),
+  status: text("status").notNull().default("ACTIVE"), // ACTIVE, INACTIVE
+  
+  // Home base location
+  homeBaseLat: doublePrecision("home_base_lat"),
+  homeBaseLng: doublePrecision("home_base_lng"),
+  homeBaseAddress: text("home_base_address"), // Human-readable address
+  
+  // Capacity constraints
+  serviceRadiusMiles: integer("service_radius_miles").notNull().default(20),
+  dailyCapacityMinutes: integer("daily_capacity_minutes").notNull().default(420), // 7 hours
+  maxJobsPerDay: integer("max_jobs_per_day").notNull().default(8), // Max jobs crew can handle
+  
+  // Skills and equipment (JSON arrays)
+  skillsJson: jsonb("skills_json").notNull().default([]), // e.g. ["mowing", "hardscape", "irrigation"]
+  equipmentJson: jsonb("equipment_json").notNull().default([]), // e.g. ["zero_turn", "dump_trailer", "skid_steer"]
+  
+  isActive: boolean("is_active").notNull().default(true),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("crew_business_idx").on(table.businessId),
+  statusIdx: index("crew_status_idx").on(table.status),
+}));
+
+// Crew Members - individuals within a crew
+export const crewMembers = pgTable("crew_members", {
+  id: serial("id").primaryKey(),
+  crewId: integer("crew_id").references(() => crews.id).notNull(),
+  userId: integer("user_id").references(() => users.id), // Optional link to system user
+  displayName: text("display_name").notNull(),
+  role: text("role").notNull().default("MEMBER"), // LEADER, MEMBER
+  
+  isActive: boolean("is_active").notNull().default(true),
+  startAt: timestamp("start_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  endAt: timestamp("end_at"), // null means still active
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  crewIdx: index("crew_member_crew_idx").on(table.crewId),
+  userIdx: index("crew_member_user_idx").on(table.userId),
+  activeIdx: index("crew_member_active_idx").on(table.isActive),
+}));
+
+// Job Request Statuses
+export const JobRequestStatuses = ["new", "triaged", "simulated", "recommended", "assigned", "needs_review"] as const;
+export type JobRequestStatus = typeof JobRequestStatuses[number];
+
+// Job Request Frequencies
+export const JobRequestFrequencies = ["one_time", "weekly", "biweekly", "monthly", "unknown"] as const;
+export type JobRequestFrequency = typeof JobRequestFrequencies[number];
+
+// Job Requests - new leads/jobs needing assignment
+export const jobRequests = pgTable("job_requests", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  
+  // Customer info
+  customerName: text("customer_name").notNull(),
+  customerPhone: text("customer_phone"),
+  address: text("address").notNull(),
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  zip: text("zip"),
+  
+  // Job details
+  servicesJson: jsonb("services_json").notNull().default([]), // ["mowing", "mulch"]
+  frequency: text("frequency").notNull().default("unknown"), // one_time, weekly, biweekly, monthly, unknown
+  
+  // Property/lot info
+  lotAreaSqft: integer("lot_area_sqft"),
+  lotConfidence: text("lot_confidence"), // high, medium, low
+  
+  // Requirements for matching
+  requiredSkillsJson: jsonb("required_skills_json").notNull().default([]),
+  requiredEquipmentJson: jsonb("required_equipment_json").notNull().default([]),
+  crewSizeMin: integer("crew_size_min").notNull().default(1),
+  
+  // Labor estimates (minutes)
+  laborLowMinutes: integer("labor_low_minutes"),
+  laborHighMinutes: integer("labor_high_minutes"),
+  
+  // Quote/Price info (cents)
+  priceLowCents: integer("price_low_cents"),
+  priceHighCents: integer("price_high_cents"),
+  
+  // Status tracking
+  status: text("status").notNull().default("new"), // new, triaged, simulated, recommended, assigned, needs_review
+  assignedCrewId: integer("assigned_crew_id").references(() => crews.id),
+  assignedDate: timestamp("assigned_date"), // YYYY-MM-DD
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("job_request_business_idx").on(table.businessId),
+  statusIdx: index("job_request_status_idx").on(table.status),
+}));
+
+// Assignment Simulations - generated candidate assignments
+export const assignmentSimulations = pgTable("assignment_simulations", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  jobRequestId: integer("job_request_id").references(() => jobRequests.id).notNull(),
+  crewId: integer("crew_id").references(() => crews.id).notNull(),
+  
+  // Proposed assignment
+  proposedDate: text("proposed_date").notNull(), // YYYY-MM-DD
+  insertionType: text("insertion_type").notNull().default("anytime"), // anytime, before, after, between
+  
+  // Key metrics
+  travelMinutesDelta: integer("travel_minutes_delta").notNull(),
+  loadMinutesDelta: integer("load_minutes_delta").notNull(),
+  marginScore: integer("margin_score").notNull(), // 0-100
+  riskScore: integer("risk_score").notNull(), // 0-100
+  totalScore: integer("total_score").notNull(), // 0-200
+  
+  // Explanation and debugging
+  explanationJson: jsonb("explanation_json"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  jobRequestIdx: index("simulation_job_request_idx").on(table.jobRequestId),
+  crewDateIdx: index("simulation_crew_date_idx").on(table.crewId, table.proposedDate),
+}));
+
+// Assignment Decisions - the chosen assignments to be executed
+export const assignmentDecisions = pgTable("assignment_decisions", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  jobRequestId: integer("job_request_id").references(() => jobRequests.id).notNull(),
+  selectedSimulationId: integer("selected_simulation_id").references(() => assignmentSimulations.id).notNull(),
+  
+  // Decision details
+  mode: text("mode").notNull(), // recommend_only, auto_approve
+  status: text("status").notNull().default("draft"), // draft, approved, rejected, written_back, failed
+  
+  // Approval workflow
+  approvedByUserId: integer("approved_by_user_id").references(() => users.id),
+  
+  // Explanation
+  reasoningJson: jsonb("reasoning_json"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  jobRequestIdx: index("decision_job_request_idx").on(table.jobRequestId),
+  simulationIdx: index("decision_simulation_idx").on(table.selectedSimulationId),
+  statusIdx: index("decision_status_idx").on(table.status),
+}));
+
+// Schedule Items - individual items on a crew's schedule for a day
+export const scheduleItems = pgTable("schedule_items", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  crewId: integer("crew_id").references(() => crews.id).notNull(),
+  
+  itemType: text("item_type").notNull().default("job"), // job, travel, break, meeting
+  relatedJobId: integer("related_job_id"), // Can be null for non-job items
+  
+  startAt: timestamp("start_at").notNull(),
+  endAt: timestamp("end_at").notNull(),
+  
+  status: text("status").notNull().default("scheduled"), // scheduled, in_progress, completed, skipped, cancelled
+  
+  notes: text("notes"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  crewDateIdx: index("schedule_item_crew_date_idx").on(table.crewId, table.startAt),
+}));
+
+// Insert schemas for route optimizer
+export const insertCrewSchema = createInsertSchema(crews).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCrewMemberSchema = createInsertSchema(crewMembers).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertJobRequestSchema = createInsertSchema(jobRequests).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAssignmentSimulationSchema = createInsertSchema(assignmentSimulations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertAssignmentDecisionSchema = createInsertSchema(assignmentDecisions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertScheduleItemSchema = createInsertSchema(scheduleItems).omit({
+  id: true,
+createdAt: true,
+});
+
+// Types for route optimizer
+export type Crew = typeof crews.$inferSelect;
+export type InsertCrew = z.infer<typeof insertCrewSchema>;
+
+export type CrewMember = typeof crewMembers.$inferSelect;
+export type InsertCrewMember = z.infer<typeof insertCrewMemberSchema>;
+
+export type JobRequest = typeof jobRequests.$inferSelect;
+export type InsertJobRequest = z.infer<typeof insertJobRequestSchema>;
+
+export type AssignmentSimulation = typeof assignmentSimulations.$inferSelect;
+export type InsertAssignmentSimulation = z.infer<typeof insertAssignmentSimulationSchema>;
+
+export type AssignmentDecision = typeof assignmentDecisions.$inferSelect;
+export type InsertAssignmentDecision = z.infer<typeof insertAssignmentDecisionSchema>;
+
+export type ScheduleItem = typeof scheduleItems.$inferSelect;
+export type InsertScheduleItem = z.infer<typeof insertScheduleItemSchema>;
+
+// Distance Cache
+export const distanceCache = pgTable("distance_cache", {
+  id: serial("id").primaryKey(),
+  originKey: text("origin_key").notNull(), // lat,lng rounded
+  destKey: text("dest_key").notNull(), // lat,lng rounded
+  travelMinutes: integer("travel_minutes").notNull(),
+  distanceMeters: integer("distance_meters").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+}, (table) => ({
+  originDestIdx: uniqueIndex("distance_cache_origin_dest_idx").on(table.originKey, table.destKey),
+}));
+
+export const insertDistanceCacheSchema = createInsertSchema(distanceCache).omit({ id: true });
+export type DistanceCache = typeof distanceCache.$inferSelect;
+export type InsertDistanceCache = z.infer<typeof insertDistanceCacheSchema>;
+
+// ============================================
+// Learning & Policy Tuning
+// ============================================
+
+export const decisionLogs = pgTable("decision_logs", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  jobRequestId: integer("job_request_id"),
+  
+  decisionType: text("decision_type").notNull(), // e.g., "crew_assignment", "pricing", "communication"
+  stage: text("stage").notNull(), // e.g., "TRIAGE", "CREW_LOCK", "DISPATCH_READY"
+  
+  agentName: text("agent_name").notNull(),
+  agentVersion: text("agent_version").notNull(),
+  
+  inputsSnapshot: jsonb("inputs_snapshot"),
+  recommendedAction: jsonb("recommended_action"),
+  confidence: text("confidence"), // "high", "medium", "low"
+  reasons: jsonb("reasons"), // Array of strings
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("decision_log_business_idx").on(table.businessId),
+  decisionTypeIdx: index("decision_log_decision_type_idx").on(table.decisionType, table.stage),
+}));
+
+export const humanActionLogs = pgTable("human_action_logs", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  decisionLogId: integer("decision_log_id").references(() => decisionLogs.id),
+  
+  actionType: text("action_type").notNull(), // e.g., "approve", "reject", "override", "manual_assignment"
+  userId: integer("user_id").references(() => users.id),
+  
+  overriddenAction: jsonb("overridden_action"), // If agent recommendation was changed
+  reason: text("reason"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  decisionLogIdx: index("human_action_decision_log_idx").on(table.decisionLogId),
+}));
+
+export const outcomeLogs = pgTable("outcome_logs", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  decisionLogId: integer("decision_log_id").references(() => decisionLogs.id),
+  jobRequestId: integer("job_request_id"),
+  
+  outcomeType: text("outcome_type").notNull(), // e.g., "job_completed", "customer_complaint", "upsell_accepted"
+  
+  actualMargin: integer("actual_margin"), // cents
+  durationVariance: integer("duration_variance"), // minutes
+  customerSatisfactionScore: integer("customer_satisfaction_score"), // 1-5
+  
+  details: jsonb("details"),
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  decisionLogIdx: index("outcome_decision_log_idx").on(table.decisionLogId),
+  outcomeTypeIdx: index("outcome_type_idx").on(table.outcomeType),
+}));
+
+export const policyVersions = pgTable("policy_versions", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  
+  version: integer("version").notNull(),
+  parentVersion: integer("parent_version"),
+  
+  policyJson: jsonb("policy_json").notNull(),
+  
+  isActive: boolean("is_active").default(false),
+  activatedAt: timestamp("activated_at"),
+  
+  description: text("description"),
+  createdBy: text("created_by").notNull(), // "system" or user id
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessVersionIdx: uniqueIndex("policy_business_version_idx").on(table.businessId, table.version),
+  activeIdx: index("policy_active_idx").on(table.businessId, table.isActive),
+}));
+
+export const policyTuningSuggestions = pgTable("policy_tuning_suggestions", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  basePolicyVersion: integer("base_policy_version"),
+  
+  suggestionType: text("suggestion_type").notNull(), // e.g., "adjust_threshold", "add_rule", "remove_rule"
+  
+  suggestedChange: jsonb("suggested_change"),
+  reasoning: jsonb("reasoning"), // { data, logic }
+  
+  confidence: text("confidence"), // "high", "medium", "low"
+  projectedImpact: jsonb("projected_impact"),
+  
+  status: text("status").notNull().default("pending"), // "pending", "applied", "rejected"
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  resolvedAt: timestamp("resolved_at"),
+}, (table) => ({
+  businessStatusIdx: index("tuning_business_status_idx").on(table.businessId, table.status),
+}));
+
+export const killSwitches = pgTable("kill_switches", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id),
+  
+  agentType: text("agent_type"), // null for global
+  decisionType: text("decision_type"), // null for global
+  stage: text("stage"), // null for global
+  
+  isActive: boolean("is_active").default(true),
+  reason: text("reason"),
+  
+  activatedBy: integer("activated_by").references(() => users.id),
+  activatedAt: timestamp("activated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  
+  deactivatedBy: integer("deactivated_by").references(() => users.id),
+  deactivatedAt: timestamp("deactivated_at"),
+});
+
+// Insert schemas
+export const insertDecisionLogSchema = createInsertSchema(decisionLogs).omit({ id: true, createdAt: true });
+export const insertHumanActionLogSchema = createInsertSchema(humanActionLogs).omit({ id: true, createdAt: true });
+export const insertOutcomeLogSchema = createInsertSchema(outcomeLogs).omit({ id: true, createdAt: true });
+export const insertPolicyVersionSchema = createInsertSchema(policyVersions).omit({ id: true, createdAt: true });
+export const insertPolicyTuningSuggestionSchema = createInsertSchema(policyTuningSuggestions).omit({ id: true, createdAt: true });
+export const insertKillSwitchSchema = createInsertSchema(killSwitches).omit({ id: true, activatedAt: true });
+
+// Types
+export type DecisionLog = typeof decisionLogs.$inferSelect;
+export type InsertDecisionLog = z.infer<typeof insertDecisionLogSchema>;
+
+export type HumanActionLog = typeof humanActionLogs.$inferSelect;
+export type InsertHumanActionLog = z.infer<typeof insertHumanActionLogSchema>;
+
+export type OutcomeLog = typeof outcomeLogs.$inferSelect;
+export type InsertOutcomeLog = z.infer<typeof insertOutcomeLogSchema>;
+
+export type PolicyVersion = typeof policyVersions.$inferSelect;
+export type InsertPolicyVersion = z.infer<typeof insertPolicyVersionSchema>;
+
+export type PolicyTuningSuggestion = typeof policyTuningSuggestions.$inferSelect;
+export type InsertPolicyTuningSuggestion = z.infer<typeof insertPolicyTuningSuggestionSchema>;
+
+export type KillSwitch = typeof killSwitches.$inferSelect;
+export type InsertKillSwitch = z.infer<typeof insertKillSwitchSchema>;
+
+// ============================================
+// Customer Memory & Profile Tables
+// ============================================
+
+export const customerProfiles = pgTable("customer_profiles", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  
+  // Basic info
+  name: text("name").notNull(),
+  primaryPhone: text("primary_phone").notNull(),
+  primaryEmail: text("primary_email"),
+  
+  // Addresses (can have multiple)
+  addressesJson: jsonb("addresses_json").default([]), // [{ type: "service"|"billing", address: "..." }]
+  
+  // External system IDs
+  jobberClientId: text("jobber_client_id"),
+  quickbooksCustomerId: text("quickbooks_customer_id"),
+  
+  // Status & Segments
+  status: text("status").notNull().default("active"), // active, inactive, lead, do_not_service
+  segments: text("segments").array(), // e.g. ["high_value", "recurring", "new"]
+  
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  businessIdx: index("customer_profile_business_idx").on(table.businessId),
+  phoneIdx: index("customer_profile_phone_idx").on(table.primaryPhone),
+}));
+
+export const customerMemories = pgTable("customer_memories", {
+  id: serial("id").primaryKey(),
+  customerProfileId: integer("customer_profile_id").references(() => customerProfiles.id).notNull(),
+  
+  memoryType: text("memory_type").notNull(), // preference, constraint, fact, interaction_summary
+  key: text("key").notNull(), // e.g., "preferred_day", "gate_code", "last_complaint_date"
+  value: jsonb("value").notNull(),
+  
+  confidence: doublePrecision("confidence").default(1.0),
+  source: text("source"), // agent name, user id, etc.
+  
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  customerIdx: index("customer_memory_customer_idx").on(table.customerProfileId),
+  keyIdx: index("customer_memory_key_idx").on(table.key),
+}));
+
+export const insertCustomerProfileSchema = createInsertSchema(customerProfiles).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCustomerMemorySchema = createInsertSchema(customerMemories).omit({ id: true, createdAt: true, updatedAt: true });
+
+export type CustomerProfile = typeof customerProfiles.$inferSelect;
+export type InsertCustomerProfile = z.infer<typeof insertCustomerProfileSchema>;
+
+export type CustomerMemory = typeof customerMemories.$inferSelect;
+export type InsertCustomerMemory = z.infer<typeof insertCustomerMemorySchema>;
+
+
+// =================================================================
+// ORCHESTRATOR 2.0 TABLES
+// =================================================================
+
+export const orchestrationRuns = pgTable("orchestration_runs", {
+  id: serial("id").primaryKey(),
+  runId: text("run_id").notNull().unique(), // Public-facing UUID
+  businessId: integer("business_id").references(() => businessProfiles.id).notNull(),
+  jobRequestId: integer("job_request_id").references(() => jobRequests.id),
+
+  templateId: text("template_id").notNull(),
+  templateVersion: text("template_version"),
+
+  status: text("status").notNull(), // "running", "completed", "failed", "paused"
+  currentStepId: text("current_step_id"),
+
+  input: jsonb("input").notNull(),
+  output: jsonb("output"),
+
+  startedAt: timestamp("started_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  completedAt: timestamp("completed_at"),
+});
+
+export const orchestrationSteps = pgTable("orchestration_steps", {
+  id: serial("id").primaryKey(),
+  runId: integer("run_id").references(() => orchestrationRuns.id).notNull(),
+  stepId: text("step_id").notNull(), // From the template
+
+  status: text("status").notNull(), // "pending", "running", "completed", "failed", "skipped"
+  
+  action: text("action").notNull(),
+  input: jsonb("input"),
+  output: jsonb("output"),
+  
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  
+  error: text("error"),
+  retryCount: integer("retry_count").default(0),
+});
+
+export const insertOrchestrationRunSchema = createInsertSchema(orchestrationRuns).omit({ id: true });
+export const insertOrchestrationStepSchema = createInsertSchema(orchestrationSteps).omit({ id: true });
+
+export const startOrchestrationInputSchema = z.object({
+  templateId: z.string(),
+  businessId: z.number(),
+  jobRequestId: z.number().optional(),
+  input: z.record(z.any()),
+});
+
+export const opsApprovalInputSchema = z.object({
+  runId: z.string(),
+  stepId: z.string(),
+  decision: z.enum(["approved", "rejected"]),
+  notes: z.string().optional(),
+});
+
+export const opsOverrideInputSchema = z.object({
+  runId: z.string(),
+  stepId: z.string(),
+  overrideData: z.record(z.any()),
+});
+
+export type OrchestrationRun = typeof orchestrationRuns.$inferSelect;
+export type InsertOrchestrationRun = z.infer<typeof insertOrchestrationRunSchema>;
+
+export type OrchestrationStep = typeof orchestrationSteps.$inferSelect;
+export type InsertOrchestrationStep = z.infer<typeof insertOrchestrationStepSchema>;

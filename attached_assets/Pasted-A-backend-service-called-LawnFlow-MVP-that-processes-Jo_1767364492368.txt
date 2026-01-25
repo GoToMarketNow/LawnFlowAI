@@ -1,0 +1,23 @@
+A backend service called "LawnFlow MVP" that processes Jobber webhooks asynchronously to enrich client, property, and quote data. The system receives webhook events from Jobber, fetches additional details via Jobber's GraphQL API, computes enrichment fields (lot_size_estimate, service_class, access_constraints, slope_risk), and writes the results back to Jobber as custom field values. Built with Node.js/TypeScript on Replit with PostgreSQL for data persistence.
+
+Core Features:
+- Fast webhook receiver endpoint (POST /webhooks/jobber) that acknowledges requests within 1 second and queues payloads for async processing with idempotency handling
+- Jobber GraphQL API client with OAuth token management (access_token, refresh_token, token_expiry) and rate limit handling (exponential backoff on 429s)
+- Background worker that processes CLIENT_*, PROPERTY_*, and QUOTE_* events, fetches current data, computes LawnFlow enrichment fields, and writes back to Jobber custom fields
+- Data persistence layer storing account credentials (account_id, jobber_user_id, tokens) and webhook event tracking (webhook_event_id, processed_at, status) in PostgreSQL
+
+Technical Requirements:
+- Node.js/TypeScript implementation on Replit
+- PostgreSQL database for persistence (account tokens, webhook deduplication)
+- Queue system (in-memory for MVP or Redis) for async webhook processing
+- Environment variables: JOBBER_CLIENT_ID, JOBBER_CLIENT_SECRET, JOBBER_REDIRECT_URI, DB_URL
+- Jobber GraphQL API integration: POST https://api.getjobber.com/api/graphql with Bearer token authentication
+- Idempotent webhook processing with deduplication
+- Rate limit compliance with exponential backoff retry logic
+
+Deliverables:
+- Complete Replit-ready codebase with webhook receiver, queue worker, and GraphQL client
+- Environment configuration schema (.env template)
+- Custom field writeback module for Jobber enrichment data
+- Token management and refresh flow
+- Placeholder GraphQL queries/mutations for Client, Property, and Quote objects

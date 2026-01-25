@@ -1,0 +1,182 @@
+[
+  {
+    "id": "usr_lead_101",
+    "accountId": "acct_demo_001",
+    "name": "Ava Martinez",
+    "role": "CREW_LEAD",
+    "phoneE164": "+14345551001",
+    "email": "ava.martinez@example.com",
+    "language": "EN",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "usr_lead_102",
+    "accountId": "acct_demo_001",
+    "name": "Luis Alvarez",
+    "role": "CREW_LEAD",
+    "phoneE164": "+14345551002",
+    "email": "luis.alvarez@example.com",
+    "language": "ES",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "usr_lead_103",
+    "accountId": "acct_demo_001",
+    "name": "Noah Jenkins",
+    "role": "CREW_LEAD",
+    "phoneE164": "+14345551003",
+    "email": "noah.jenkins@example.com",
+    "language": "EN",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "usr_lead_104",
+    "accountId": "acct_demo_001",
+    "name": "Sofia Ramirez",
+    "role": "CREW_LEAD",
+    "phoneE164": "+14345551004",
+    "email": "sofia.ramirez@example.com",
+    "language": "ES",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "usr_lead_105",
+    "accountId": "acct_demo_001",
+    "name": "Ethan Brooks",
+    "role": "CREW_LEAD",
+    "phoneE164": "+14345551005",
+    "email": "ethan.brooks@example.com",
+    "language": "EN",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "usr_lead_106",
+    "accountId": "acct_demo_001",
+    "name": "Mateo Gonzalez",
+    "role": "CREW_LEAD",
+    "phoneE164": "+14345551006",
+    "email": "mateo.gonzalez@example.com",
+    "language": "ES",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "usr_lead_107",
+    "accountId": "acct_demo_001",
+    "name": "Chloe Davis",
+    "role": "CREW_LEAD",
+    "phoneE164": "+14345551007",
+    "email": "chloe.davis@example.com",
+    "language": "EN",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "usr_lead_108",
+    "accountId": "acct_demo_001",
+    "name": "Diego Herrera",
+    "role": "CREW_LEAD",
+    "phoneE164": "+14345551008",
+    "email": "diego.herrera@example.com",
+    "language": "ES",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "usr_lead_109",
+    "accountId": "acct_demo_001",
+    "name": "Mason Reed",
+    "role": "CREW_LEAD",
+    "phoneE164": "+14345551009",
+    "email": "mason.reed@example.com",
+    "language": "EN",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "usr_lead_110",
+    "accountId": "acct_demo_001",
+    "name": "Valeria Cruz",
+    "role": "CREW_LEAD",
+    "phoneE164": "+14345551010",
+    "email": "valeria.cruz@example.com",
+    "language": "ES",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "usr_lead_111",
+    "accountId": "acct_demo_001",
+    "name": "Tyler Price",
+    "role": "CREW_LEAD",
+    "phoneE164": "+14345551011",
+    "email": "tyler.price@example.com",
+    "language": "EN",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+  {
+    "id": "usr_lead_112",
+    "accountId": "acct_demo_001",
+    "name": "Camila Ortega",
+    "role": "CREW_LEAD",
+    "phoneE164": "+14345551012",
+    "email": "camila.ortega@example.com",
+    "language": "ES",
+    "createdAt": "2026-01-05T12:00:00-05:00"
+  },
+
+  { "id": "usr_mem_201", "accountId": "acct_demo_001", "name": "Carlos Reyes", "role": "CREW_MEMBER", "phoneE164": "+14345552001", "email": "carlos.reyes@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_101" },
+  { "id": "usr_mem_202", "accountId": "acct_demo_001", "name": "Mia Thompson", "role": "CREW_MEMBER", "phoneE164": "+14345552002", "email": "mia.thompson@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_101" },
+  { "id": "usr_mem_203", "accountId": "acct_demo_001", "name": "Jose Flores", "role": "CREW_MEMBER", "phoneE164": "+14345552003", "email": "jose.flores@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_101" },
+  { "id": "usr_mem_204", "accountId": "acct_demo_001", "name": "Grace Hall", "role": "CREW_MEMBER", "phoneE164": "+14345552004", "email": "grace.hall@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_101" },
+
+  { "id": "usr_mem_205", "accountId": "acct_demo_001", "name": "Miguel Santos", "role": "CREW_MEMBER", "phoneE164": "+14345552005", "email": "miguel.santos@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_102" },
+  { "id": "usr_mem_206", "accountId": "acct_demo_001", "name": "Hannah Lee", "role": "CREW_MEMBER", "phoneE164": "+14345552006", "email": "hannah.lee@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_102" },
+  { "id": "usr_mem_207", "accountId": "acct_demo_001", "name": "Andres Vega", "role": "CREW_MEMBER", "phoneE164": "+14345552007", "email": "andres.vega@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_102" },
+  { "id": "usr_mem_208", "accountId": "acct_demo_001", "name": "Daniel Wright", "role": "CREW_MEMBER", "phoneE164": "+14345552008", "email": "daniel.wright@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_102" },
+  { "id": "usr_mem_209", "accountId": "acct_demo_001", "name": "Pablo Navarro", "role": "CREW_MEMBER", "phoneE164": "+14345552009", "email": "pablo.navarro@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_102" },
+
+  { "id": "usr_mem_210", "accountId": "acct_demo_001", "name": "Lucas Bennett", "role": "CREW_MEMBER", "phoneE164": "+14345552010", "email": "lucas.bennett@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_103" },
+  { "id": "usr_mem_211", "accountId": "acct_demo_001", "name": "Javier Morales", "role": "CREW_MEMBER", "phoneE164": "+14345552011", "email": "javier.morales@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_103" },
+  { "id": "usr_mem_212", "accountId": "acct_demo_001", "name": "Olivia King", "role": "CREW_MEMBER", "phoneE164": "+14345552012", "email": "olivia.king@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_103" },
+  { "id": "usr_mem_213", "accountId": "acct_demo_001", "name": "Adrian Castillo", "role": "CREW_MEMBER", "phoneE164": "+14345552013", "email": "adrian.castillo@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_103" },
+
+  { "id": "usr_mem_214", "accountId": "acct_demo_001", "name": "Isabella Torres", "role": "CREW_MEMBER", "phoneE164": "+14345552014", "email": "isabella.torres@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_104" },
+  { "id": "usr_mem_215", "accountId": "acct_demo_001", "name": "Emily Parker", "role": "CREW_MEMBER", "phoneE164": "+14345552015", "email": "emily.parker@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_104" },
+  { "id": "usr_mem_216", "accountId": "acct_demo_001", "name": "Marco Diaz", "role": "CREW_MEMBER", "phoneE164": "+14345552016", "email": "marco.diaz@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_104" },
+
+  { "id": "usr_mem_217", "accountId": "acct_demo_001", "name": "Evan Scott", "role": "CREW_MEMBER", "phoneE164": "+14345552017", "email": "evan.scott@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_105" },
+  { "id": "usr_mem_218", "accountId": "acct_demo_001", "name": "Nicolas Rojas", "role": "CREW_MEMBER", "phoneE164": "+14345552018", "email": "nicolas.rojas@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_105" },
+  { "id": "usr_mem_219", "accountId": "acct_demo_001", "name": "Madison Young", "role": "CREW_MEMBER", "phoneE164": "+14345552019", "email": "madison.young@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_105" },
+  { "id": "usr_mem_220", "accountId": "acct_demo_001", "name": "Sergio Molina", "role": "CREW_MEMBER", "phoneE164": "+14345552020", "email": "sergio.molina@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_105" },
+
+  { "id": "usr_mem_221", "accountId": "acct_demo_001", "name": "Diego Perez", "role": "CREW_MEMBER", "phoneE164": "+14345552021", "email": "diego.perez@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_106" },
+  { "id": "usr_mem_222", "accountId": "acct_demo_001", "name": "Zoe Carter", "role": "CREW_MEMBER", "phoneE164": "+14345552022", "email": "zoe.carter@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_106" },
+  { "id": "usr_mem_223", "accountId": "acct_demo_001", "name": "Ramon Ortega", "role": "CREW_MEMBER", "phoneE164": "+14345552023", "email": "ramon.ortega@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_106" },
+  { "id": "usr_mem_224", "accountId": "acct_demo_001", "name": "Kayla Morgan", "role": "CREW_MEMBER", "phoneE164": "+14345552024", "email": "kayla.morgan@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_106" },
+  { "id": "usr_mem_225", "accountId": "acct_demo_001", "name": "Hector Ruiz", "role": "CREW_MEMBER", "phoneE164": "+14345552025", "email": "hector.ruiz@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_106" },
+
+  { "id": "usr_mem_226", "accountId": "acct_demo_001", "name": "Brianna Cooper", "role": "CREW_MEMBER", "phoneE164": "+14345552026", "email": "brianna.cooper@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_107" },
+  { "id": "usr_mem_227", "accountId": "acct_demo_001", "name": "Angel Rivera", "role": "CREW_MEMBER", "phoneE164": "+14345552027", "email": "angel.rivera@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_107" },
+  { "id": "usr_mem_228", "accountId": "acct_demo_001", "name": "Jordan Miles", "role": "CREW_MEMBER", "phoneE164": "+14345552028", "email": "jordan.miles@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_107" },
+
+  { "id": "usr_mem_229", "accountId": "acct_demo_001", "name": "Ricardo Silva", "role": "CREW_MEMBER", "phoneE164": "+14345552029", "email": "ricardo.silva@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_108" },
+  { "id": "usr_mem_230", "accountId": "acct_demo_001", "name": "Alyssa Brown", "role": "CREW_MEMBER", "phoneE164": "+14345552030", "email": "alyssa.brown@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_108" },
+  { "id": "usr_mem_231", "accountId": "acct_demo_001", "name": "Fernando Campos", "role": "CREW_MEMBER", "phoneE164": "+14345552031", "email": "fernando.campos@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_108" },
+  { "id": "usr_mem_232", "accountId": "acct_demo_001", "name": "Natalie Ward", "role": "CREW_MEMBER", "phoneE164": "+14345552032", "email": "natalie.ward@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_108" },
+
+  { "id": "usr_mem_233", "accountId": "acct_demo_001", "name": "Caleb Turner", "role": "CREW_MEMBER", "phoneE164": "+14345552033", "email": "caleb.turner@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_109" },
+  { "id": "usr_mem_234", "accountId": "acct_demo_001", "name": "Santiago Lopez", "role": "CREW_MEMBER", "phoneE164": "+14345552034", "email": "santiago.lopez@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_109" },
+  { "id": "usr_mem_235", "accountId": "acct_demo_001", "name": "Kara Stone", "role": "CREW_MEMBER", "phoneE164": "+14345552035", "email": "kara.stone@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_109" },
+  { "id": "usr_mem_236", "accountId": "acct_demo_001", "name": "Ivan Mendoza", "role": "CREW_MEMBER", "phoneE164": "+14345552036", "email": "ivan.mendoza@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_109" },
+
+  { "id": "usr_mem_237", "accountId": "acct_demo_001", "name": "Valentin Romero", "role": "CREW_MEMBER", "phoneE164": "+14345552037", "email": "valentin.romero@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_110" },
+  { "id": "usr_mem_238", "accountId": "acct_demo_001", "name": "Hailey Griffin", "role": "CREW_MEMBER", "phoneE164": "+14345552038", "email": "hailey.griffin@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_110" },
+  { "id": "usr_mem_239", "accountId": "acct_demo_001", "name": "Omar Castillo", "role": "CREW_MEMBER", "phoneE164": "+14345552039", "email": "omar.castillo@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_110" },
+
+  { "id": "usr_mem_240", "accountId": "acct_demo_001", "name": "Tyson Bell", "role": "CREW_MEMBER", "phoneE164": "+14345552040", "email": "tyson.bell@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_111" },
+  { "id": "usr_mem_241", "accountId": "acct_demo_001", "name": "Julian Reyes", "role": "CREW_MEMBER", "phoneE164": "+14345552041", "email": "julian.reyes@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_111" },
+  { "id": "usr_mem_242", "accountId": "acct_demo_001", "name": "Addison Moore", "role": "CREW_MEMBER", "phoneE164": "+14345552042", "email": "addison.moore@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_111" },
+  { "id": "usr_mem_243", "accountId": "acct_demo_001", "name": "Elias Herrera", "role": "CREW_MEMBER", "phoneE164": "+14345552043", "email": "elias.herrera@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_111" },
+  { "id": "usr_mem_244", "accountId": "acct_demo_001", "name": "Samantha Cole", "role": "CREW_MEMBER", "phoneE164": "+14345552044", "email": "samantha.cole@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_111" },
+
+  { "id": "usr_mem_245", "accountId": "acct_demo_001", "name": "Camilo Vargas", "role": "CREW_MEMBER", "phoneE164": "+14345552045", "email": "camilo.vargas@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_112" },
+  { "id": "usr_mem_246", "accountId": "acct_demo_001", "name": "Lily Anderson", "role": "CREW_MEMBER", "phoneE164": "+14345552046", "email": "lily.anderson@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_112" },
+  { "id": "usr_mem_247", "accountId": "acct_demo_001", "name": "Rafael Torres", "role": "CREW_MEMBER", "phoneE164": "+14345552047", "email": "rafael.torres@example.com", "language": "ES", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_112" },
+  { "id": "usr_mem_248", "accountId": "acct_demo_001", "name": "Brooklyn James", "role": "CREW_MEMBER", "phoneE164": "+14345552048", "email": "brooklyn.james@example.com", "language": "EN", "createdAt": "2026-01-05T12:00:00-05:00", "reportsToUserId": "usr_lead_112" }
+]

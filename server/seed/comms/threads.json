@@ -1,0 +1,41 @@
+[
+  {
+    "id": "thread_lead_001",
+    "accountId": "acct_demo_001",
+    "audienceType": "LEAD",
+    "audienceId": "lead_001",
+    "primaryChannel": "SMS",
+    "urgencyLevel": "HIGH",
+    "status": "NEEDS_RESPONSE",
+    "relatedJobId": null,
+    "relatedQuoteId": null,
+    "relatedInvoiceId": null,
+    "lastMessageAt": "2026-01-05T09:20:00-05:00"
+  },
+  {
+    "id": "thread_cust_001",
+    "accountId": "acct_demo_001",
+    "audienceType": "CUSTOMER",
+    "audienceId": "cust_002",
+    "primaryChannel": "SMS",
+    "urgencyLevel": "MED",
+    "status": "WAITING_ON_OTHER",
+    "relatedJobId": "job_003",
+    "relatedQuoteId": "quote_002",
+    "relatedInvoiceId": null,
+    "lastMessageAt": "2026-01-05T13:10:00-05:00"
+  },
+  {
+    "id": "thread_crew_001",
+    "accountId": "acct_demo_001",
+    "audienceType": "CREW",
+    "audienceId": "crew_cville_001",
+    "primaryChannel": "SMS",
+    "urgencyLevel": "HIGH",
+    "status": "APPROVAL_NEEDED",
+    "relatedJobId": "job_003",
+    "relatedQuoteId": null,
+    "relatedInvoiceId": null,
+    "lastMessageAt": "2026-01-05T13:05:00-05:00"
+  }
+]

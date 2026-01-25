@@ -1,0 +1,1809 @@
+{
+  "generatedAt": "2026-01-24T20:49:38.103Z",
+  "summary": {
+    "totalDuplicateGroups": 38,
+    "agentServiceDuplicates": 26,
+    "serverAgentsDuplicates": 19,
+    "crossPackageDuplicates": 2
+  },
+  "duplicates": [
+    {
+      "agentName": "index",
+      "count": 19,
+      "locations": [
+        {
+          "file": "agent-service\\src\\index.ts",
+          "type": "deprecated",
+          "score": 3
+        },
+        {
+          "file": "agent-service\\src\\lib\\learning\\index.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\billing_orchestrator\\index.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\customer_comms\\index.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\dispatch_routing\\index.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\intake_enrichment\\index.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\margin_variance\\index.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\quote_job_orchestrator\\index.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\reconciliation\\index.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\renewal_upsell\\index.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\index.ts",
+          "type": "capability",
+          "score": 2
+        },
+        {
+          "file": "lawnflow-agents\\runtime\\index.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\shared\\index.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\shared\\types\\index.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\shared\\utils\\index.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\src\\types\\index.ts",
+          "type": "capability",
+          "score": 4
+        },
+        {
+          "file": "server\\index.ts",
+          "type": "capability",
+          "score": 5
+        },
+        {
+          "file": "server\\orchestrator\\index.ts",
+          "type": "capability",
+          "score": 6
+        },
+        {
+          "file": "server\\temporal\\activities\\index.ts",
+          "type": "general_agent",
+          "score": 5
+        }
+      ]
+    },
+    {
+      "agentName": "config",
+      "count": 8,
+      "locations": [
+        {
+          "file": "lawnflow-agents\\agents\\billing_orchestrator\\config.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\customer_comms\\config.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\dispatch_routing\\config.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\intake_enrichment\\config.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\margin_variance\\config.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\quote_job_orchestrator\\config.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\reconciliation\\config.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\renewal_upsell\\config.ts",
+          "type": "capability",
+          "score": 0
+        }
+      ]
+    },
+    {
+      "agentName": "index.test",
+      "count": 8,
+      "locations": [
+        {
+          "file": "lawnflow-agents\\agents\\billing_orchestrator\\tests\\index.test.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\customer_comms\\tests\\index.test.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\dispatch_routing\\tests\\index.test.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\intake_enrichment\\tests\\index.test.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\margin_variance\\tests\\index.test.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\quote_job_orchestrator\\tests\\index.test.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\reconciliation\\tests\\index.test.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "lawnflow-agents\\agents\\renewal_upsell\\tests\\index.test.ts",
+          "type": "capability",
+          "score": 0
+        }
+      ]
+    },
+    {
+      "agentName": "billing",
+      "count": 4,
+      "locations": [
+        {
+          "file": "agent-service\\src\\agents\\billing.ts",
+          "type": "deprecated",
+          "score": 21
+        },
+        {
+          "file": "server\\agents\\billing.ts",
+          "type": "orchestrator_agent",
+          "score": 21
+        },
+        {
+          "file": "server\\temporal\\activities\\billing.ts",
+          "type": "capability",
+          "score": 4
+        },
+        {
+          "file": "server\\temporal\\workflows\\billing.ts",
+          "type": "workflow",
+          "score": 11
+        }
+      ]
+    },
+    {
+      "agentName": "orchestrator",
+      "count": 4,
+      "locations": [
+        {
+          "file": "agent-service\\src\\agents\\orchestrator.ts",
+          "type": "deprecated",
+          "score": 11
+        },
+        {
+          "file": "lawnflow-agents\\src\\core\\orchestrator.ts",
+          "type": "general_agent",
+          "score": 8
+        },
+        {
+          "file": "server\\agents\\orchestrator.ts",
+          "type": "orchestrator_agent",
+          "score": 11
+        },
+        {
+          "file": "server\\lib\\comms\\orchestrator.ts",
+          "type": "capability",
+          "score": 6
+        }
+      ]
+    },
+    {
+      "agentName": "engine",
+      "count": 4,
+      "locations": [
+        {
+          "file": "server\\onboarding\\engine.ts",
+          "type": "capability",
+          "score": 9
+        },
+        {
+          "file": "server\\orchestrator\\billing\\engine.ts",
+          "type": "capability",
+          "score": 3
+        },
+        {
+          "file": "server\\orchestrator\\leadToCash\\engine.ts",
+          "type": "general_agent",
+          "score": 15
+        },
+        {
+          "file": "server\\orchestrator\\postJobQA\\engine.ts",
+          "type": "capability",
+          "score": 9
+        }
+      ]
+    },
+    {
+      "agentName": "routes",
+      "count": 4,
+      "locations": [
+        {
+          "file": "server\\onboarding\\routes.ts",
+          "type": "capability",
+          "score": 3
+        },
+        {
+          "file": "server\\replit_integrations\\chat\\routes.ts",
+          "type": "capability",
+          "score": 5
+        },
+        {
+          "file": "server\\replit_integrations\\image\\routes.ts",
+          "type": "capability",
+          "score": 3
+        },
+        {
+          "file": "server\\routes.ts",
+          "type": "general_agent",
+          "score": 29
+        }
+      ]
+    },
+    {
+      "agentName": "storage",
+      "count": 3,
+      "locations": [
+        {
+          "file": "agent-service\\src\\storage.ts",
+          "type": "deprecated",
+          "score": 1
+        },
+        {
+          "file": "server\\memory\\storage.ts",
+          "type": "capability",
+          "score": 5
+        },
+        {
+          "file": "server\\storage.ts",
+          "type": "capability",
+          "score": 15
+        }
+      ]
+    },
+    {
+      "agentName": "templates",
+      "count": 3,
+      "locations": [
+        {
+          "file": "client\\src\\pages\\settings\\templates.tsx",
+          "type": "capability",
+          "score": 6
+        },
+        {
+          "file": "server\\lib\\comms\\templates.ts",
+          "type": "capability",
+          "score": 5
+        },
+        {
+          "file": "server\\workers\\crewComms\\templates.ts",
+          "type": "capability",
+          "score": 6
+        }
+      ]
+    },
+    {
+      "agentName": "marketing",
+      "count": 3,
+      "locations": [
+        {
+          "file": "server\\agents\\marketing.ts",
+          "type": "orchestrator_agent",
+          "score": 9
+        },
+        {
+          "file": "server\\routes\\marketing.ts",
+          "type": "capability",
+          "score": 12
+        },
+        {
+          "file": "server\\temporal\\activities\\marketing.ts",
+          "type": "capability",
+          "score": 10
+        }
+      ]
+    },
+    {
+      "agentName": "crewintelligence",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\agents\\crewIntelligence.ts",
+          "type": "deprecated",
+          "score": 5
+        },
+        {
+          "file": "server\\agents\\crewIntelligence.ts",
+          "type": "orchestrator_agent",
+          "score": 5
+        }
+      ]
+    },
+    {
+      "agentName": "inboundEngagement",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\agents\\inbound-engagement.ts",
+          "type": "deprecated",
+          "score": 12
+        },
+        {
+          "file": "server\\agents\\inbound-engagement.ts",
+          "type": "orchestrator_agent",
+          "score": 12
+        }
+      ]
+    },
+    {
+      "agentName": "intake",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\agents\\intake.ts",
+          "type": "deprecated",
+          "score": 13
+        },
+        {
+          "file": "server\\agents\\intake.ts",
+          "type": "orchestrator_agent",
+          "score": 13
+        }
+      ]
+    },
+    {
+      "agentName": "jobfeasibility",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\agents\\jobFeasibility.ts",
+          "type": "deprecated",
+          "score": 5
+        },
+        {
+          "file": "server\\agents\\jobFeasibility.ts",
+          "type": "orchestrator_agent",
+          "score": 5
+        }
+      ]
+    },
+    {
+      "agentName": "marginburn",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\agents\\marginBurn.ts",
+          "type": "deprecated",
+          "score": 6
+        },
+        {
+          "file": "server\\agents\\marginBurn.ts",
+          "type": "orchestrator_agent",
+          "score": 6
+        }
+      ]
+    },
+    {
+      "agentName": "preference",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\agents\\preference.ts",
+          "type": "deprecated",
+          "score": 11
+        },
+        {
+          "file": "server\\agents\\preference.ts",
+          "type": "orchestrator_agent",
+          "score": 11
+        }
+      ]
+    },
+    {
+      "agentName": "pricing",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\agents\\pricing.ts",
+          "type": "deprecated",
+          "score": 8
+        },
+        {
+          "file": "server\\agents\\pricing.ts",
+          "type": "orchestrator_agent",
+          "score": 8
+        }
+      ]
+    },
+    {
+      "agentName": "promotion",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\agents\\promotion.ts",
+          "type": "deprecated",
+          "score": 6
+        },
+        {
+          "file": "server\\agents\\promotion.ts",
+          "type": "orchestrator_agent",
+          "score": 6
+        }
+      ]
+    },
+    {
+      "agentName": "quote",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\agents\\quote.ts",
+          "type": "deprecated",
+          "score": 9
+        },
+        {
+          "file": "server\\agents\\quote.ts",
+          "type": "orchestrator_agent",
+          "score": 9
+        }
+      ]
+    },
+    {
+      "agentName": "quoting",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\agents\\quoting.ts",
+          "type": "deprecated",
+          "score": 11
+        },
+        {
+          "file": "server\\agents\\quoting.ts",
+          "type": "orchestrator_agent",
+          "score": 11
+        }
+      ]
+    },
+    {
+      "agentName": "reviews",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\agents\\reviews.ts",
+          "type": "deprecated",
+          "score": 15
+        },
+        {
+          "file": "server\\agents\\reviews.ts",
+          "type": "orchestrator_agent",
+          "score": 15
+        }
+      ]
+    },
+    {
+      "agentName": "routecost",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\agents\\routeCost.ts",
+          "type": "deprecated",
+          "score": 0
+        },
+        {
+          "file": "server\\agents\\routeCost.ts",
+          "type": "orchestrator_agent",
+          "score": 0
+        }
+      ]
+    },
+    {
+      "agentName": "schedule",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\agents\\schedule.ts",
+          "type": "deprecated",
+          "score": 10
+        },
+        {
+          "file": "server\\agents\\schedule.ts",
+          "type": "orchestrator_agent",
+          "score": 10
+        }
+      ]
+    },
+    {
+      "agentName": "scheduling",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\agents\\scheduling.ts",
+          "type": "deprecated",
+          "score": 7
+        },
+        {
+          "file": "server\\agents\\scheduling.ts",
+          "type": "orchestrator_agent",
+          "score": 9
+        }
+      ]
+    },
+    {
+      "agentName": "serviceSelection",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\agents\\service-selection.ts",
+          "type": "deprecated",
+          "score": 7
+        },
+        {
+          "file": "server\\agents\\service-selection.ts",
+          "type": "orchestrator_agent",
+          "score": 7
+        }
+      ]
+    },
+    {
+      "agentName": "simulationranking",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\agents\\simulationRanking.ts",
+          "type": "deprecated",
+          "score": 6
+        },
+        {
+          "file": "server\\agents\\simulationRanking.ts",
+          "type": "orchestrator_agent",
+          "score": 6
+        }
+      ]
+    },
+    {
+      "agentName": "fsmMock",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\connectors\\fsm-mock.ts",
+          "type": "deprecated",
+          "score": 3
+        },
+        {
+          "file": "server\\connectors\\fsm-mock.ts",
+          "type": "capability",
+          "score": 3
+        }
+      ]
+    },
+    {
+      "agentName": "db",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\db.ts",
+          "type": "deprecated",
+          "score": 0
+        },
+        {
+          "file": "server\\temporal\\activities\\db.ts",
+          "type": "capability",
+          "score": 4
+        }
+      ]
+    },
+    {
+      "agentName": "quoteCalculator",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\services\\quote-calculator.ts",
+          "type": "deprecated",
+          "score": 5
+        },
+        {
+          "file": "server\\services\\quote-calculator.ts",
+          "type": "capability",
+          "score": 5
+        }
+      ]
+    },
+    {
+      "agentName": "commsSchema",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\shared\\comms-schema.ts",
+          "type": "deprecated",
+          "score": 10
+        },
+        {
+          "file": "shared\\comms-schema.ts",
+          "type": "capability",
+          "score": 10
+        }
+      ]
+    },
+    {
+      "agentName": "contracts",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\shared\\orchestrator\\contracts.ts",
+          "type": "deprecated",
+          "score": 3
+        },
+        {
+          "file": "shared\\orchestrator\\contracts.ts",
+          "type": "capability",
+          "score": 3
+        }
+      ]
+    },
+    {
+      "agentName": "schema",
+      "count": 2,
+      "locations": [
+        {
+          "file": "agent-service\\src\\shared\\schema.ts",
+          "type": "deprecated",
+          "score": 21
+        },
+        {
+          "file": "shared\\schema.ts",
+          "type": "capability",
+          "score": 26
+        }
+      ]
+    },
+    {
+      "agentName": "agents",
+      "count": 2,
+      "locations": [
+        {
+          "file": "client\\src\\pages\\agents.tsx",
+          "type": "capability",
+          "score": 9
+        },
+        {
+          "file": "client\\src\\pages\\settings\\agents.tsx",
+          "type": "capability",
+          "score": 0
+        }
+      ]
+    },
+    {
+      "agentName": "commsStudio",
+      "count": 2,
+      "locations": [
+        {
+          "file": "client\\src\\pages\\comms-studio.tsx",
+          "type": "capability",
+          "score": 7
+        },
+        {
+          "file": "client\\src\\pages\\settings\\comms-studio.tsx",
+          "type": "capability",
+          "score": 4
+        }
+      ]
+    },
+    {
+      "agentName": "toolrouter",
+      "count": 2,
+      "locations": [
+        {
+          "file": "lawnflow-agents\\runtime\\toolRouter.ts",
+          "type": "capability",
+          "score": 0
+        },
+        {
+          "file": "server\\lib\\assistant\\toolRouter.ts",
+          "type": "capability",
+          "score": 6
+        }
+      ]
+    },
+    {
+      "agentName": "twilio",
+      "count": 2,
+      "locations": [
+        {
+          "file": "server\\connectors\\twilio.ts",
+          "type": "capability",
+          "score": 7
+        },
+        {
+          "file": "server\\temporal\\activities\\twilio.ts",
+          "type": "capability",
+          "score": 5
+        }
+      ]
+    },
+    {
+      "agentName": "search",
+      "count": 2,
+      "locations": [
+        {
+          "file": "server\\lib\\knowledge\\search.ts",
+          "type": "capability",
+          "score": 8
+        },
+        {
+          "file": "server\\memory\\search.ts",
+          "type": "capability",
+          "score": 4
+        }
+      ]
+    },
+    {
+      "agentName": "runner",
+      "count": 2,
+      "locations": [
+        {
+          "file": "server\\orchestrator\\runner.ts",
+          "type": "general_agent",
+          "score": 17
+        },
+        {
+          "file": "server\\seed\\runner.ts",
+          "type": "capability",
+          "score": 5
+        }
+      ]
+    }
+  ],
+  "patterns": {
+    "agentServiceDupes": [
+      {
+        "agentName": "index",
+        "count": 19,
+        "locations": [
+          {
+            "file": "agent-service\\src\\index.ts",
+            "type": "deprecated",
+            "score": 3
+          },
+          {
+            "file": "agent-service\\src\\lib\\learning\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\agents\\billing_orchestrator\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\agents\\customer_comms\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\agents\\dispatch_routing\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\agents\\intake_enrichment\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\agents\\margin_variance\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\agents\\quote_job_orchestrator\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\agents\\reconciliation\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\agents\\renewal_upsell\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\index.ts",
+            "type": "capability",
+            "score": 2
+          },
+          {
+            "file": "lawnflow-agents\\runtime\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\shared\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\shared\\types\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\shared\\utils\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\src\\types\\index.ts",
+            "type": "capability",
+            "score": 4
+          },
+          {
+            "file": "server\\index.ts",
+            "type": "capability",
+            "score": 5
+          },
+          {
+            "file": "server\\orchestrator\\index.ts",
+            "type": "capability",
+            "score": 6
+          },
+          {
+            "file": "server\\temporal\\activities\\index.ts",
+            "type": "general_agent",
+            "score": 5
+          }
+        ]
+      },
+      {
+        "agentName": "billing",
+        "count": 4,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\billing.ts",
+            "type": "deprecated",
+            "score": 21
+          },
+          {
+            "file": "server\\agents\\billing.ts",
+            "type": "orchestrator_agent",
+            "score": 21
+          },
+          {
+            "file": "server\\temporal\\activities\\billing.ts",
+            "type": "capability",
+            "score": 4
+          },
+          {
+            "file": "server\\temporal\\workflows\\billing.ts",
+            "type": "workflow",
+            "score": 11
+          }
+        ]
+      },
+      {
+        "agentName": "orchestrator",
+        "count": 4,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\orchestrator.ts",
+            "type": "deprecated",
+            "score": 11
+          },
+          {
+            "file": "lawnflow-agents\\src\\core\\orchestrator.ts",
+            "type": "general_agent",
+            "score": 8
+          },
+          {
+            "file": "server\\agents\\orchestrator.ts",
+            "type": "orchestrator_agent",
+            "score": 11
+          },
+          {
+            "file": "server\\lib\\comms\\orchestrator.ts",
+            "type": "capability",
+            "score": 6
+          }
+        ]
+      },
+      {
+        "agentName": "storage",
+        "count": 3,
+        "locations": [
+          {
+            "file": "agent-service\\src\\storage.ts",
+            "type": "deprecated",
+            "score": 1
+          },
+          {
+            "file": "server\\memory\\storage.ts",
+            "type": "capability",
+            "score": 5
+          },
+          {
+            "file": "server\\storage.ts",
+            "type": "capability",
+            "score": 15
+          }
+        ]
+      },
+      {
+        "agentName": "crewintelligence",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\crewIntelligence.ts",
+            "type": "deprecated",
+            "score": 5
+          },
+          {
+            "file": "server\\agents\\crewIntelligence.ts",
+            "type": "orchestrator_agent",
+            "score": 5
+          }
+        ]
+      },
+      {
+        "agentName": "inboundEngagement",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\inbound-engagement.ts",
+            "type": "deprecated",
+            "score": 12
+          },
+          {
+            "file": "server\\agents\\inbound-engagement.ts",
+            "type": "orchestrator_agent",
+            "score": 12
+          }
+        ]
+      },
+      {
+        "agentName": "intake",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\intake.ts",
+            "type": "deprecated",
+            "score": 13
+          },
+          {
+            "file": "server\\agents\\intake.ts",
+            "type": "orchestrator_agent",
+            "score": 13
+          }
+        ]
+      },
+      {
+        "agentName": "jobfeasibility",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\jobFeasibility.ts",
+            "type": "deprecated",
+            "score": 5
+          },
+          {
+            "file": "server\\agents\\jobFeasibility.ts",
+            "type": "orchestrator_agent",
+            "score": 5
+          }
+        ]
+      },
+      {
+        "agentName": "marginburn",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\marginBurn.ts",
+            "type": "deprecated",
+            "score": 6
+          },
+          {
+            "file": "server\\agents\\marginBurn.ts",
+            "type": "orchestrator_agent",
+            "score": 6
+          }
+        ]
+      },
+      {
+        "agentName": "preference",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\preference.ts",
+            "type": "deprecated",
+            "score": 11
+          },
+          {
+            "file": "server\\agents\\preference.ts",
+            "type": "orchestrator_agent",
+            "score": 11
+          }
+        ]
+      },
+      {
+        "agentName": "pricing",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\pricing.ts",
+            "type": "deprecated",
+            "score": 8
+          },
+          {
+            "file": "server\\agents\\pricing.ts",
+            "type": "orchestrator_agent",
+            "score": 8
+          }
+        ]
+      },
+      {
+        "agentName": "promotion",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\promotion.ts",
+            "type": "deprecated",
+            "score": 6
+          },
+          {
+            "file": "server\\agents\\promotion.ts",
+            "type": "orchestrator_agent",
+            "score": 6
+          }
+        ]
+      },
+      {
+        "agentName": "quote",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\quote.ts",
+            "type": "deprecated",
+            "score": 9
+          },
+          {
+            "file": "server\\agents\\quote.ts",
+            "type": "orchestrator_agent",
+            "score": 9
+          }
+        ]
+      },
+      {
+        "agentName": "quoting",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\quoting.ts",
+            "type": "deprecated",
+            "score": 11
+          },
+          {
+            "file": "server\\agents\\quoting.ts",
+            "type": "orchestrator_agent",
+            "score": 11
+          }
+        ]
+      },
+      {
+        "agentName": "reviews",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\reviews.ts",
+            "type": "deprecated",
+            "score": 15
+          },
+          {
+            "file": "server\\agents\\reviews.ts",
+            "type": "orchestrator_agent",
+            "score": 15
+          }
+        ]
+      },
+      {
+        "agentName": "routecost",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\routeCost.ts",
+            "type": "deprecated",
+            "score": 0
+          },
+          {
+            "file": "server\\agents\\routeCost.ts",
+            "type": "orchestrator_agent",
+            "score": 0
+          }
+        ]
+      },
+      {
+        "agentName": "schedule",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\schedule.ts",
+            "type": "deprecated",
+            "score": 10
+          },
+          {
+            "file": "server\\agents\\schedule.ts",
+            "type": "orchestrator_agent",
+            "score": 10
+          }
+        ]
+      },
+      {
+        "agentName": "scheduling",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\scheduling.ts",
+            "type": "deprecated",
+            "score": 7
+          },
+          {
+            "file": "server\\agents\\scheduling.ts",
+            "type": "orchestrator_agent",
+            "score": 9
+          }
+        ]
+      },
+      {
+        "agentName": "serviceSelection",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\service-selection.ts",
+            "type": "deprecated",
+            "score": 7
+          },
+          {
+            "file": "server\\agents\\service-selection.ts",
+            "type": "orchestrator_agent",
+            "score": 7
+          }
+        ]
+      },
+      {
+        "agentName": "simulationranking",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\simulationRanking.ts",
+            "type": "deprecated",
+            "score": 6
+          },
+          {
+            "file": "server\\agents\\simulationRanking.ts",
+            "type": "orchestrator_agent",
+            "score": 6
+          }
+        ]
+      },
+      {
+        "agentName": "fsmMock",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\connectors\\fsm-mock.ts",
+            "type": "deprecated",
+            "score": 3
+          },
+          {
+            "file": "server\\connectors\\fsm-mock.ts",
+            "type": "capability",
+            "score": 3
+          }
+        ]
+      },
+      {
+        "agentName": "db",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\db.ts",
+            "type": "deprecated",
+            "score": 0
+          },
+          {
+            "file": "server\\temporal\\activities\\db.ts",
+            "type": "capability",
+            "score": 4
+          }
+        ]
+      },
+      {
+        "agentName": "quoteCalculator",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\services\\quote-calculator.ts",
+            "type": "deprecated",
+            "score": 5
+          },
+          {
+            "file": "server\\services\\quote-calculator.ts",
+            "type": "capability",
+            "score": 5
+          }
+        ]
+      },
+      {
+        "agentName": "commsSchema",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\shared\\comms-schema.ts",
+            "type": "deprecated",
+            "score": 10
+          },
+          {
+            "file": "shared\\comms-schema.ts",
+            "type": "capability",
+            "score": 10
+          }
+        ]
+      },
+      {
+        "agentName": "contracts",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\shared\\orchestrator\\contracts.ts",
+            "type": "deprecated",
+            "score": 3
+          },
+          {
+            "file": "shared\\orchestrator\\contracts.ts",
+            "type": "capability",
+            "score": 3
+          }
+        ]
+      },
+      {
+        "agentName": "schema",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\shared\\schema.ts",
+            "type": "deprecated",
+            "score": 21
+          },
+          {
+            "file": "shared\\schema.ts",
+            "type": "capability",
+            "score": 26
+          }
+        ]
+      }
+    ],
+    "serverAgentsDupes": [
+      {
+        "agentName": "billing",
+        "count": 4,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\billing.ts",
+            "type": "deprecated",
+            "score": 21
+          },
+          {
+            "file": "server\\agents\\billing.ts",
+            "type": "orchestrator_agent",
+            "score": 21
+          },
+          {
+            "file": "server\\temporal\\activities\\billing.ts",
+            "type": "capability",
+            "score": 4
+          },
+          {
+            "file": "server\\temporal\\workflows\\billing.ts",
+            "type": "workflow",
+            "score": 11
+          }
+        ]
+      },
+      {
+        "agentName": "orchestrator",
+        "count": 4,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\orchestrator.ts",
+            "type": "deprecated",
+            "score": 11
+          },
+          {
+            "file": "lawnflow-agents\\src\\core\\orchestrator.ts",
+            "type": "general_agent",
+            "score": 8
+          },
+          {
+            "file": "server\\agents\\orchestrator.ts",
+            "type": "orchestrator_agent",
+            "score": 11
+          },
+          {
+            "file": "server\\lib\\comms\\orchestrator.ts",
+            "type": "capability",
+            "score": 6
+          }
+        ]
+      },
+      {
+        "agentName": "marketing",
+        "count": 3,
+        "locations": [
+          {
+            "file": "server\\agents\\marketing.ts",
+            "type": "orchestrator_agent",
+            "score": 9
+          },
+          {
+            "file": "server\\routes\\marketing.ts",
+            "type": "capability",
+            "score": 12
+          },
+          {
+            "file": "server\\temporal\\activities\\marketing.ts",
+            "type": "capability",
+            "score": 10
+          }
+        ]
+      },
+      {
+        "agentName": "crewintelligence",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\crewIntelligence.ts",
+            "type": "deprecated",
+            "score": 5
+          },
+          {
+            "file": "server\\agents\\crewIntelligence.ts",
+            "type": "orchestrator_agent",
+            "score": 5
+          }
+        ]
+      },
+      {
+        "agentName": "inboundEngagement",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\inbound-engagement.ts",
+            "type": "deprecated",
+            "score": 12
+          },
+          {
+            "file": "server\\agents\\inbound-engagement.ts",
+            "type": "orchestrator_agent",
+            "score": 12
+          }
+        ]
+      },
+      {
+        "agentName": "intake",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\intake.ts",
+            "type": "deprecated",
+            "score": 13
+          },
+          {
+            "file": "server\\agents\\intake.ts",
+            "type": "orchestrator_agent",
+            "score": 13
+          }
+        ]
+      },
+      {
+        "agentName": "jobfeasibility",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\jobFeasibility.ts",
+            "type": "deprecated",
+            "score": 5
+          },
+          {
+            "file": "server\\agents\\jobFeasibility.ts",
+            "type": "orchestrator_agent",
+            "score": 5
+          }
+        ]
+      },
+      {
+        "agentName": "marginburn",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\marginBurn.ts",
+            "type": "deprecated",
+            "score": 6
+          },
+          {
+            "file": "server\\agents\\marginBurn.ts",
+            "type": "orchestrator_agent",
+            "score": 6
+          }
+        ]
+      },
+      {
+        "agentName": "preference",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\preference.ts",
+            "type": "deprecated",
+            "score": 11
+          },
+          {
+            "file": "server\\agents\\preference.ts",
+            "type": "orchestrator_agent",
+            "score": 11
+          }
+        ]
+      },
+      {
+        "agentName": "pricing",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\pricing.ts",
+            "type": "deprecated",
+            "score": 8
+          },
+          {
+            "file": "server\\agents\\pricing.ts",
+            "type": "orchestrator_agent",
+            "score": 8
+          }
+        ]
+      },
+      {
+        "agentName": "promotion",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\promotion.ts",
+            "type": "deprecated",
+            "score": 6
+          },
+          {
+            "file": "server\\agents\\promotion.ts",
+            "type": "orchestrator_agent",
+            "score": 6
+          }
+        ]
+      },
+      {
+        "agentName": "quote",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\quote.ts",
+            "type": "deprecated",
+            "score": 9
+          },
+          {
+            "file": "server\\agents\\quote.ts",
+            "type": "orchestrator_agent",
+            "score": 9
+          }
+        ]
+      },
+      {
+        "agentName": "quoting",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\quoting.ts",
+            "type": "deprecated",
+            "score": 11
+          },
+          {
+            "file": "server\\agents\\quoting.ts",
+            "type": "orchestrator_agent",
+            "score": 11
+          }
+        ]
+      },
+      {
+        "agentName": "reviews",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\reviews.ts",
+            "type": "deprecated",
+            "score": 15
+          },
+          {
+            "file": "server\\agents\\reviews.ts",
+            "type": "orchestrator_agent",
+            "score": 15
+          }
+        ]
+      },
+      {
+        "agentName": "routecost",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\routeCost.ts",
+            "type": "deprecated",
+            "score": 0
+          },
+          {
+            "file": "server\\agents\\routeCost.ts",
+            "type": "orchestrator_agent",
+            "score": 0
+          }
+        ]
+      },
+      {
+        "agentName": "schedule",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\schedule.ts",
+            "type": "deprecated",
+            "score": 10
+          },
+          {
+            "file": "server\\agents\\schedule.ts",
+            "type": "orchestrator_agent",
+            "score": 10
+          }
+        ]
+      },
+      {
+        "agentName": "scheduling",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\scheduling.ts",
+            "type": "deprecated",
+            "score": 7
+          },
+          {
+            "file": "server\\agents\\scheduling.ts",
+            "type": "orchestrator_agent",
+            "score": 9
+          }
+        ]
+      },
+      {
+        "agentName": "serviceSelection",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\service-selection.ts",
+            "type": "deprecated",
+            "score": 7
+          },
+          {
+            "file": "server\\agents\\service-selection.ts",
+            "type": "orchestrator_agent",
+            "score": 7
+          }
+        ]
+      },
+      {
+        "agentName": "simulationranking",
+        "count": 2,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\simulationRanking.ts",
+            "type": "deprecated",
+            "score": 6
+          },
+          {
+            "file": "server\\agents\\simulationRanking.ts",
+            "type": "orchestrator_agent",
+            "score": 6
+          }
+        ]
+      }
+    ],
+    "crossPackageDupes": [
+      {
+        "agentName": "index",
+        "count": 19,
+        "locations": [
+          {
+            "file": "agent-service\\src\\index.ts",
+            "type": "deprecated",
+            "score": 3
+          },
+          {
+            "file": "agent-service\\src\\lib\\learning\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\agents\\billing_orchestrator\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\agents\\customer_comms\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\agents\\dispatch_routing\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\agents\\intake_enrichment\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\agents\\margin_variance\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\agents\\quote_job_orchestrator\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\agents\\reconciliation\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\agents\\renewal_upsell\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\index.ts",
+            "type": "capability",
+            "score": 2
+          },
+          {
+            "file": "lawnflow-agents\\runtime\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\shared\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\shared\\types\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\shared\\utils\\index.ts",
+            "type": "capability",
+            "score": 0
+          },
+          {
+            "file": "lawnflow-agents\\src\\types\\index.ts",
+            "type": "capability",
+            "score": 4
+          },
+          {
+            "file": "server\\index.ts",
+            "type": "capability",
+            "score": 5
+          },
+          {
+            "file": "server\\orchestrator\\index.ts",
+            "type": "capability",
+            "score": 6
+          },
+          {
+            "file": "server\\temporal\\activities\\index.ts",
+            "type": "general_agent",
+            "score": 5
+          }
+        ]
+      },
+      {
+        "agentName": "orchestrator",
+        "count": 4,
+        "locations": [
+          {
+            "file": "agent-service\\src\\agents\\orchestrator.ts",
+            "type": "deprecated",
+            "score": 11
+          },
+          {
+            "file": "lawnflow-agents\\src\\core\\orchestrator.ts",
+            "type": "general_agent",
+            "score": 8
+          },
+          {
+            "file": "server\\agents\\orchestrator.ts",
+            "type": "orchestrator_agent",
+            "score": 11
+          },
+          {
+            "file": "server\\lib\\comms\\orchestrator.ts",
+            "type": "capability",
+            "score": 6
+          }
+        ]
+      }
+    ]
+  }
+}

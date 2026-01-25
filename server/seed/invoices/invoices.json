@@ -1,0 +1,26 @@
+[
+  {
+    "id": "inv_001",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_004",
+    "jobId": "job_007",
+    "quoteId": null,
+    "status": "PAID",
+    "total": 75.0,
+    "dueDate": "2026-01-04T18:00:00-05:00",
+    "sentAt": "2026-01-04T18:00:00-05:00",
+    "paidAt": "2026-01-04T19:00:00-05:00"
+  },
+  {
+    "id": "inv_002",
+    "accountId": "acct_demo_001",
+    "customerId": "cust_001",
+    "jobId": null,
+    "quoteId": "quote_003",
+    "status": "OVERDUE",
+    "total": 180.0,
+    "dueDate": "2025-12-31T12:00:00-05:00",
+    "sentAt": "2025-12-29T12:00:00-05:00",
+    "paidAt": null
+  }
+]

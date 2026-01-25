@@ -1,0 +1,244 @@
+{
+  "generatedAt": "2026-01-24T20:59:53.141Z",
+  "summary": {
+    "totalNodes": 29,
+    "generalAgents": 16,
+    "orchestratorAgents": 13,
+    "totalEdges": 9,
+    "handoffs": 0,
+    "events": 0,
+    "workflowTransitions": 9
+  },
+  "nodes": [
+    {
+      "id": "orchestrator",
+      "name": "Orchestrator",
+      "type": "general_agent",
+      "location": "lawnflow-agents/src/agents/orchestrator.ts"
+    },
+    {
+      "id": "inbound_intake",
+      "name": "InboundIntake",
+      "type": "general_agent",
+      "location": "lawnflow-agents/src/agents/inbound_intake.ts"
+    },
+    {
+      "id": "pricing_profit",
+      "name": "PricingProfit",
+      "type": "general_agent",
+      "location": "lawnflow-agents/src/agents/pricing_profit.ts"
+    },
+    {
+      "id": "scheduling_dispatch",
+      "name": "SchedulingDispatch",
+      "type": "general_agent",
+      "location": "lawnflow-agents/src/agents/scheduling_dispatch.ts"
+    },
+    {
+      "id": "job_creation",
+      "name": "JobCreation",
+      "type": "general_agent",
+      "location": "lawnflow-agents/src/agents/job_creation.ts"
+    },
+    {
+      "id": "crew_notification",
+      "name": "CrewNotification",
+      "type": "general_agent",
+      "location": "lawnflow-agents/src/agents/crew_notification.ts"
+    },
+    {
+      "id": "job_monitoring",
+      "name": "JobMonitoring",
+      "type": "general_agent",
+      "location": "lawnflow-agents/src/agents/job_monitoring.ts"
+    },
+    {
+      "id": "quality_assurance",
+      "name": "QualityAssurance",
+      "type": "general_agent",
+      "location": "lawnflow-agents/src/agents/quality_assurance.ts"
+    },
+    {
+      "id": "completion_finalization",
+      "name": "CompletionFinalization",
+      "type": "general_agent",
+      "location": "lawnflow-agents/src/agents/completion_finalization.ts"
+    },
+    {
+      "id": "customer_notification",
+      "name": "CustomerNotification",
+      "type": "general_agent",
+      "location": "lawnflow-agents/src/agents/customer_notification.ts"
+    },
+    {
+      "id": "crew_support",
+      "name": "CrewSupport",
+      "type": "general_agent",
+      "location": "lawnflow-agents/src/agents/crew_support.ts"
+    },
+    {
+      "id": "follow_up_scheduler",
+      "name": "FollowUpScheduler",
+      "type": "general_agent",
+      "location": "lawnflow-agents/src/agents/follow_up_scheduler.ts"
+    },
+    {
+      "id": "customer_follow_up",
+      "name": "CustomerFollowUp",
+      "type": "general_agent",
+      "location": "lawnflow-agents/src/agents/customer_follow_up.ts"
+    },
+    {
+      "id": "customer_service",
+      "name": "CustomerService",
+      "type": "general_agent",
+      "location": "lawnflow-agents/src/agents/customer_service.ts"
+    },
+    {
+      "id": "manager_escalation",
+      "name": "ManagerEscalation",
+      "type": "general_agent",
+      "location": "lawnflow-agents/src/agents/manager_escalation.ts"
+    },
+    {
+      "id": "escalation_monitor",
+      "name": "EscalationMonitor",
+      "type": "general_agent",
+      "location": "lawnflow-agents/src/agents/escalation_monitor.ts"
+    },
+    {
+      "id": "ltc_leadIntake",
+      "name": "leadIntake",
+      "type": "orchestrator_agent",
+      "location": "server/orchestrator/leadToCash/agents/leadIntake.ts"
+    },
+    {
+      "id": "ltc_quoteBuild",
+      "name": "quoteBuild",
+      "type": "orchestrator_agent",
+      "location": "server/orchestrator/leadToCash/agents/quoteBuild.ts"
+    },
+    {
+      "id": "ltc_quoteConfirm",
+      "name": "quoteConfirm",
+      "type": "orchestrator_agent",
+      "location": "server/orchestrator/leadToCash/agents/quoteConfirm.ts"
+    },
+    {
+      "id": "ltc_schedulePropose",
+      "name": "schedulePropose",
+      "type": "orchestrator_agent",
+      "location": "server/orchestrator/leadToCash/agents/schedulePropose.ts"
+    },
+    {
+      "id": "ltc_simulationRun",
+      "name": "simulationRun",
+      "type": "orchestrator_agent",
+      "location": "server/orchestrator/leadToCash/agents/simulationRun.ts"
+    },
+    {
+      "id": "ltc_feasibilityCheck",
+      "name": "feasibilityCheck",
+      "type": "orchestrator_agent",
+      "location": "server/orchestrator/leadToCash/agents/feasibilityCheck.ts"
+    },
+    {
+      "id": "ltc_marginValidate",
+      "name": "marginValidate",
+      "type": "orchestrator_agent",
+      "location": "server/orchestrator/leadToCash/agents/marginValidate.ts"
+    },
+    {
+      "id": "ltc_crewLock",
+      "name": "crewLock",
+      "type": "orchestrator_agent",
+      "location": "server/orchestrator/leadToCash/agents/crewLock.ts"
+    },
+    {
+      "id": "ltc_dispatchReady",
+      "name": "dispatchReady",
+      "type": "orchestrator_agent",
+      "location": "server/orchestrator/leadToCash/agents/dispatchReady.ts"
+    },
+    {
+      "id": "ltc_jobBook",
+      "name": "jobBook",
+      "type": "orchestrator_agent",
+      "location": "server/orchestrator/leadToCash/agents/jobBook.ts"
+    },
+    {
+      "id": "payment_agent",
+      "name": "paymentAgent",
+      "type": "orchestrator_agent",
+      "location": "server/orchestrator/payment/paymentAgent.ts"
+    },
+    {
+      "id": "postjob_qa",
+      "name": "postJobQAAgent",
+      "type": "orchestrator_agent",
+      "location": "server/orchestrator/postJobQA/postJobQAAgent.ts"
+    },
+    {
+      "id": "review_management",
+      "name": "reviewManagementAgent",
+      "type": "orchestrator_agent",
+      "location": "server/orchestrator/postJobQA/reviewManagementAgent.ts"
+    }
+  ],
+  "edges": [
+    {
+      "from": "ltc_leadIntake",
+      "to": "ltc_quoteBuild",
+      "type": "workflow_transition",
+      "label": "next_stage"
+    },
+    {
+      "from": "ltc_quoteBuild",
+      "to": "ltc_quoteConfirm",
+      "type": "workflow_transition",
+      "label": "next_stage"
+    },
+    {
+      "from": "ltc_quoteConfirm",
+      "to": "ltc_schedulePropose",
+      "type": "workflow_transition",
+      "label": "next_stage"
+    },
+    {
+      "from": "ltc_schedulePropose",
+      "to": "ltc_simulationRun",
+      "type": "workflow_transition",
+      "label": "next_stage"
+    },
+    {
+      "from": "ltc_simulationRun",
+      "to": "ltc_feasibilityCheck",
+      "type": "workflow_transition",
+      "label": "next_stage"
+    },
+    {
+      "from": "ltc_feasibilityCheck",
+      "to": "ltc_marginValidate",
+      "type": "workflow_transition",
+      "label": "next_stage"
+    },
+    {
+      "from": "ltc_marginValidate",
+      "to": "ltc_crewLock",
+      "type": "workflow_transition",
+      "label": "next_stage"
+    },
+    {
+      "from": "ltc_crewLock",
+      "to": "ltc_dispatchReady",
+      "type": "workflow_transition",
+      "label": "next_stage"
+    },
+    {
+      "from": "ltc_dispatchReady",
+      "to": "ltc_jobBook",
+      "type": "workflow_transition",
+      "label": "next_stage"
+    }
+  ]
+}

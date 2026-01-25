@@ -1,0 +1,2988 @@
+{
+  "screens": [
+    {
+      "screenName": "InviteLoginScreen",
+      "routeKey": "InviteLogin",
+      "userRole": "Customer",
+      "filePath": "mobile/src/screens/auth/InviteLoginScreen.tsx",
+      "layoutTree": [
+        {
+          "component": "View",
+          "type": "container",
+          "styles": {
+            "flex": 1,
+            "justifyContent": "center",
+            "alignItems": "center",
+            "backgroundColor": "#fff"
+          },
+          "props": {},
+          "children": [
+            {
+              "component": "ActivityIndicator",
+              "type": "primitive",
+              "styles": {},
+              "props": {
+                "size": "large",
+                "color": "#22C55E"
+              },
+              "children": []
+            },
+            {
+              "component": "Text",
+              "type": "primitive",
+              "styles": {
+                "marginTop": 16,
+                "fontSize": 16,
+                "color": "#666"
+              },
+              "props": {},
+              "children": [],
+              "text": "Signing you in..."
+            }
+          ]
+        },
+        {
+          "component": "View",
+          "type": "container",
+          "styles": {
+            "flex": 1,
+            "justifyContent": "center",
+            "alignItems": "center",
+            "backgroundColor": "#fff"
+          },
+          "props": {},
+          "children": [
+            {
+              "component": "Text",
+              "type": "primitive",
+              "styles": {
+                "fontSize": 16,
+                "color": "#EF4444",
+                "textAlign": "center",
+                "paddingHorizontal": 32
+              },
+              "props": {},
+              "children": [],
+              "text": "[error message]"
+            }
+          ],
+          "conditional": "error state"
+        }
+      ],
+      "interactions": [
+        {
+          "trigger": "auto-navigation-on-success",
+          "actionType": "navigate",
+          "destination": "Main"
+        }
+      ]
+    },
+    {
+      "screenName": "HomeScreen",
+      "routeKey": "Home",
+      "userRole": "Customer",
+      "filePath": "mobile/src/screens/home/HomeScreen.tsx",
+      "layoutTree": [
+        {
+          "component": "View",
+          "type": "container",
+          "styles": {
+            "flex": 1,
+            "backgroundColor": "#fff"
+          },
+          "props": {},
+          "children": [
+            {
+              "component": "NotificationBanner",
+              "type": "custom",
+              "styles": {},
+              "props": {},
+              "children": []
+            },
+            {
+              "component": "ScrollView",
+              "type": "container",
+              "styles": {},
+              "props": {
+                "contentContainerStyle": {
+                  "padding": 20
+                }
+              },
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 24,
+                    "fontWeight": "bold",
+                    "marginBottom": 8
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "Welcome to LawnFlow"
+                },
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 16,
+                    "color": "#666",
+                    "marginBottom": 24
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "[user.email]"
+                },
+                {
+                  "component": "TouchableOpacity",
+                  "type": "primitive",
+                  "styles": {
+                    "backgroundColor": "#3B82F6",
+                    "padding": 16,
+                    "borderRadius": 8,
+                    "alignItems": "center",
+                    "marginBottom": 24
+                  },
+                  "props": {
+                    "onPress": "navigate-to-Services"
+                  },
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "color": "#fff",
+                        "fontSize": 16,
+                        "fontWeight": "600"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "➕ Request New Service"
+                    }
+                  ]
+                },
+                {
+                  "component": "ReminderBanner",
+                  "type": "custom",
+                  "styles": {},
+                  "props": {},
+                  "children": []
+                },
+                {
+                  "component": "View",
+                  "type": "container",
+                  "styles": {
+                    "marginTop": 16
+                  },
+                  "props": {},
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 18,
+                        "fontWeight": "600",
+                        "color": "#000",
+                        "marginBottom": 8
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "Upcoming Services"
+                    },
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 14,
+                        "color": "#666"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "[count] scheduled"
+                    }
+                  ],
+                  "conditional": "upcomingJobs.length > 0"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "interactions": [
+        {
+          "trigger": "request-service-button",
+          "actionType": "navigate",
+          "destination": "Services"
+        }
+      ]
+    },
+    {
+      "screenName": "JobsScreen",
+      "routeKey": "JobsList",
+      "userRole": "Customer",
+      "filePath": "mobile/src/screens/jobs/JobsScreen.tsx",
+      "layoutTree": [
+        {
+          "component": "View",
+          "type": "container",
+          "styles": {
+            "flex": 1,
+            "backgroundColor": "#F9FAFB"
+          },
+          "props": {},
+          "children": [
+            {
+              "component": "View",
+              "type": "container",
+              "styles": {
+                "flexDirection": "row",
+                "backgroundColor": "#fff",
+                "borderBottomWidth": 1,
+                "borderBottomColor": "#E5E7EB"
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "TouchableOpacity",
+                  "type": "primitive",
+                  "styles": {
+                    "flex": 1,
+                    "paddingVertical": 16,
+                    "alignItems": "center",
+                    "borderBottomWidth": 2,
+                    "borderBottomColor": "transparent"
+                  },
+                  "props": {
+                    "onPress": "set-tab-upcoming"
+                  },
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 15,
+                        "color": "#6B7280",
+                        "fontWeight": "500"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "Upcoming ([count])"
+                    }
+                  ]
+                },
+                {
+                  "component": "TouchableOpacity",
+                  "type": "primitive",
+                  "styles": {
+                    "flex": 1,
+                    "paddingVertical": 16,
+                    "alignItems": "center",
+                    "borderBottomWidth": 2,
+                    "borderBottomColor": "transparent"
+                  },
+                  "props": {
+                    "onPress": "set-tab-completed"
+                  },
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 15,
+                        "color": "#6B7280",
+                        "fontWeight": "500"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "Completed ([count])"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "component": "FlatList",
+              "type": "container",
+              "styles": {},
+              "props": {
+                "contentContainerStyle": {
+                  "padding": 16
+                },
+                "renderItem": "JobCard"
+              },
+              "children": []
+            }
+          ]
+        }
+      ],
+      "interactions": [
+        {
+          "trigger": "tab-switch",
+          "actionType": "state-change",
+          "destination": null
+        },
+        {
+          "trigger": "job-card-press",
+          "actionType": "navigate",
+          "destination": "JobDetail"
+        }
+      ]
+    },
+    {
+      "screenName": "JobDetailScreen",
+      "routeKey": "JobDetail",
+      "userRole": "Customer",
+      "filePath": "mobile/src/screens/jobs/JobDetailScreen.tsx",
+      "layoutTree": [
+        {
+          "component": "ScrollView",
+          "type": "container",
+          "styles": {
+            "flex": 1,
+            "backgroundColor": "#fff"
+          },
+          "props": {},
+          "children": [
+            {
+              "component": "View",
+              "type": "container",
+              "styles": {
+                "padding": 20,
+                "borderBottomWidth": 1,
+                "borderBottomColor": "#E5E7EB",
+                "flexDirection": "row",
+                "justifyContent": "space-between",
+                "alignItems": "center"
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 24,
+                    "fontWeight": "bold",
+                    "color": "#000"
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "[job.serviceType]"
+                },
+                {
+                  "component": "View",
+                  "type": "container",
+                  "styles": {
+                    "backgroundColor": "#3B82F6",
+                    "paddingHorizontal": 12,
+                    "paddingVertical": 6,
+                    "borderRadius": 12
+                  },
+                  "props": {},
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "color": "#fff",
+                        "fontSize": 12,
+                        "fontWeight": "600",
+                        "textTransform": "capitalize"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "[job.status]"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "component": "View",
+              "type": "container",
+              "styles": {
+                "backgroundColor": "#FEF3C7",
+                "padding": 16,
+                "margin": 16,
+                "borderRadius": 8,
+                "borderLeftWidth": 4,
+                "borderLeftColor": "#F59E0B"
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 16,
+                    "fontWeight": "600",
+                    "color": "#92400E",
+                    "marginBottom": 8
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "⏰ Reminder: [job.reminderStage]"
+                },
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 14,
+                    "color": "#78350F",
+                    "marginBottom": 12
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "Your service is scheduled soon. Please confirm you're ready."
+                },
+                {
+                  "component": "TouchableOpacity",
+                  "type": "primitive",
+                  "styles": {
+                    "backgroundColor": "#F59E0B",
+                    "paddingVertical": 10,
+                    "borderRadius": 6,
+                    "alignItems": "center"
+                  },
+                  "props": {},
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "color": "#fff",
+                        "fontSize": 14,
+                        "fontWeight": "600"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "Acknowledge"
+                    }
+                  ]
+                }
+              ],
+              "conditional": "showReminderCTA"
+            },
+            {
+              "component": "View",
+              "type": "container",
+              "styles": {
+                "backgroundColor": "#DBEAFE",
+                "padding": 16,
+                "margin": 16,
+                "borderRadius": 8,
+                "borderLeftWidth": 4,
+                "borderLeftColor": "#3B82F6"
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 16,
+                    "fontWeight": "600",
+                    "color": "#1E3A8A",
+                    "marginBottom": 8
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "✨ How was your service?"
+                },
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 14,
+                    "color": "#1E40AF",
+                    "marginBottom": 12
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "Share your feedback to help us improve"
+                },
+                {
+                  "component": "TouchableOpacity",
+                  "type": "primitive",
+                  "styles": {
+                    "backgroundColor": "#3B82F6",
+                    "paddingVertical": 10,
+                    "borderRadius": 6,
+                    "alignItems": "center"
+                  },
+                  "props": {
+                    "onPress": "navigate-to-ReviewPrompt"
+                  },
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "color": "#fff",
+                        "fontSize": 14,
+                        "fontWeight": "600"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "Leave a Review"
+                    }
+                  ]
+                }
+              ],
+              "conditional": "showReviewCTA"
+            },
+            {
+              "component": "QAPhotoViewer",
+              "type": "custom",
+              "styles": {},
+              "props": {
+                "jobId": "[jobId]"
+              },
+              "children": [],
+              "conditional": "showReviewCTA"
+            },
+            {
+              "component": "View",
+              "type": "container",
+              "styles": {
+                "padding": 20
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 18,
+                    "fontWeight": "600",
+                    "color": "#000",
+                    "marginBottom": 16
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "Details"
+                },
+                {
+                  "component": "View",
+                  "type": "container",
+                  "styles": {
+                    "marginBottom": 12
+                  },
+                  "props": {},
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 14,
+                        "color": "#666",
+                        "marginBottom": 4
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "Address:"
+                    },
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 16,
+                        "color": "#000"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "[job.propertyAddress]"
+                    }
+                  ]
+                },
+                {
+                  "component": "View",
+                  "type": "container",
+                  "styles": {
+                    "marginBottom": 12
+                  },
+                  "props": {},
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 14,
+                        "color": "#666",
+                        "marginBottom": 4
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "Scheduled:"
+                    },
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 16,
+                        "color": "#000"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "[job.scheduledDate formatted]"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "interactions": [
+        {
+          "trigger": "review-button",
+          "actionType": "navigate",
+          "destination": "ReviewPrompt"
+        }
+      ]
+    },
+    {
+      "screenName": "ReviewPromptScreen",
+      "routeKey": "ReviewPrompt",
+      "userRole": "Customer",
+      "filePath": "mobile/src/screens/reviews/ReviewPromptScreen.tsx",
+      "layoutTree": [
+        {
+          "component": "View",
+          "type": "container",
+          "styles": {
+            "flex": 1,
+            "padding": 20,
+            "backgroundColor": "#fff"
+          },
+          "props": {},
+          "children": [
+            {
+              "component": "Text",
+              "type": "primitive",
+              "styles": {
+                "fontSize": 24,
+                "fontWeight": "bold",
+                "color": "#000",
+                "textAlign": "center",
+                "marginBottom": 8
+              },
+              "props": {},
+              "children": [],
+              "text": "How was your service?"
+            },
+            {
+              "component": "Text",
+              "type": "primitive",
+              "styles": {
+                "fontSize": 14,
+                "color": "#666",
+                "textAlign": "center",
+                "marginBottom": 32
+              },
+              "props": {},
+              "children": [],
+              "text": "[job.serviceType] at [job.propertyAddress]"
+            },
+            {
+              "component": "View",
+              "type": "container",
+              "styles": {
+                "flexDirection": "row",
+                "justifyContent": "center",
+                "marginBottom": 32,
+                "gap": 12
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "TouchableOpacity",
+                  "type": "primitive",
+                  "styles": {
+                    "padding": 8
+                  },
+                  "props": {
+                    "onPress": "set-rating-1"
+                  },
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 48,
+                        "color": "#D1D5DB"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "☆"
+                    }
+                  ]
+                },
+                {
+                  "component": "TouchableOpacity",
+                  "type": "primitive",
+                  "styles": {
+                    "padding": 8
+                  },
+                  "props": {
+                    "onPress": "set-rating-2"
+                  },
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 48,
+                        "color": "#D1D5DB"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "☆"
+                    }
+                  ]
+                },
+                {
+                  "component": "TouchableOpacity",
+                  "type": "primitive",
+                  "styles": {
+                    "padding": 8
+                  },
+                  "props": {
+                    "onPress": "set-rating-3"
+                  },
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 48,
+                        "color": "#D1D5DB"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "☆"
+                    }
+                  ]
+                },
+                {
+                  "component": "TouchableOpacity",
+                  "type": "primitive",
+                  "styles": {
+                    "padding": 8
+                  },
+                  "props": {
+                    "onPress": "set-rating-4"
+                  },
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 48,
+                        "color": "#D1D5DB"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "☆"
+                    }
+                  ]
+                },
+                {
+                  "component": "TouchableOpacity",
+                  "type": "primitive",
+                  "styles": {
+                    "padding": 8
+                  },
+                  "props": {
+                    "onPress": "set-rating-5"
+                  },
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 48,
+                        "color": "#D1D5DB"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "☆"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "component": "View",
+              "type": "container",
+              "styles": {
+                "marginBottom": 24
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 16,
+                    "fontWeight": "600",
+                    "color": "#000",
+                    "marginBottom": 12
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "We're sorry to hear that. What could we improve?"
+                },
+                {
+                  "component": "TextInput",
+                  "type": "primitive",
+                  "styles": {
+                    "borderWidth": 1,
+                    "borderColor": "#D1D5DB",
+                    "borderRadius": 8,
+                    "padding": 12,
+                    "fontSize": 16,
+                    "minHeight": 100
+                  },
+                  "props": {
+                    "placeholder": "Tell us what went wrong...",
+                    "multiline": true,
+                    "numberOfLines": 4,
+                    "textAlignVertical": "top"
+                  },
+                  "children": []
+                }
+              ],
+              "conditional": "rating <= 3"
+            },
+            {
+              "component": "TouchableOpacity",
+              "type": "primitive",
+              "styles": {
+                "backgroundColor": "#3B82F6",
+                "padding": 16,
+                "borderRadius": 8,
+                "alignItems": "center"
+              },
+              "props": {
+                "onPress": "submit-review"
+              },
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "color": "#fff",
+                    "fontSize": 16,
+                    "fontWeight": "600"
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "Submit Review"
+                }
+              ],
+              "conditional": "rating > 0"
+            }
+          ]
+        }
+      ],
+      "interactions": [
+        {
+          "trigger": "star-rating-press",
+          "actionType": "state-change",
+          "destination": null
+        },
+        {
+          "trigger": "submit-button",
+          "actionType": "api-call-and-navigate",
+          "destination": "back"
+        }
+      ]
+    },
+    {
+      "screenName": "ServiceCatalogScreen",
+      "routeKey": "ServiceCatalog",
+      "userRole": "Customer",
+      "filePath": "mobile/src/screens/services/ServiceCatalogScreen.tsx",
+      "layoutTree": [
+        {
+          "component": "View",
+          "type": "container",
+          "styles": {
+            "flex": 1,
+            "backgroundColor": "#F9FAFB"
+          },
+          "props": {},
+          "children": [
+            {
+              "component": "FlatList",
+              "type": "container",
+              "styles": {},
+              "props": {
+                "contentContainerStyle": {
+                  "padding": 16
+                },
+                "renderItem": "ServiceCard"
+              },
+              "children": []
+            }
+          ]
+        }
+      ],
+      "interactions": [
+        {
+          "trigger": "service-card-press",
+          "actionType": "navigate",
+          "destination": "RequestService"
+        }
+      ]
+    },
+    {
+      "screenName": "RequestServiceScreen",
+      "routeKey": "RequestService",
+      "userRole": "Customer",
+      "filePath": "mobile/src/screens/services/RequestServiceScreen.tsx",
+      "layoutTree": [
+        {
+          "component": "ScrollView",
+          "type": "container",
+          "styles": {
+            "flex": 1,
+            "backgroundColor": "#fff"
+          },
+          "props": {},
+          "children": [
+            {
+              "component": "View",
+              "type": "container",
+              "styles": {
+                "padding": 20,
+                "borderBottomWidth": 1,
+                "borderBottomColor": "#E5E7EB"
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 14,
+                    "fontWeight": "600",
+                    "color": "#666",
+                    "marginBottom": 8
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "Service"
+                },
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 18,
+                    "fontWeight": "600",
+                    "color": "#000",
+                    "marginBottom": 4
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "[selectedService.name]"
+                },
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 14,
+                    "color": "#666"
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "[selectedService.description]"
+                }
+              ]
+            },
+            {
+              "component": "View",
+              "type": "container",
+              "styles": {
+                "padding": 20,
+                "borderBottomWidth": 1,
+                "borderBottomColor": "#E5E7EB"
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 14,
+                    "fontWeight": "600",
+                    "color": "#666",
+                    "marginBottom": 8
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "Preferred Date (optional)"
+                },
+                {
+                  "component": "TextInput",
+                  "type": "primitive",
+                  "styles": {
+                    "borderWidth": 1,
+                    "borderColor": "#D1D5DB",
+                    "borderRadius": 8,
+                    "padding": 12,
+                    "fontSize": 16
+                  },
+                  "props": {
+                    "placeholder": "ASAP (or YYYY-MM-DD)"
+                  },
+                  "children": []
+                }
+              ]
+            },
+            {
+              "component": "View",
+              "type": "container",
+              "styles": {
+                "padding": 20,
+                "borderBottomWidth": 1,
+                "borderBottomColor": "#E5E7EB"
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 14,
+                    "fontWeight": "600",
+                    "color": "#666",
+                    "marginBottom": 8
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "Notes (optional, max 200 chars)"
+                },
+                {
+                  "component": "TextInput",
+                  "type": "primitive",
+                  "styles": {
+                    "borderWidth": 1,
+                    "borderColor": "#D1D5DB",
+                    "borderRadius": 8,
+                    "padding": 12,
+                    "fontSize": 16,
+                    "minHeight": 100
+                  },
+                  "props": {
+                    "placeholder": "Any special instructions...",
+                    "multiline": true,
+                    "numberOfLines": 4,
+                    "maxLength": 200,
+                    "textAlignVertical": "top"
+                  },
+                  "children": []
+                },
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 12,
+                    "color": "#999",
+                    "marginTop": 4,
+                    "textAlign": "right"
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "[notes.length]/200"
+                }
+              ]
+            },
+            {
+              "component": "TouchableOpacity",
+              "type": "primitive",
+              "styles": {
+                "backgroundColor": "#3B82F6",
+                "margin": 20,
+                "padding": 16,
+                "borderRadius": 8,
+                "alignItems": "center"
+              },
+              "props": {
+                "onPress": "submit-request"
+              },
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "color": "#fff",
+                    "fontSize": 16,
+                    "fontWeight": "600"
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "Submit Request"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "interactions": [
+        {
+          "trigger": "submit-button",
+          "actionType": "api-call-and-navigate",
+          "destination": "ServiceRequestDetail"
+        }
+      ]
+    },
+    {
+      "screenName": "ServiceRequestDetailScreen",
+      "routeKey": "ServiceRequestDetail",
+      "userRole": "Customer",
+      "filePath": "mobile/src/screens/services/ServiceRequestDetailScreen.tsx",
+      "layoutTree": [
+        {
+          "component": "ScrollView",
+          "type": "container",
+          "styles": {
+            "flex": 1,
+            "backgroundColor": "#fff"
+          },
+          "props": {},
+          "children": [
+            {
+              "component": "View",
+              "type": "container",
+              "styles": {
+                "backgroundColor": "#DBEAFE",
+                "padding": 20,
+                "margin": 16,
+                "borderRadius": 8,
+                "borderLeftWidth": 4,
+                "borderLeftColor": "#3B82F6"
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 18,
+                    "fontWeight": "600",
+                    "color": "#1E3A8A",
+                    "marginBottom": 8
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "[statusConfig.title]"
+                },
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 14,
+                    "color": "#1E40AF"
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "[statusConfig.message]"
+                }
+              ]
+            },
+            {
+              "component": "View",
+              "type": "container",
+              "styles": {
+                "padding": 20
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 18,
+                    "fontWeight": "600",
+                    "color": "#000",
+                    "marginBottom": 16
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "Service Details"
+                },
+                {
+                  "component": "View",
+                  "type": "container",
+                  "styles": {
+                    "marginBottom": 12
+                  },
+                  "props": {},
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 14,
+                        "color": "#666",
+                        "marginBottom": 4
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "Service:"
+                    },
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 16,
+                        "color": "#000"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "[request.serviceName]"
+                    }
+                  ]
+                },
+                {
+                  "component": "View",
+                  "type": "container",
+                  "styles": {
+                    "marginBottom": 12
+                  },
+                  "props": {},
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 14,
+                        "color": "#666",
+                        "marginBottom": 4
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "Submitted:"
+                    },
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 16,
+                        "color": "#000"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "[request.createdAt formatted]"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "interactions": []
+    },
+    {
+      "screenName": "NotificationCenterScreen",
+      "routeKey": "NotificationsList",
+      "userRole": "Customer",
+      "filePath": "mobile/src/screens/notifications/NotificationCenterScreen.tsx",
+      "layoutTree": [
+        {
+          "component": "FlatList",
+          "type": "container",
+          "styles": {},
+          "props": {
+            "contentContainerStyle": {
+              "padding": 16
+            },
+            "renderItem": "NotificationCard"
+          },
+          "children": []
+        }
+      ],
+      "interactions": [
+        {
+          "trigger": "notification-card-press",
+          "actionType": "navigate",
+          "destination": "depends-on-notification-type"
+        }
+      ]
+    },
+    {
+      "screenName": "SettingsScreen",
+      "routeKey": "Settings",
+      "userRole": "Customer",
+      "filePath": "mobile/src/screens/settings/SettingsScreen.tsx",
+      "layoutTree": [
+        {
+          "component": "View",
+          "type": "container",
+          "styles": {
+            "flex": 1,
+            "padding": 20,
+            "backgroundColor": "#fff"
+          },
+          "props": {},
+          "children": [
+            {
+              "component": "Text",
+              "type": "primitive",
+              "styles": {
+                "fontSize": 24,
+                "fontWeight": "bold",
+                "marginBottom": 24
+              },
+              "props": {},
+              "children": [],
+              "text": "Settings"
+            },
+            {
+              "component": "View",
+              "type": "container",
+              "styles": {
+                "marginBottom": 24
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 14,
+                    "color": "#666",
+                    "marginBottom": 4
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "Email"
+                },
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 16,
+                    "color": "#000"
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "[user.email]"
+                }
+              ]
+            },
+            {
+              "component": "TouchableOpacity",
+              "type": "primitive",
+              "styles": {
+                "backgroundColor": "#EF4444",
+                "padding": 16,
+                "borderRadius": 8,
+                "alignItems": "center"
+              },
+              "props": {
+                "onPress": "logout"
+              },
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "color": "#fff",
+                    "fontSize": 16,
+                    "fontWeight": "600"
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "Logout"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "interactions": [
+        {
+          "trigger": "logout-button",
+          "actionType": "logout-and-navigate",
+          "destination": "Auth"
+        }
+      ]
+    },
+    {
+      "screenName": "DashboardScreen",
+      "routeKey": "Dashboard",
+      "userRole": "Owner",
+      "filePath": "mobile/src/screens/today/DashboardScreen.tsx",
+      "layoutTree": [
+        {
+          "component": "ScrollView",
+          "type": "container",
+          "styles": {
+            "flex": 1,
+            "backgroundColor": "#F5F5F5"
+          },
+          "props": {
+            "refreshControl": "RefreshControl"
+          },
+          "children": [
+            {
+              "component": "View",
+              "type": "container",
+              "styles": {
+                "padding": 16,
+                "backgroundColor": "#fff",
+                "borderBottomWidth": 1,
+                "borderBottomColor": "#E0E0E0"
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 24,
+                    "fontWeight": "bold",
+                    "color": "#333"
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "Today's Overview"
+                },
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 14,
+                    "color": "#666",
+                    "marginTop": 4
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "[formatted date]"
+                }
+              ]
+            },
+            {
+              "component": "Card",
+              "type": "custom",
+              "styles": {
+                "margin": 16,
+                "backgroundColor": "#FFF3E0"
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "color": "#E65100",
+                    "fontWeight": "600"
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "⚠ [pendingCommands] action(s) pending sync"
+                }
+              ],
+              "conditional": "pendingCommands > 0"
+            },
+            {
+              "component": "View",
+              "type": "container",
+              "styles": {
+                "flexDirection": "row",
+                "flexWrap": "wrap",
+                "padding": 8,
+                "gap": 8
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "Card",
+                  "type": "custom",
+                  "styles": {
+                    "flex": 1,
+                    "minWidth": "47%",
+                    "margin": 8,
+                    "borderLeftColor": "#2196F3",
+                    "borderLeftWidth": 4
+                  },
+                  "props": {},
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 32,
+                        "fontWeight": "bold",
+                        "color": "#333"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "[stats.jobsScheduled]"
+                    },
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 12,
+                        "color": "#666",
+                        "marginTop": 4
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "Jobs Today"
+                    }
+                  ]
+                },
+                {
+                  "component": "Card",
+                  "type": "custom",
+                  "styles": {
+                    "flex": 1,
+                    "minWidth": "47%",
+                    "margin": 8,
+                    "borderLeftColor": "#FF9800",
+                    "borderLeftWidth": 4
+                  },
+                  "props": {},
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 32,
+                        "fontWeight": "bold",
+                        "color": "#333"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "[stats.jobsInProgress]"
+                    },
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 12,
+                        "color": "#666",
+                        "marginTop": 4
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "In Progress"
+                    }
+                  ]
+                },
+                {
+                  "component": "Card",
+                  "type": "custom",
+                  "styles": {
+                    "flex": 1,
+                    "minWidth": "47%",
+                    "margin": 8,
+                    "borderLeftColor": "#4CAF50",
+                    "borderLeftWidth": 4
+                  },
+                  "props": {},
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 32,
+                        "fontWeight": "bold",
+                        "color": "#333"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "[stats.jobsCompleted]"
+                    },
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 12,
+                        "color": "#666",
+                        "marginTop": 4
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "Completed"
+                    }
+                  ]
+                },
+                {
+                  "component": "Card",
+                  "type": "custom",
+                  "styles": {
+                    "flex": 1,
+                    "minWidth": "47%",
+                    "margin": 8,
+                    "borderLeftColor": "#F44336",
+                    "borderLeftWidth": 4
+                  },
+                  "props": {},
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 32,
+                        "fontWeight": "bold",
+                        "color": "#333"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "[stats.unassignedJobs]"
+                    },
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 12,
+                        "color": "#666",
+                        "marginTop": 4
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "Unassigned"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "component": "Card",
+              "type": "custom",
+              "styles": {
+                "margin": 16
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 16,
+                    "fontWeight": "600"
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "Crew Status"
+                },
+                {
+                  "component": "View",
+                  "type": "container",
+                  "styles": {
+                    "flexDirection": "row",
+                    "justifyContent": "space-between",
+                    "paddingVertical": 8
+                  },
+                  "props": {},
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 14,
+                        "color": "#666"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "Available:"
+                    },
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 14,
+                        "fontWeight": "600",
+                        "color": "#333"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "[stats.crewsAvailable]"
+                    }
+                  ]
+                },
+                {
+                  "component": "View",
+                  "type": "container",
+                  "styles": {
+                    "flexDirection": "row",
+                    "justifyContent": "space-between",
+                    "paddingVertical": 8
+                  },
+                  "props": {},
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 14,
+                        "color": "#666"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "On Job:"
+                    },
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 14,
+                        "fontWeight": "600",
+                        "color": "#333"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "[stats.crewsOnJob]"
+                    }
+                  ]
+                },
+                {
+                  "component": "Button",
+                  "type": "custom",
+                  "styles": {},
+                  "props": {
+                    "onPress": "navigate-to-Crews"
+                  },
+                  "children": [],
+                  "text": "View Crews"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "interactions": [
+        {
+          "trigger": "view-crews-button",
+          "actionType": "navigate",
+          "destination": "Crews"
+        }
+      ]
+    },
+    {
+      "screenName": "DashboardScreen",
+      "routeKey": "Dashboard",
+      "userRole": "CrewLeader",
+      "filePath": "mobile/src/screens/today/DashboardScreen.tsx",
+      "layoutTree": [
+        {
+          "component": "ScrollView",
+          "type": "container",
+          "styles": {
+            "flex": 1,
+            "backgroundColor": "#F5F5F5"
+          },
+          "props": {
+            "refreshControl": "RefreshControl"
+          },
+          "children": [
+            {
+              "component": "View",
+              "type": "container",
+              "styles": {
+                "padding": 16,
+                "backgroundColor": "#fff",
+                "borderBottomWidth": 1,
+                "borderBottomColor": "#E0E0E0"
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 24,
+                    "fontWeight": "bold",
+                    "color": "#333"
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "Today's Route"
+                },
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 14,
+                    "color": "#666",
+                    "marginTop": 4
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "[formatted date]"
+                }
+              ]
+            },
+            {
+              "component": "Card",
+              "type": "custom",
+              "styles": {
+                "marginBottom": 16
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "View",
+                  "type": "container",
+                  "styles": {
+                    "flexDirection": "row",
+                    "justifyContent": "space-between",
+                    "paddingVertical": 8
+                  },
+                  "props": {},
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 16,
+                        "color": "#666"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "Total Jobs:"
+                    },
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 16,
+                        "fontWeight": "600",
+                        "color": "#333"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "[jobs.length]"
+                    }
+                  ]
+                },
+                {
+                  "component": "View",
+                  "type": "container",
+                  "styles": {
+                    "flexDirection": "row",
+                    "justifyContent": "space-between",
+                    "paddingVertical": 8
+                  },
+                  "props": {},
+                  "children": [
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 16,
+                        "color": "#666"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "Completed:"
+                    },
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 16,
+                        "fontWeight": "600",
+                        "color": "#333"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "[completed count]"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "component": "View",
+              "type": "container",
+              "styles": {
+                "padding": 16
+              },
+              "props": {},
+              "children": [
+                {
+                  "component": "Text",
+                  "type": "primitive",
+                  "styles": {
+                    "fontSize": 18,
+                    "fontWeight": "600",
+                    "marginBottom": 12,
+                    "color": "#333"
+                  },
+                  "props": {},
+                  "children": [],
+                  "text": "Today's Jobs"
+                },
+                {
+                  "component": "Card",
+                  "type": "custom",
+                  "styles": {
+                    "marginBottom": 12
+                  },
+                  "props": {
+                    "onPress": "navigate-to-job-detail"
+                  },
+                  "children": [
+                    {
+                      "component": "View",
+                      "type": "container",
+                      "styles": {
+                        "flexDirection": "row",
+                        "justifyContent": "space-between",
+                        "alignItems": "center",
+                        "marginBottom": 8
+                      },
+                      "props": {},
+                      "children": [
+                        {
+                          "component": "Text",
+                          "type": "primitive",
+                          "styles": {
+                            "fontSize": 16,
+                            "fontWeight": "600",
+                            "color": "#333"
+                          },
+                          "props": {},
+                          "children": [],
+                          "text": "[job.customerName]"
+                        },
+                        {
+                          "component": "View",
+                          "type": "container",
+                          "styles": {
+                            "paddingHorizontal": 8,
+                            "paddingVertical": 4,
+                            "borderRadius": 12,
+                            "backgroundColor": "#E3F2FD"
+                          },
+                          "props": {},
+                          "children": [
+                            {
+                              "component": "Text",
+                              "type": "primitive",
+                              "styles": {
+                                "fontSize": 10,
+                                "fontWeight": "600",
+                                "color": "#333"
+                              },
+                              "props": {},
+                              "children": [],
+                              "text": "[job.status]"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 14,
+                        "color": "#666",
+                        "marginBottom": 4
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "[job.address]"
+                    },
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 14,
+                        "color": "#2196F3",
+                        "marginBottom": 4
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "[job.serviceType]"
+                    },
+                    {
+                      "component": "Text",
+                      "type": "primitive",
+                      "styles": {
+                        "fontSize": 12,
+                        "color": "#999"
+                      },
+                      "props": {},
+                      "children": [],
+                      "text": "[formatted time]"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "interactions": [
+        {
+          "trigger": "job-card-press",
+          "actionType": "navigate",
+          "destination": "JobDetail"
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "componentName": "LoadingSpinner",
+      "filePath": "mobile/src/components/common/LoadingSpinner.tsx",
+      "props": {},
+      "layoutTree": {
+        "component": "View",
+        "type": "container",
+        "styles": {
+          "flex": 1,
+          "justifyContent": "center",
+          "alignItems": "center"
+        },
+        "children": [
+          {
+            "component": "ActivityIndicator",
+            "type": "primitive",
+            "props": {
+              "size": "large",
+              "color": "#22C55E"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "componentName": "NotificationBanner",
+      "filePath": "mobile/src/components/notifications/NotificationBanner.tsx",
+      "props": {},
+      "layoutTree": {
+        "component": "View",
+        "type": "container",
+        "styles": {
+          "backgroundColor": "#FFF3CD",
+          "padding": 12,
+          "flexDirection": "row",
+          "alignItems": "center",
+          "justifyContent": "space-between"
+        },
+        "children": [
+          {
+            "component": "Text",
+            "type": "primitive",
+            "styles": {
+              "flex": 1,
+              "fontSize": 14,
+              "color": "#856404",
+              "marginRight": 12
+            },
+            "text": "Enable notifications to stay updated on your jobs"
+          },
+          {
+            "component": "TouchableOpacity",
+            "type": "primitive",
+            "styles": {
+              "backgroundColor": "#856404",
+              "paddingHorizontal": 16,
+              "paddingVertical": 8,
+              "borderRadius": 4
+            },
+            "props": {
+              "onPress": "request-notification-permission"
+            },
+            "children": [
+              {
+                "component": "Text",
+                "type": "primitive",
+                "styles": {
+                  "color": "#FFF",
+                  "fontWeight": "600",
+                  "fontSize": 14
+                },
+                "text": "Enable"
+              }
+            ]
+          }
+        ],
+        "conditional": "hasPermission === false"
+      }
+    },
+    {
+      "componentName": "JobCard",
+      "filePath": "mobile/src/components/jobs/JobCard.tsx",
+      "props": {
+        "job": "Job"
+      },
+      "layoutTree": {
+        "component": "TouchableOpacity",
+        "type": "primitive",
+        "styles": {
+          "backgroundColor": "#fff",
+          "padding": 16,
+          "marginBottom": 12,
+          "borderRadius": 8,
+          "borderWidth": 1,
+          "borderColor": "#E5E7EB"
+        },
+        "props": {
+          "onPress": "navigate-to-JobDetail"
+        },
+        "children": [
+          {
+            "component": "View",
+            "type": "container",
+            "styles": {
+              "flexDirection": "row",
+              "alignItems": "center",
+              "marginBottom": 12,
+              "gap": 8
+            },
+            "children": [
+              {
+                "component": "View",
+                "type": "container",
+                "styles": {
+                  "paddingHorizontal": 12,
+                  "paddingVertical": 4,
+                  "borderRadius": 12,
+                  "backgroundColor": "[statusColor]"
+                },
+                "children": [
+                  {
+                    "component": "Text",
+                    "type": "primitive",
+                    "styles": {
+                      "color": "#fff",
+                      "fontSize": 12,
+                      "fontWeight": "600",
+                      "textTransform": "capitalize"
+                    },
+                    "text": "[job.status]"
+                  }
+                ]
+              },
+              {
+                "component": "View",
+                "type": "container",
+                "styles": {
+                  "backgroundColor": "#FEF3C7",
+                  "paddingHorizontal": 8,
+                  "paddingVertical": 4,
+                  "borderRadius": 8
+                },
+                "children": [
+                  {
+                    "component": "Text",
+                    "type": "primitive",
+                    "styles": {
+                      "color": "#92400E",
+                      "fontSize": 11,
+                      "fontWeight": "600"
+                    },
+                    "text": "Reminder [job.reminderStage]"
+                  }
+                ],
+                "conditional": "job.hasReminder && job.status === 'upcoming'"
+              }
+            ]
+          },
+          {
+            "component": "Text",
+            "type": "primitive",
+            "styles": {
+              "fontSize": 18,
+              "fontWeight": "600",
+              "color": "#000",
+              "marginBottom": 4
+            },
+            "text": "[job.serviceType]"
+          },
+          {
+            "component": "Text",
+            "type": "primitive",
+            "styles": {
+              "fontSize": 14,
+              "color": "#666",
+              "marginBottom": 8
+            },
+            "text": "[job.propertyAddress]"
+          },
+          {
+            "component": "Text",
+            "type": "primitive",
+            "styles": {
+              "fontSize": 13,
+              "color": "#999"
+            },
+            "text": "Scheduled: [formatted date]"
+          }
+        ]
+      }
+    },
+    {
+      "componentName": "ReminderBanner",
+      "filePath": "mobile/src/components/jobs/ReminderBanner.tsx",
+      "props": {},
+      "layoutTree": {
+        "component": "View",
+        "type": "container",
+        "styles": {
+          "backgroundColor": "#DBEAFE",
+          "padding": 16,
+          "flexDirection": "row",
+          "alignItems": "center",
+          "justifyContent": "space-between",
+          "borderRadius": 8,
+          "marginBottom": 16
+        },
+        "children": [
+          {
+            "component": "View",
+            "type": "container",
+            "styles": {
+              "flex": 1,
+              "marginRight": 12
+            },
+            "children": [
+              {
+                "component": "Text",
+                "type": "primitive",
+                "styles": {
+                  "fontSize": 16,
+                  "fontWeight": "600",
+                  "color": "#1E3A8A",
+                  "marginBottom": 4
+                },
+                "text": "[urgent ? '🔔 Urgent Reminder' : '📅 Upcoming Service']"
+              },
+              {
+                "component": "Text",
+                "type": "primitive",
+                "styles": {
+                  "fontSize": 14,
+                  "color": "#1E40AF"
+                },
+                "text": "You have [count] job(s) requiring attention"
+              }
+            ]
+          },
+          {
+            "component": "TouchableOpacity",
+            "type": "primitive",
+            "styles": {
+              "backgroundColor": "#3B82F6",
+              "paddingHorizontal": 20,
+              "paddingVertical": 10,
+              "borderRadius": 6
+            },
+            "props": {
+              "onPress": "navigate-to-Jobs"
+            },
+            "children": [
+              {
+                "component": "Text",
+                "type": "primitive",
+                "styles": {
+                  "color": "#fff",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                "text": "View"
+              }
+            ]
+          }
+        ],
+        "conditional": "pendingReminders.length > 0"
+      }
+    },
+    {
+      "componentName": "QAPhotoViewer",
+      "filePath": "mobile/src/components/jobs/QAPhotoViewer.tsx",
+      "props": {
+        "jobId": "number"
+      },
+      "layoutTree": {
+        "component": "View",
+        "type": "container",
+        "styles": {
+          "padding": 16,
+          "backgroundColor": "#F9FAFB",
+          "borderRadius": 8,
+          "marginVertical": 16
+        },
+        "children": [
+          {
+            "component": "Text",
+            "type": "primitive",
+            "styles": {
+              "fontSize": 16,
+              "fontWeight": "600",
+              "color": "#000",
+              "marginBottom": 12
+            },
+            "text": "Quality Assurance Photo"
+          },
+          {
+            "component": "View",
+            "type": "container",
+            "styles": {
+              "borderRadius": 8,
+              "overflow": "hidden",
+              "backgroundColor": "#E5E7EB"
+            },
+            "children": [
+              {
+                "component": "Image",
+                "type": "primitive",
+                "styles": {
+                  "width": "100%",
+                  "aspectRatio": 1.333
+                },
+                "props": {
+                  "source": { "uri": "[qaPhoto.url]" },
+                  "resizeMode": "cover"
+                }
+              }
+            ]
+          },
+          {
+            "component": "Text",
+            "type": "primitive",
+            "styles": {
+              "fontSize": 12,
+              "color": "#6B7280",
+              "marginTop": 8,
+              "textAlign": "center"
+            },
+            "text": "Expires: [formatted expiry date]"
+          }
+        ]
+      }
+    },
+    {
+      "componentName": "ServiceCard",
+      "filePath": "mobile/src/components/services/ServiceCard.tsx",
+      "props": {
+        "service": "Service",
+        "onPress": "function"
+      },
+      "layoutTree": {
+        "component": "TouchableOpacity",
+        "type": "primitive",
+        "styles": {
+          "backgroundColor": "#fff",
+          "padding": 16,
+          "marginBottom": 12,
+          "borderRadius": 8,
+          "borderWidth": 1,
+          "borderColor": "#E5E7EB"
+        },
+        "props": {
+          "onPress": "[onPress]"
+        },
+        "children": [
+          {
+            "component": "View",
+            "type": "container",
+            "styles": {
+              "flexDirection": "row",
+              "alignItems": "center",
+              "marginBottom": 8,
+              "gap": 8
+            },
+            "children": [
+              {
+                "component": "Text",
+                "type": "primitive",
+                "styles": {
+                  "fontSize": 16,
+                  "fontWeight": "600",
+                  "color": "#000",
+                  "flex": 1
+                },
+                "text": "[service.name]"
+              },
+              {
+                "component": "View",
+                "type": "container",
+                "styles": {
+                  "backgroundColor": "#D1FAE5",
+                  "paddingHorizontal": 8,
+                  "paddingVertical": 4,
+                  "borderRadius": 4
+                },
+                "children": [
+                  {
+                    "component": "Text",
+                    "type": "primitive",
+                    "styles": {
+                      "fontSize": 11,
+                      "fontWeight": "600",
+                      "color": "#065F46"
+                    },
+                    "text": "⚡ Instant"
+                  }
+                ],
+                "conditional": "service.isInstant"
+              },
+              {
+                "component": "View",
+                "type": "container",
+                "styles": {
+                  "backgroundColor": "#FEF3C7",
+                  "paddingHorizontal": 8,
+                  "paddingVertical": 4,
+                  "borderRadius": 4
+                },
+                "children": [
+                  {
+                    "component": "Text",
+                    "type": "primitive",
+                    "styles": {
+                      "fontSize": 11,
+                      "fontWeight": "600",
+                      "color": "#065F46"
+                    },
+                    "text": "✓ Approval"
+                  }
+                ],
+                "conditional": "service.requiresApproval"
+              }
+            ]
+          },
+          {
+            "component": "Text",
+            "type": "primitive",
+            "styles": {
+              "fontSize": 14,
+              "color": "#666"
+            },
+            "text": "[service.description]"
+          }
+        ]
+      }
+    },
+    {
+      "componentName": "NotificationCard",
+      "filePath": "mobile/src/components/notifications/NotificationCard.tsx",
+      "props": {
+        "notification": "Notification"
+      },
+      "layoutTree": {
+        "component": "TouchableOpacity",
+        "type": "primitive",
+        "styles": {
+          "backgroundColor": "#fff",
+          "padding": 16,
+          "marginBottom": 12,
+          "borderRadius": 8,
+          "borderWidth": 1,
+          "borderColor": "#E5E7EB"
+        },
+        "props": {
+          "onPress": "handle-notification-press"
+        },
+        "children": [
+          {
+            "component": "View",
+            "type": "container",
+            "styles": {
+              "flexDirection": "row",
+              "justifyContent": "space-between",
+              "alignItems": "center",
+              "marginBottom": 8
+            },
+            "children": [
+              {
+                "component": "View",
+                "type": "container",
+                "styles": {
+                  "flexDirection": "row",
+                  "alignItems": "center",
+                  "gap": 8
+                },
+                "children": [
+                  {
+                    "component": "Text",
+                    "type": "primitive",
+                    "styles": {
+                      "fontSize": 12,
+                      "color": "#666",
+                      "fontWeight": "600",
+                      "textTransform": "uppercase"
+                    },
+                    "text": "[notification.type]"
+                  },
+                  {
+                    "component": "View",
+                    "type": "container",
+                    "styles": {
+                      "paddingHorizontal": 6,
+                      "paddingVertical": 2,
+                      "borderRadius": 4,
+                      "backgroundColor": "[urgency color]"
+                    },
+                    "children": [
+                      {
+                        "component": "Text",
+                        "type": "primitive",
+                        "styles": {
+                          "color": "#fff",
+                          "fontSize": 10,
+                          "fontWeight": "700"
+                        },
+                        "text": "[urgency label]"
+                      }
+                    ],
+                    "conditional": "urgency.label exists"
+                  }
+                ]
+              },
+              {
+                "component": "View",
+                "type": "container",
+                "styles": {
+                  "width": 8,
+                  "height": 8,
+                  "borderRadius": 4,
+                  "backgroundColor": "#22C55E"
+                },
+                "conditional": "!notification.read"
+              }
+            ]
+          },
+          {
+            "component": "Text",
+            "type": "primitive",
+            "styles": {
+              "fontSize": 16,
+              "fontWeight": "600",
+              "color": "#000",
+              "marginBottom": 4
+            },
+            "text": "[notification.title]"
+          },
+          {
+            "component": "Text",
+            "type": "primitive",
+            "styles": {
+              "fontSize": 14,
+              "color": "#666",
+              "marginBottom": 8
+            },
+            "text": "[notification.body]"
+          },
+          {
+            "component": "Text",
+            "type": "primitive",
+            "styles": {
+              "fontSize": 12,
+              "color": "#999"
+            },
+            "text": "[formatted date]"
+          }
+        ]
+      }
+    },
+    {
+      "componentName": "JobActionsPanel",
+      "filePath": "mobile/src/components/jobs/JobActionsPanel.tsx",
+      "props": {
+        "job": "Job",
+        "onActionComplete": "function (optional)"
+      },
+      "layoutTree": {
+        "component": "View",
+        "type": "container",
+        "styles": {
+          "padding": 16,
+          "backgroundColor": "#fff",
+          "borderRadius": 8,
+          "marginBottom": 16,
+          "shadowColor": "#000",
+          "shadowOffset": { "width": 0, "height": 2 },
+          "shadowOpacity": 0.1,
+          "shadowRadius": 4,
+          "elevation": 3
+        },
+        "children": [
+          {
+            "component": "View",
+            "type": "container",
+            "styles": {
+              "alignSelf": "flex-start",
+              "paddingHorizontal": 12,
+              "paddingVertical": 4,
+              "borderRadius": 12,
+              "backgroundColor": "#E3F2FD",
+              "marginBottom": 12
+            },
+            "children": [
+              {
+                "component": "Text",
+                "type": "primitive",
+                "styles": {
+                  "fontSize": 12,
+                  "fontWeight": "600",
+                  "color": "#1976D2"
+                },
+                "text": "[job.status]"
+              }
+            ]
+          },
+          {
+            "component": "Button",
+            "type": "custom",
+            "styles": {
+              "backgroundColor": "#4CAF50"
+            },
+            "props": {
+              "mode": "contained",
+              "onPress": "start-job",
+              "icon": "play"
+            },
+            "text": "Start Job",
+            "conditional": "job.status === 'scheduled'"
+          },
+          {
+            "component": "View",
+            "type": "container",
+            "styles": {
+              "flexDirection": "row",
+              "gap": 12
+            },
+            "children": [
+              {
+                "component": "Button",
+                "type": "custom",
+                "styles": {
+                  "flex": 1,
+                  "borderColor": "#FF9800"
+                },
+                "props": {
+                  "mode": "outlined",
+                  "onPress": "pause-job",
+                  "icon": "pause"
+                },
+                "text": "Pause"
+              },
+              {
+                "component": "Button",
+                "type": "custom",
+                "styles": {
+                  "flex": 1,
+                  "backgroundColor": "#2196F3"
+                },
+                "props": {
+                  "mode": "contained",
+                  "onPress": "complete-job",
+                  "icon": "check"
+                },
+                "text": "Complete"
+              }
+            ],
+            "conditional": "job.status === 'in_progress'"
+          },
+          {
+            "component": "Button",
+            "type": "custom",
+            "styles": {
+              "backgroundColor": "#4CAF50"
+            },
+            "props": {
+              "mode": "contained",
+              "onPress": "resume-job",
+              "icon": "play"
+            },
+            "text": "Resume Job",
+            "conditional": "job.status === 'paused'"
+          },
+          {
+            "component": "View",
+            "type": "container",
+            "styles": {
+              "alignItems": "center",
+              "paddingVertical": 12
+            },
+            "children": [
+              {
+                "component": "Text",
+                "type": "primitive",
+                "styles": {
+                  "fontSize": 18,
+                  "fontWeight": "600",
+                  "color": "#4CAF50",
+                  "marginBottom": 8
+                },
+                "text": "✓ Job Completed"
+              },
+              {
+                "component": "Text",
+                "type": "primitive",
+                "styles": {
+                  "fontSize": 14,
+                  "color": "#666"
+                },
+                "text": "[payment status message]"
+              }
+            ],
+            "conditional": "job.status === 'completed'"
+          },
+          {
+            "component": "View",
+            "type": "container",
+            "styles": {
+              "marginTop": 12,
+              "paddingTop": 12,
+              "borderTopWidth": 1,
+              "borderTopColor": "#E0E0E0",
+              "flexDirection": "row",
+              "justifyContent": "space-between"
+            },
+            "children": [
+              {
+                "component": "Text",
+                "type": "primitive",
+                "styles": {
+                  "fontSize": 14,
+                  "color": "#666"
+                },
+                "text": "Started:"
+              },
+              {
+                "component": "Text",
+                "type": "primitive",
+                "styles": {
+                  "fontSize": 14,
+                  "fontWeight": "600",
+                  "color": "#333"
+                },
+                "text": "[formatted start time]"
+              }
+            ],
+            "conditional": "job.status === 'in_progress'"
+          }
+        ]
+      }
+    }
+  ],
+  "uxFlowSummary": {
+    "flow": [
+      {
+        "fromScreen": "InviteLoginScreen",
+        "toScreen": "HomeScreen",
+        "trigger": "successful-authentication",
+        "userRole": "Customer"
+      },
+      {
+        "fromScreen": "HomeScreen",
+        "toScreen": "ServiceCatalogScreen",
+        "trigger": "request-service-button",
+        "userRole": "Customer"
+      },
+      {
+        "fromScreen": "HomeScreen",
+        "toScreen": "JobsScreen",
+        "trigger": "reminder-banner-view-button",
+        "userRole": "Customer"
+      },
+      {
+        "fromScreen": "JobsScreen",
+        "toScreen": "JobDetailScreen",
+        "trigger": "job-card-press",
+        "userRole": "Customer"
+      },
+      {
+        "fromScreen": "JobDetailScreen",
+        "toScreen": "ReviewPromptScreen",
+        "trigger": "leave-review-button",
+        "userRole": "Customer"
+      },
+      {
+        "fromScreen": "ReviewPromptScreen",
+        "toScreen": "JobDetailScreen",
+        "trigger": "review-submitted",
+        "userRole": "Customer"
+      },
+      {
+        "fromScreen": "ServiceCatalogScreen",
+        "toScreen": "RequestServiceScreen",
+        "trigger": "service-card-press",
+        "userRole": "Customer"
+      },
+      {
+        "fromScreen": "RequestServiceScreen",
+        "toScreen": "ServiceRequestDetailScreen",
+        "trigger": "submit-request-button",
+        "userRole": "Customer"
+      },
+      {
+        "fromScreen": "NotificationCenterScreen",
+        "toScreen": "JobDetailScreen",
+        "trigger": "notification-card-press-JOB_ADDED",
+        "userRole": "Customer"
+      },
+      {
+        "fromScreen": "NotificationCenterScreen",
+        "toScreen": "ServiceRequestDetailScreen",
+        "trigger": "notification-card-press-service_request_update",
+        "userRole": "Customer"
+      },
+      {
+        "fromScreen": "SettingsScreen",
+        "toScreen": "InviteLoginScreen",
+        "trigger": "logout-button",
+        "userRole": "Customer"
+      },
+      {
+        "fromScreen": "DashboardScreen",
+        "toScreen": "JobDetailScreen",
+        "trigger": "job-card-press",
+        "userRole": "Owner"
+      },
+      {
+        "fromScreen": "DashboardScreen",
+        "toScreen": "CrewsScreen",
+        "trigger": "view-crews-button",
+        "userRole": "Owner"
+      },
+      {
+        "fromScreen": "DashboardScreen",
+        "toScreen": "JobDetailScreen",
+        "trigger": "job-card-press",
+        "userRole": "CrewLeader"
+      },
+      {
+        "fromScreen": "DashboardScreen",
+        "toScreen": "JobDetailScreen",
+        "trigger": "job-card-press",
+        "userRole": "Crew"
+      }
+    ],
+    "entryPoints": {
+      "Customer": "InviteLoginScreen",
+      "CrewLeader": "DashboardScreen",
+      "Crew": "DashboardScreen",
+      "Owner": "DashboardScreen"
+    },
+    "bottomTabNavigation": {
+      "Customer": [
+        {
+          "tabName": "Home",
+          "screen": "HomeScreen",
+          "icon": "home"
+        },
+        {
+          "tabName": "Jobs",
+          "screen": "JobsScreen",
+          "icon": "briefcase"
+        },
+        {
+          "tabName": "Services",
+          "screen": "ServiceCatalogScreen",
+          "icon": "list"
+        },
+        {
+          "tabName": "Notifications",
+          "screen": "NotificationCenterScreen",
+          "icon": "bell"
+        },
+        {
+          "tabName": "Settings",
+          "screen": "SettingsScreen",
+          "icon": "settings"
+        }
+      ],
+      "Owner": [
+        {
+          "tabName": "Today",
+          "screen": "DashboardScreen",
+          "icon": "calendar"
+        },
+        {
+          "tabName": "Jobs",
+          "screen": "JobsScreen",
+          "icon": "briefcase"
+        },
+        {
+          "tabName": "Crews",
+          "screen": "CrewsListScreen",
+          "icon": "users"
+        },
+        {
+          "tabName": "Messages",
+          "screen": "ThreadsListScreen",
+          "icon": "message"
+        },
+        {
+          "tabName": "Notifications",
+          "screen": "NotificationsListScreen",
+          "icon": "bell"
+        },
+        {
+          "tabName": "More",
+          "screen": "MoreMenuScreen",
+          "icon": "menu"
+        }
+      ],
+      "CrewLeader": [
+        {
+          "tabName": "Today",
+          "screen": "DashboardScreen",
+          "icon": "calendar"
+        },
+        {
+          "tabName": "Jobs",
+          "screen": "JobsScreen",
+          "icon": "briefcase"
+        },
+        {
+          "tabName": "Messages",
+          "screen": "ThreadsListScreen",
+          "icon": "message"
+        },
+        {
+          "tabName": "Notifications",
+          "screen": "NotificationsListScreen",
+          "icon": "bell"
+        },
+        {
+          "tabName": "More",
+          "screen": "MoreMenuScreen",
+          "icon": "menu"
+        }
+      ],
+      "Crew": [
+        {
+          "tabName": "Today",
+          "screen": "DashboardScreen",
+          "icon": "calendar"
+        },
+        {
+          "tabName": "Jobs",
+          "screen": "JobsScreen",
+          "icon": "briefcase"
+        },
+        {
+          "tabName": "Messages",
+          "screen": "ThreadsListScreen",
+          "icon": "message"
+        },
+        {
+          "tabName": "Notifications",
+          "screen": "NotificationsListScreen",
+          "icon": "bell"
+        },
+        {
+          "tabName": "More",
+          "screen": "MoreMenuScreen",
+          "icon": "menu"
+        }
+      ]
+    }
+  }
+}

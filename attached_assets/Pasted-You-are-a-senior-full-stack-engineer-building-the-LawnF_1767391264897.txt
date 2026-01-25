@@ -1,0 +1,108 @@
+You are a senior full-stack engineer building the LawnFlow Route Optimizer MVP foundation.
+
+STACK
+- Next.js App Router + TypeScript
+- Prisma + SQLite
+- Tailwind (if present)
+- Zod for validation
+
+GOAL
+Create the data model, shared types, and a minimal API skeleton that supports multi-agent optimization.
+
+DATABASE (Prisma): create these models
+
+Account
+- id, name
+
+User
+- id, accountId, role (OWNER|ADMIN|CREW_LEAD|STAFF)
+
+Crew
+- id, accountId, name
+- homeBaseLat, homeBaseLng (nullable)
+- serviceRadiusMiles (default 20)
+- dailyCapacityMinutes (default 420)
+- skillsJson (JSON string array)
+- equipmentJson (JSON string array)
+
+CrewMember
+- id, crewId, userId (optional), displayName
+- role (LEAD|MEMBER)
+
+JobRequest (represents new lead/job needing assignment)
+- id, accountId
+- customerName, customerPhone
+- address, lat, lng, zip
+- servicesJson (JSON string array)
+- frequency (one_time|weekly|biweekly|monthly|unknown)
+- lotAreaSqft (nullable)
+- lotConfidence (high|medium|low)
+- requiredSkillsJson (JSON)
+- requiredEquipmentJson (JSON)
+- crewSizeMin (int)
+- laborLowMinutes, laborHighMinutes
+- status (new|triaged|simulated|recommended|assigned|needs_review)
+
+ScheduleItem (cached schedule from Jobber or internal)
+- id, accountId
+- externalProvider (jobber|internal)
+- externalId (nullable)
+- crewId (nullable)
+- userId (nullable)
+- startAt, endAt
+- lat, lng (nullable)
+- status (scheduled|complete|canceled)
+
+AssignmentSimulation
+- id, accountId, jobRequestId
+- crewId
+- proposedDate (date string)
+- proposedStartAt (nullable)
+- insertionType (before|between|after|anytime)
+- travelMinutesDelta
+- loadMinutesDelta
+- marginScore
+- riskScore
+- totalScore
+- explanationJson (JSON)
+- createdAt
+
+AssignmentDecision
+- id, accountId, jobRequestId
+- selectedSimulationId
+- mode (recommend_only|auto_assign)
+- approvedByUserId (nullable)
+- status (draft|approved|written_back|failed)
+- reasoningJson
+- createdAt
+
+DistanceCache
+- id
+- originKey, destKey (string, e.g. "lat,lng" rounded)
+- travelMinutes
+- distanceMeters
+- expiresAt
+
+API ROUTES (create stubs returning JSON):
+- POST /api/optimizer/simulate { jobRequestId } -> returns top simulations
+- POST /api/optimizer/decide { jobRequestId, simulationId } -> creates decision draft
+- POST /api/optimizer/approve { decisionId } -> marks approved (no writeback yet)
+- GET /api/ops/jobs -> list job requests and statuses
+- GET /api/ops/simulations?jobRequestId=
+- GET /api/ops/crews -> list crews
+- POST /api/ops/crews -> create/update crew
+
+SHARED TYPES
+Create /lib/types/optimizer.ts containing Zod schemas:
+- CrewSchema
+- JobRequestSchema
+- SimulationSchema
+- DecisionSchema
+
+DELIVERABLES
+- prisma schema + migration
+- typed db client
+- api route stubs
+- shared types
+- seed script: create sample crews + 3 sample JobRequests
+Return code file-by-file with paths.
