@@ -4,7 +4,7 @@
 
 import { pgTable, serial, integer, text, timestamp, jsonb, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { businesses, users } from "./schema";
+import { businessProfiles as businesses, users } from "./schema";
 
 // Action type enum
 export const ActionType = {

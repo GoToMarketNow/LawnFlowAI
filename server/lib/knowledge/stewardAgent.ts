@@ -3,12 +3,13 @@
 // Ensures knowledge base stays in sync with actual business settings
 
 import { db } from "../../db";
-import { businessProfiles, services, pricingPolicies, knowledgeItems, knowledgeVersions, knowledgeReviewsDue } from "../../../shared/schema";
+import { businessProfiles, services, pricingPolicies } from "../../../shared/schema";
+import { knowledgeItems, knowledgeVersions, knowledgeReviewsDue } from "../../../shared/knowledge-schema";
 import { eq, and, or, lt } from "drizzle-orm";
 import OpenAI from "openai";
 import { z } from "zod";
 import { generateEmbedding } from "./embeddings";
-import { auditLog } from "../audit";
+import { audit } from "../audit";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,

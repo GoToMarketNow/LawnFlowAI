@@ -3,7 +3,8 @@
 // Triggered during onboarding or when configuration changes detected
 
 import { db } from "../../db";
-import { businessProfiles, services, knowledgeItems, knowledgeVersions } from "../../../shared/schema";
+import { businessProfiles, services } from "../../../shared/schema";
+import { knowledgeItems, knowledgeVersions } from "../../../shared/knowledge-schema";
 import { eq, and } from "drizzle-orm";
 import OpenAI from "openai";
 import { z } from "zod";
@@ -22,7 +23,7 @@ import {
   type MacroContent,
 } from "../../../shared/knowledge-types";
 import { generateEmbedding } from "./embeddings";
-import { auditLog } from "../audit";
+import { audit } from "../audit";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,

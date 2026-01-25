@@ -4,7 +4,7 @@
 
 import { pgTable, serial, integer, text, timestamp, jsonb, real, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { businesses } from "./schema";
+import { businessProfiles as businesses } from "./schema";
 
 // Priority levels enum
 export const Priority = {

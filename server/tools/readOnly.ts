@@ -3,7 +3,7 @@
 // All tools are audited and logged
 
 import { db } from "../db";
-import { jobs, invoices, quotes, notifications } from "@shared/schema";
+import { jobs, invoices, quoteProposals as quotes, notifications } from "@shared/schema";
 import { eq, and, gte, desc, sql } from "drizzle-orm";
 
 export interface ToolDefinition {

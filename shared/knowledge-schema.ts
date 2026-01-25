@@ -4,7 +4,7 @@
 
 import { pgTable, serial, integer, text, timestamp, jsonb, uniqueIndex, index, check, pgPolicy } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { businesses, users } from "./schema";
+import { businessProfiles as businesses, users } from "./schema";
 
 // Custom vector type for pgvector
 export const vector = (name: string, config: { dimensions: number }) => {

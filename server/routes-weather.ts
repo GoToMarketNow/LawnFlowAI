@@ -15,7 +15,7 @@ import {
   weatherApprovalPackets,
   weatherMonitoringRuns
 } from '../shared/schema-weather';
-import { jobs, serviceAreas } from '../shared/schema';
+import { jobs, serviceZones as serviceAreas } from '../shared/schema';
 import { eq, and, gte, lte, desc, sql, inArray } from 'drizzle-orm';
 import { getWeatherProviderService } from './services/weather/providerService';
 import { RiskScorer } from './services/weather/riskScorer';
