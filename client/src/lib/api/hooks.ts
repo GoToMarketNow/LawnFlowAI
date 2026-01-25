@@ -4,7 +4,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UseMutationOptions, UseQueryOptions } from '@tanstack/react-query';
-import { apiRequest } from './queryClient';
+import { apiRequest } from '../queryClient';
 
 // ============================================
 // Type Definitions
