@@ -511,22 +511,7 @@ export const phoneVerifications = pgTable("phone_verifications", {
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
-// Onboarding Sessions - track user onboarding progress
-export const onboardingSessions = pgTable("onboarding_sessions", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull(),
-  businessId: integer("business_id").references(() => businessProfiles.id),
-  currentStep: text("current_step").notNull().default("welcome"), // welcome, business_basics, services, pricing, crews, get_paid, approvals, power_ups
-  completedSteps: text("completed_steps").array().default([]),
-  stateJson: jsonb("state_json"), // Store all step data
-  qrCodeToken: text("qr_code_token"), // JWT token for mobile binding
-  mobileVerified: boolean("mobile_verified").default(false),
-  webVerified: boolean("web_verified").default(false),
-  startedAt: timestamp("started_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-  completedAt: timestamp("completed_at"),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-});
+// Onboarding Sessions - track user onboarding progress (REMOVED - duplicate, see line 3684)
 
 // Mobile Device Bindings - QR code license bindings
 export const mobileDeviceBindings = pgTable("mobile_device_bindings", {
@@ -593,14 +578,7 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type PhoneVerification = typeof phoneVerifications.$inferSelect;
 export type InsertPhoneVerification = z.infer<typeof insertPhoneVerificationSchema>;
 
-// Onboarding types
-export const insertOnboardingSessionSchema = createInsertSchema(onboardingSessions).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-export type OnboardingSession = typeof onboardingSessions.$inferSelect;
-export type InsertOnboardingSession = z.infer<typeof insertOnboardingSessionSchema>;
+// Onboarding types (REMOVED - duplicate, see line 3703)
 
 export const insertMobileDeviceBindingSchema = createInsertSchema(mobileDeviceBindings).omit({
   id: true,

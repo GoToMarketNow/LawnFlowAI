@@ -45,6 +45,7 @@ async function buildAll() {
     ...Object.keys(pkg.devDependencies || {}),
   ];
   const externals = allDeps.filter((dep) => !allowlist.includes(dep));
+  externals.push("@anthropic-ai/sdk"); // Not in package.json but imported
 
   await esbuild({
     entryPoints: ["server/index.ts"],
@@ -58,6 +59,10 @@ async function buildAll() {
     minify: true,
     external: externals,
     logLevel: "info",
+    alias: {
+      "@db": "./server/db.ts",
+      "@shared": "./shared",
+    },
   });
 }
 
