@@ -4,6 +4,7 @@
   import path from 'path';
 
   export default defineConfig({
+    root: 'client',
     plugins: [react()],
     resolve: {
       extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
@@ -46,12 +47,12 @@
         '@radix-ui/react-aspect-ratio@1.1.2': '@radix-ui/react-aspect-ratio',
         '@radix-ui/react-alert-dialog@1.1.6': '@radix-ui/react-alert-dialog',
         '@radix-ui/react-accordion@1.2.3': '@radix-ui/react-accordion',
-        '@': path.resolve(__dirname, './src'),
+        '@': path.resolve(__dirname, './client/src'),
       },
     },
     build: {
       target: 'esnext',
-      outDir: 'build',
+      outDir: '../dist/public',
     },
     server: {
       port: 3000,
