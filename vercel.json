@@ -4,31 +4,14 @@
   "installCommand": "npm install",
   "builds": [
     {
-      "src": "dist/index.cjs",
+      "src": "api/index.js",
       "use": "@vercel/node"
-    },
-    {
-      "src": "dist/public/**",
-      "use": "@vercel/static"
     }
   ],
   "routes": [
     {
-      "src": "/assets/(.*)",
-      "dest": "/dist/public/assets/$1"
-    },
-    {
-      "src": "/favicon.png",
-      "dest": "/dist/public/favicon.png"
-    },
-    {
       "src": "/(.*)",
-      "dest": "/dist/index.cjs"
+      "dest": "/api/index.js"
     }
-  ],
-  "functions": {
-    "dist/index.cjs": {
-      "includeFiles": "dist/public/**"
-    }
-  }
+  ]
 }
